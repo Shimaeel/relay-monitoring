@@ -3,33 +3,55 @@
 #include <chrono>
 
 #include "client.hpp"
+#include "telnet_fsm.hpp"
 
 int main()
 {
-    std::cout << "=== TelnetClient Standalone Test ===\n";
+    std::cout << "=== Telnet FSM STEP-10 Test ===\n";
 
     TelnetClient client;
 
-    // 1️⃣ Connect
     if (!client.connect("192.168.0.2", 23))
-    {
-        std::cerr << "Connection failed\n";
         return 1;
-    }
 
-    // 2️⃣ Start receiver thread
     client.startReceiver();
 
-    // 3️⃣ Send SER command
-    if (!client.sendCommand("SER GET_ALL"))
-    {
-        std::cerr << "Failed to send SER command\n";
-        return 1;
-    }
+    sml::sm<TelnetFSM> fsm{ client };
 
-    // 4️⃣ Wait to receive full response
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    // ================= TYPED FSM EVENT BINDING =================
+    client.setEventCallback([&fsm](FsmEvent ev) {
+        switch (ev)
+        {
+        case FsmEvent::Login1Ok:
+            std::cout << "[MAIN] Login1 OK\n";
+            fsm.process_event(login1_ok{});
+            break;
 
-    std::cout << "=== Test finished ===\n";
+        case FsmEvent::Login1Fail:
+            std::cout << "[MAIN] Login1 FAIL\n";
+            fsm.process_event(login1_fail{});
+            break;
+
+        case FsmEvent::Login2Ok:
+            std::cout << "[MAIN] Login2 OK\n";
+            fsm.process_event(login2_ok{});
+            break;
+
+        case FsmEvent::Login2Fail:
+            std::cout << "[MAIN] Login2 FAIL\n";
+            fsm.process_event(login2_fail{});
+            break;
+
+        case FsmEvent::SerOk:
+            fsm.process_event(ser_ok{});
+            break;
+        }
+    });
+
+    fsm.process_event(start_event{});
+
+    std::this_thread::sleep_for(std::chrono::seconds(10));
+
+    std::cout << "=== STEP-10 DONE ===\n";
     return 0;
 }

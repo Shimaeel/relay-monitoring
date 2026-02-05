@@ -39,35 +39,51 @@ void TelnetClient::startReceiver()
     std::thread([this]() { receiveMessages(); }).detach();
 }
 
-// ================= SEND COMMAND =================
-bool TelnetClient::sendCommand(const std::string& command)
+// ================= GENERIC SEND =================
+bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
+                                      std::string& outBuffer)
 {
     if (!connected_)
         return false;
 
     try
     {
-        std::string cmd = command + "\n";
+        outBuffer.clear();
+        std::string fullCmd = cmd + "\n";
 
-        if (command == "SER" || command == "SER GET_ALL")
+        if (cmd == "SER" || cmd == "SER GET_ALL")
         {
             capturing_ser_ = true;
             ser_buffer_.clear();
         }
 
-        asio::write(socket_, asio::buffer(cmd));
+        asio::write(socket_, asio::buffer(fullCmd));
         return true;
     }
     catch (const std::exception& e)
     {
-        std::cerr << "Send error: " << e.what() << std::endl;
+        std::cerr << "SendCmdReceiveData error: "
+                  << e.what() << std::endl;
         return false;
     }
 }
 
+// ================= FSM CALLBACK SETTER =================
+void TelnetClient::setEventCallback(std::function<void(FsmEvent)> cb)
+{
+    eventCallback_ = std::move(cb);
+}
+
+// ================= IS CONNECTED =================
 bool TelnetClient::isConnected() const
 {
     return connected_;
+}
+
+// ================= RESPONSE ACCESS =================
+const std::string& TelnetClient::getLastResponse() const
+{
+    return ser_buffer_;
 }
 
 // ================= RECEIVE THREAD =================
@@ -102,18 +118,45 @@ void TelnetClient::receiveMessages()
                     line.pop_back();
 
                 std::cout << line << std::endl;
+                ser_buffer_ += line + "\n";
 
-                if (capturing_ser_)
+                // ================= LOGIN LEVEL 1 =================
+                if (line.find("Login1 successful") != std::string::npos)
                 {
-                    ser_buffer_ += line + "\n";
-
-                    if (line.find("SER Response Complete") != std::string::npos)
-                    {
-                        saveSERToFile(ser_buffer_);
-                        capturing_ser_ = false;
-                        ser_buffer_.clear();
-                    }
+                    if (eventCallback_)
+                        eventCallback_(FsmEvent::Login1Ok);
                 }
+                else if (line.find("Login1 failed") != std::string::npos)
+                {
+                    if (eventCallback_)
+                        eventCallback_(FsmEvent::Login1Fail);
+                }
+
+                // ================= LOGIN LEVEL 2 =================
+                if (line.find("Login2 successful") != std::string::npos)
+                {
+                    if (eventCallback_)
+                        eventCallback_(FsmEvent::Login2Ok);
+                }
+                else if (line.find("Login2 failed") != std::string::npos)
+                {
+                    if (eventCallback_)
+                        eventCallback_(FsmEvent::Login2Fail);
+                }
+
+                // ================= SER COMPLETE =================
+                if (capturing_ser_ &&
+                    line.find("SER Response Complete") != std::string::npos)
+                {
+                    saveSERToFile(ser_buffer_);
+                    capturing_ser_ = false;
+
+                    if (eventCallback_)
+                        eventCallback_(FsmEvent::SerOk);
+
+                    ser_buffer_.clear();
+                }
+
             }
         }
     }
@@ -130,16 +173,6 @@ void TelnetClient::saveSERToFile(const std::string& ser_data)
 {
     try
     {
-        std::vector<std::string> records;
-        std::istringstream stream(ser_data);
-        std::string line;
-
-        while (std::getline(stream, line))
-        {
-            if (line.find("Record ") != std::string::npos)
-                records.push_back(line);
-        }
-
         std::ofstream file("ser_data.json");
         if (!file.is_open())
         {
@@ -147,27 +180,8 @@ void TelnetClient::saveSERToFile(const std::string& ser_data)
             return;
         }
 
-        auto now = std::chrono::system_clock::now();
-        auto tt = std::chrono::system_clock::to_time_t(now);
-        char timestamp[64];
-        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&tt));
-
-        file << "{\n";
-        file << "  \"timestamp\": \"" << timestamp << "\",\n";
-        file << "  \"totalRecords\": " << records.size() << ",\n";
-        file << "  \"records\": [\n";
-
-        for (size_t i = 0; i < records.size(); ++i)
-        {
-            file << "    { \"raw\": \"" << records[i] << "\" }";
-            if (i + 1 < records.size())
-                file << ",";
-            file << "\n";
-        }
-
-        file << "  ]\n}\n";
+        file << ser_data;
         file.close();
-
         std::cout << "\n[SER data saved to ser_data.json]\n";
     }
     catch (const std::exception& e)

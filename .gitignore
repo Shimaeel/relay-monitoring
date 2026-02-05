@@ -1,0 +1,15 @@
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.log
+*.tmp
+*.out
+
+# VS Code
+.vscode/
+
+# Build folders
+build/
+Debug/
+Release/
