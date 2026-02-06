@@ -2,167 +2,168 @@
 
 #include <boost/sml.hpp>
 #include <iostream>
+#include <string>
+#include <chrono>
+
 #include "client.hpp"
 
 namespace sml = boost::sml;
 
 // ================= EVENTS =================
 struct start_event {};
+struct step_event {};
+struct unhandled_event {};
 
-struct connect_ok {};
-struct connect_fail {};
+// ================= CONFIG =================
+struct ConnectionConfig
+{
+    std::string host;
+    int port;
+    std::chrono::milliseconds timeout;
+};
 
-struct login1_ok {};
-struct login1_fail {};
-
-struct login2_ok {};
-struct login2_fail {};
-
-struct ser_ok {};
-struct ser_fail {};
-
+struct LoginConfig
+{
+    std::string l1_user;
+    std::string l1_pass;
+};
 
 // ================= ACTION FUNCTIONS =================
-struct ConnectAction {
-    void operator()(const start_event&, TelnetClient& client) const {
-        std::cout << "[ACTION] Start connection\n";
-
-        std::string dummy;
-        client.SendCmdReceiveData("", dummy);
+struct ConnectAction
+{
+    template <class Event>
+    void operator()(const Event&, TelnetClient& client, const ConnectionConfig& config) const
+    {
+        std::cout << "[ACTION] Connect\n";
+        client.clearLastResponse();
+        client.connectCheck(config.host, config.port, config.timeout);
     }
 };
 
-struct Login1Action {
-    void operator()(const login1_ok&, TelnetClient& client) const {
-        std::cout << "[ACTION] Login Level 1 command sent\n";
-
-        std::string buffer;
-        client.SendCmdReceiveData("LOGIN_LEVEL_1", buffer);
+struct Login1Action
+{
+    template <class Event>
+    void operator()(const Event&, TelnetClient& client, const LoginConfig& config) const
+    {
+        std::cout << "[ACTION] Login Level 1\n";
+        client.clearLastResponse();
+        client.LoginLevel1Function(config.l1_user, config.l1_pass);
     }
 };
 
-struct Login2Action {
-    void operator()(const login2_ok&, TelnetClient& client) const {
-        std::cout << "[ACTION] Login Level 2 command sent\n";
-
-        std::string buffer;
-        client.SendCmdReceiveData("LOGIN_LEVEL_2", buffer);
-    }
-};
-
-struct SendSERAction {
-    void operator()(const ser_ok&, TelnetClient& client) const {
-        std::cout << "[ACTION] Sending SER GET_ALL\n";
+struct PollSerAction
+{
+    template <class Event>
+    void operator()(const Event&, TelnetClient& client) const
+    {
+        std::cout << "[ACTION] SER GET_ALL\n";
+        client.clearLastResponse();
         std::string buffer;
         client.SendCmdReceiveData("SER GET_ALL", buffer);
     }
 };
 
-
-
 // ================= GUARD FUNCTIONS =================
-struct AlwaysTrueGuard {
-    template <typename Event>
-    bool operator()(const Event&) const {
-        return true;
-    }
-};
-
-// 🔴 STEP-6 GUARD (ADDED)
-struct Login1ResponseOkGuard {
-    bool operator()(const login1_ok&, TelnetClient& client) const {
-
-        // 🔹 TEMP SIMPLE CHECK (example strings)
-        // Replace keywords based on your relay output
-        const std::string& response = client.getLastResponse();
-
-        if (response.find("Login successful") != std::string::npos ||
-            response.find(">") != std::string::npos)
-        {
-            std::cout << "[GUARD] LoginLevel1 SUCCESS\n";
-            return true;
-        }
-
-        std::cout << "[GUARD] LoginLevel1 FAILED\n";
+inline bool hasPrompt(const std::string& buffer)
+{
+    auto pos = buffer.find_last_not_of(" \r\n\t");
+    if (pos == std::string::npos)
         return false;
+    const char last = buffer[pos];
+    return last == '>' || last == '#' || last == '$' || last == ':';
+}
+
+struct ConnectOkGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client) const
+    {
+        return client.getLastIoResult();
     }
 };
 
-
-// ================= ENTRY FUNCTIONS =================
-struct OnConnectingEntry {
-    void operator()() const {
-        std::cout << "[ENTRY] Connecting\n";
+struct ConnectFailGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client) const
+    {
+        return !client.getLastIoResult();
     }
 };
 
-struct OnLogin1Entry {
-    void operator()() const {
-        std::cout << "[ENTRY] LoginLevel1\n";
+struct Login1CompleteGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client) const
+    {
+        const std::string& response = client.getLastResponse();
+        return client.getLastIoResult() &&
+               (response.find("Level 1") != std::string::npos || hasPrompt(response));
     }
 };
 
-
-// ================= EXIT FUNCTIONS =================
-struct OnConnectingExit {
-    void operator()() const {
-        std::cout << "[EXIT] Connecting\n";
+struct Login1FailGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client) const
+    {
+        return !Login1CompleteGuard{}(step_event{}, client);
     }
 };
 
-struct OnLogin1Exit {
-    void operator()() const {
-        std::cout << "[EXIT] LoginLevel1\n";
+struct SerCompleteGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client) const
+    {
+        const std::string& response = client.getLastResponse();
+        return client.getLastIoResult() &&
+               (response.find("SER Response Complete") != std::string::npos || hasPrompt(response));
     }
 };
 
+struct SerFailGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client) const
+    {
+        return !SerCompleteGuard{}(step_event{}, client);
+    }
+};
 
 // ================= SAFETY HANDLERS =================
-auto on_unhandled = [](auto) {
+inline auto on_unhandled = [](const unhandled_event&) {
     std::cout << "[UNHANDLED EVENT]\n";
 };
 
-auto on_unexpected = [](auto) {
+inline auto on_unexpected = [](const auto&) {
     std::cout << "[UNEXPECTED EVENT]\n";
 };
 
-
 // ================= FSM =================
-struct TelnetFSM {
-    auto operator()() const {
+struct TelnetFSM
+{
+    auto operator()() const
+    {
         using namespace sml;
 
         return make_transition_table(
             // Entry / Exit
-            "Connecting"_s + on_entry<_> / OnConnectingEntry{},
-            "Connecting"_s + on_exit<_>  / OnConnectingExit{},
-
-            "LoginLevel1"_s + on_entry<_> / OnLogin1Entry{},
-            "LoginLevel1"_s + on_exit<_>  / OnLogin1Exit{},
+            "Connecting"_s + on_entry<_> / ConnectAction{},
+            "Login_L1"_s + on_entry<_> / Login1Action{},
+            "Polling"_s + on_entry<_> / PollSerAction{},
 
             // Transitions
-            *"Idle"_s + event<start_event> / ConnectAction{} = "Connecting"_s,
+            *"Idle"_s + event<start_event> = "Connecting"_s,
 
-            "Connecting"_s + event<connect_ok> [ AlwaysTrueGuard{} ] = "LoginLevel1"_s,
-            "Connecting"_s + event<connect_fail> = "Error"_s,
+            "Connecting"_s + event<step_event> [ ConnectOkGuard{} ] = "Login_L1"_s,
+            "Connecting"_s + event<step_event> [ ConnectFailGuard{} ] = "Error"_s,
 
-            // 🔴 STEP-6 GUARD WIRED HERE
-            "LoginLevel1"_s
-                + event<login1_ok>
-                [ Login1ResponseOkGuard{} ]
-                / Login1Action{}
-                = "LoginLevel2"_s,
+            "Login_L1"_s + event<step_event> [ Login1CompleteGuard{} ] = "Operational"_s,
+            "Login_L1"_s + event<step_event> [ Login1FailGuard{} ] = "Error"_s,
 
-            "LoginLevel1"_s + event<login1_fail> = "Error"_s,
+            "Operational"_s + event<step_event> = "Polling"_s,
 
-            "LoginLevel2"_s + event<login2_ok> / Login2Action{} = "SendSER"_s,
-            "LoginLevel2"_s + event<login2_fail> = "Error"_s,
-
-            "SendSER"_s + event<ser_ok> = "Success"_s,
-            "SendSER"_s + event<ser_fail> = "Error"_s,
+            "Polling"_s + event<step_event> [ SerCompleteGuard{} ] = "Operational"_s,
+            "Polling"_s + event<step_event> [ SerFailGuard{} ] = "Error"_s,
 
             // Safety
-            state<_> + unexpected_event<_> / on_unexpected
+            state<_> + event<unhandled_event> / on_unhandled = "Error"_s,
+            state<_> + unexpected_event<_> / on_unexpected = "Error"_s
         );
     }
 };

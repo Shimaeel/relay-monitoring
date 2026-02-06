@@ -2,22 +2,10 @@
 
 #include <boost/asio.hpp>
 #include <string>
-#include <functional>
+#include <chrono>
 
 namespace asio = boost::asio;
 using boost::asio::ip::tcp;
-
-// ================= FSM EVENT TYPES =================
-// Typed events instead of bool (STEP-10)
-enum class FsmEvent
-{
-    Login1Ok,
-    Login1Fail,
-    Login2Ok,
-    Login2Fail,
-    SerOk,
-    SerFail
-};
 
 class TelnetClient
 {
@@ -25,8 +13,9 @@ public:
     TelnetClient();
 
     // ================= CORE OPERATIONS =================
-    bool connect(const std::string& host, int port);
-    void startReceiver();
+    bool connectCheck(const std::string& host,
+                      int port,
+                      std::chrono::milliseconds timeout);
     bool isConnected() const;
 
     // ================= GENERIC FSM API =================
@@ -34,26 +23,25 @@ public:
     bool SendCmdReceiveData(const std::string& cmd,
                             std::string& outBuffer);
 
+    // ================= TELNET COMMAND WRAPPERS =================
+    bool LoginLevel1Function(const std::string& username,
+                             const std::string& password);
+
     // ================= RESPONSE ACCESS =================
     const std::string& getLastResponse() const;
-
-    // ================= FSM CALLBACK (STEP-10) =================
-    // TelnetClient -> FSM notification (typed)
-    void setEventCallback(std::function<void(FsmEvent)> cb);
+    bool getLastIoResult() const;
+    void clearLastResponse();
 
 private:
     // ================= INTERNAL HELPERS =================
-    void receiveMessages();
-    void saveSERToFile(const std::string& ser_data);
+    bool isResponseComplete(const std::string& buffer) const;
+    static bool endsWithPrompt(const std::string& buffer);
 
 private:
     asio::io_context io_;
     tcp::socket socket_;
     bool connected_;
-
-    std::string ser_buffer_;
-    bool capturing_ser_;
-
-    // ================= FSM CALLBACK STORAGE =================
-    std::function<void(FsmEvent)> eventCallback_;
+    bool last_io_ok_;
+    std::string last_response_;
+    std::chrono::milliseconds io_timeout_;
 };
