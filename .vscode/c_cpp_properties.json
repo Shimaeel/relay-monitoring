@@ -5,9 +5,9 @@
       "includePath": [
         "${workspaceFolder}/**",
         "${workspaceFolder}/third_party/sml/include",
-        "C:/Libraries/boost_1_90_0"
+        "C:\\Development\\Libraries\\boost_1_90_0\\boost"
       ],
-      "compilerPath": "C:/mingw64/bin/g++.exe",
+      "compilerPath": "C:/Program Files/mingw64/bin/g++.exe",
       "cStandard": "c17",
       "cppStandard": "c++17",
       "intelliSenseMode": "windows-gcc-x64"

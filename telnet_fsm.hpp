@@ -34,7 +34,7 @@ struct ConnectAction
     template <class Event>
     void operator()(const Event&, TelnetClient& client, const ConnectionConfig& config) const
     {
-        std::cout << "[ACTION] Connect\n";
+        // std::cout << "[ACTION] Connect\n";
         client.clearLastResponse();
         client.connectCheck(config.host, config.port, config.timeout);
     }
@@ -45,7 +45,7 @@ struct Login1Action
     template <class Event>
     void operator()(const Event&, TelnetClient& client, const LoginConfig& config) const
     {
-        std::cout << "[ACTION] Login Level 1\n";
+        // std::cout << "[ACTION] Login Level 1\n";
         client.clearLastResponse();
         client.LoginLevel1Function(config.l1_user, config.l1_pass);
     }
@@ -56,28 +56,42 @@ struct PollSerAction
     template <class Event>
     void operator()(const Event&, TelnetClient& client) const
     {
-        std::cout << "[ACTION] SER GET_ALL\n";
+        // std::cout << "[ACTION] Sending SER command\n";
         client.clearLastResponse();
         std::string buffer;
-        client.SendCmdReceiveData("SER GET_ALL", buffer);
+        client.SendCmdReceiveData("SER", buffer);
     }
 };
 
 // ================= GUARD FUNCTIONS =================
 inline bool hasPrompt(const std::string& buffer)
 {
-    auto pos = buffer.find_last_not_of(" \r\n\t");
-    if (pos == std::string::npos)
-        return false;
-    const char last = buffer[pos];
-    return last == '>' || last == '#' || last == '$' || last == ':';
+    // Check last 30 characters for prompt, ignoring telnet control codes
+    size_t len = buffer.length();
+    // std::cout << "[DEBUG hasPrompt] Buffer length: " << len << "\n";
+    if (len == 0) return false;
+    
+    // Look at last 30 characters for a prompt character
+    size_t start = (len > 30) ? len - 30 : 0;
+    // std::cout << "[DEBUG hasPrompt] Checking from pos " << start << " to " << len << "\n";
+    for(size_t i = len; i > start; --i) {
+        char c = buffer[i-1];
+        if (c == '>' || c == '#' || c == '$' || c == ':' || c == '?') {
+            // std::cout << "[DEBUG hasPrompt] Found '" << c <<  "' at pos " << (i-1) << "\n";
+            return true;
+        }
+    }
+    // std::cout << "[DEBUG hasPrompt] No prompt found\n";
+    return false;
 }
 
 struct ConnectOkGuard
 {
     bool operator()(const step_event&, const TelnetClient& client) const
     {
-        return client.getLastIoResult();
+        bool result = client.getLastIoResult();
+        // std::cout << "[DEBUG] ConnectOkGuard: " << (result ? "SUCCESS" : "FAIL") << "\n";
+        return result;
     }
 };
 
@@ -94,8 +108,9 @@ struct Login1CompleteGuard
     bool operator()(const step_event&, const TelnetClient& client) const
     {
         const std::string& response = client.getLastResponse();
-        return client.getLastIoResult() &&
-               (response.find("Level 1") != std::string::npos || hasPrompt(response));
+        // std::cout << "[DEBUG] Login1CompleteGuard - IO Result: " << client.getLastIoResult() 
+        //           << ", Response: [" << response << "], HasPrompt: " << hasPrompt(response) << "\n";
+        return client.getLastIoResult() && hasPrompt(response);
     }
 };
 

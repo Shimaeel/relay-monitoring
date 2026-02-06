@@ -3,6 +3,7 @@
 #include <iostream>
 #include <chrono>
 #include <array>
+#include <thread>
 
 // ================= CONSTRUCTOR =================
 TelnetClient::TelnetClient()
@@ -75,12 +76,14 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
 {
     if (!connected_)
     {
+        // std::cout << "[DEBUG] SendCmdReceiveData: Not connected\n";
         last_io_ok_ = false;
         return false;
     }
 
     try
     {
+        // std::cout << "[DEBUG] SendCmdReceiveData: Sending '" << cmd << "'\n";
         outBuffer.clear();
         last_response_.clear();
 
@@ -88,6 +91,7 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
         asio::write(socket_, asio::buffer(fullCmd));
 
         auto start = std::chrono::steady_clock::now();
+        int readCount = 0;
 
         while (true)
         {
@@ -95,8 +99,12 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
             boost::system::error_code ec;
             std::size_t bytes = socket_.read_some(asio::buffer(data), ec);
 
+            readCount++;
+            // std::cout << "[DEBUG] Read #" << readCount << ": " << bytes << " bytes\n";
+
             if (ec)
             {
+                // std::cout << "[DEBUG] Read error: " << ec.message() << "\n";
                 last_io_ok_ = false;
                 return false;
             }
@@ -104,14 +112,18 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
             outBuffer.append(data.data(), bytes);
             last_response_ = outBuffer;
 
+            // std::cout << "[DEBUG] Buffer so far: [" << outBuffer << "]\n";
+
             if (isResponseComplete(outBuffer))
             {
+                // std::cout << "[DEBUG] Response complete!\n";
                 last_io_ok_ = true;
                 return true;
             }
 
             if (std::chrono::steady_clock::now() - start > io_timeout_)
             {
+                // std::cout << "[DEBUG] Timeout after " << readCount << " reads\n";
                 last_io_ok_ = false;
                 return false;
             }
@@ -152,11 +164,19 @@ void TelnetClient::clearLastResponse()
 bool TelnetClient::LoginLevel1Function(const std::string& username,
                                        const std::string& password)
 {
+    // std::cout << "[DEBUG] Sending username: " << username << "\n";
     std::string buffer;
     if (!SendCmdReceiveData(username, buffer))
+    {
+        // std::cout << "[DEBUG] Username send failed\n";
         return false;
+    }
+    // std::cout << "[DEBUG] Username response: [" << buffer << "]\n";
 
-    return SendCmdReceiveData(password, buffer);
+    // std::cout << "[DEBUG] Sending password\n";
+    bool result = SendCmdReceiveData(password, buffer);
+    // std::cout << "[DEBUG] Password response: [" << buffer << "], Result: " << result << "\n";
+    return result;
 }
 
 // ================= COMPLETION HELPERS =================
@@ -170,10 +190,16 @@ bool TelnetClient::isResponseComplete(const std::string& buffer) const
 
 bool TelnetClient::endsWithPrompt(const std::string& buffer)
 {
-    auto pos = buffer.find_last_not_of(" \r\n\t");
-    if (pos == std::string::npos)
-        return false;
-
-    const char last = buffer[pos];
-    return last == '>' || last == '#' || last == '$' || last == ':';
+    // Check last 30 characters for prompt, ignoring telnet control codes
+    size_t len = buffer.length();
+    if (len == 0) return false;
+    
+    // Look at last 30 characters for a prompt character
+    size_t start = (len > 30) ? len - 30 : 0;
+    for(size_t i = len; i > start; --i) {
+        char c = buffer[i-1];
+        if (c == '>' || c == '#' || c == '$' || c == ':' || c == '?')
+            return true;
+    }
+    return false;
 }
