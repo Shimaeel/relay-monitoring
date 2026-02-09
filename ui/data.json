@@ -1,0 +1,37 @@
+[
+  {
+    "sno": 1,
+    "date": "2026-01-14",
+    "time": "09:15:23",
+    "element": "Voltage threshold exceeded",
+    "state": "ACTIVE"
+  },
+  {
+    "sno": 2,
+    "date": "2026-01-14",
+    "time": "09:20:45",
+    "element": "Temperature anomaly detected",
+    "state": "ACTIVE"
+  },
+  {
+    "sno": 3,
+    "date": "2026-01-14",
+    "time": "10:00:00",
+    "element": "System reset completed",
+    "state": "INACTIVE"
+  },
+  {
+    "sno": 4,
+    "date": "2026-01-14",
+    "time": "10:15:30",
+    "element": "Communication link restored",
+    "state": "ACTIVE"
+  },
+  {
+    "sno": 5,
+    "date": "2026-01-14",
+    "time": "11:30:00",
+    "element": "Backup power engaged",
+    "state": "ACTIVE"
+  }
+]

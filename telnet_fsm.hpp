@@ -4,8 +4,11 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <thread>
 
 #include "client.hpp"
+#include "ser_record.hpp"
+#include "ser_database.hpp"
 
 namespace sml = boost::sml;
 
@@ -26,6 +29,17 @@ struct LoginConfig
 {
     std::string l1_user;
     std::string l1_pass;
+};
+
+struct RetryState
+{
+    int max_retries = 3;
+    int current_attempt = 0;
+    std::chrono::seconds retry_delay{30};
+    
+    bool canRetry() const { return current_attempt < max_retries; }
+    void reset() { current_attempt = 0; }
+    void increment() { ++current_attempt; }
 };
 
 // ================= ACTION FUNCTIONS =================
@@ -54,12 +68,41 @@ struct Login1Action
 struct PollSerAction
 {
     template <class Event>
-    void operator()(const Event&, TelnetClient& client) const
+    void operator()(const Event&, TelnetClient& client, SERDatabase& db) const
     {
         // std::cout << "[ACTION] Sending SER command\n";
         client.clearLastResponse();
         std::string buffer;
         client.SendCmdReceiveData("SER", buffer);
+
+        // Parse and store SER records in database
+        auto records = parseSERResponse(buffer);
+        if (!records.empty())
+        {
+            int inserted = db.insertRecords(records);
+            std::cout << "[DB] Stored " << inserted << " SER records\n";
+        }
+    }
+};
+
+struct RetryWaitAction
+{
+    template <class Event>
+    void operator()(const Event&, RetryState& retry) const
+    {
+        retry.increment();
+        std::cout << "[RETRY] Attempt " << retry.current_attempt << "/" << retry.max_retries 
+                  << " - Waiting " << retry.retry_delay.count() << "s before retry...\n";
+        std::this_thread::sleep_for(retry.retry_delay);
+    }
+};
+
+struct ResetRetryAction
+{
+    template <class Event>
+    void operator()(const Event&, RetryState& retry) const
+    {
+        retry.reset();
     }
 };
 
@@ -122,6 +165,36 @@ struct Login1FailGuard
     }
 };
 
+struct InvalidLoginGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client) const
+    {
+        const std::string& response = client.getLastResponse();
+        return response.find("invalid") != std::string::npos ||
+               response.find("Invalid") != std::string::npos ||
+               response.find("INVALID") != std::string::npos ||
+               response.find("error") != std::string::npos ||
+               response.find("Error") != std::string::npos ||
+               response.find("denied") != std::string::npos;
+    }
+};
+
+struct CanRetryGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client, const RetryState& retry) const
+    {
+        return InvalidLoginGuard{}(step_event{}, client) && retry.canRetry();
+    }
+};
+
+struct MaxRetriesReachedGuard
+{
+    bool operator()(const step_event&, const TelnetClient& client, const RetryState& retry) const
+    {
+        return InvalidLoginGuard{}(step_event{}, client) && !retry.canRetry();
+    }
+};
+
 struct SerCompleteGuard
 {
     bool operator()(const step_event&, const TelnetClient& client) const
@@ -161,6 +234,8 @@ struct TelnetFSM
             "Connecting"_s + on_entry<_> / ConnectAction{},
             "Login_L1"_s + on_entry<_> / Login1Action{},
             "Polling"_s + on_entry<_> / PollSerAction{},
+            "WaitingRetry"_s + on_entry<_> / RetryWaitAction{},
+            "Operational"_s + on_entry<_> / ResetRetryAction{},
 
             // Transitions
             *"Idle"_s + event<start_event> = "Connecting"_s,
@@ -168,8 +243,13 @@ struct TelnetFSM
             "Connecting"_s + event<step_event> [ ConnectOkGuard{} ] = "Login_L1"_s,
             "Connecting"_s + event<step_event> [ ConnectFailGuard{} ] = "Error"_s,
 
+            // Login with retry logic
             "Login_L1"_s + event<step_event> [ Login1CompleteGuard{} ] = "Operational"_s,
-            "Login_L1"_s + event<step_event> [ Login1FailGuard{} ] = "Error"_s,
+            "Login_L1"_s + event<step_event> [ CanRetryGuard{} ] = "WaitingRetry"_s,
+            "Login_L1"_s + event<step_event> [ MaxRetriesReachedGuard{} ] = "Error"_s,
+
+            // After waiting, retry connection
+            "WaitingRetry"_s + event<step_event> = "Connecting"_s,
 
             "Operational"_s + event<step_event> = "Polling"_s,
 

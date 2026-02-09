@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SER Records Viewer</title>
+    
+    <!-- Tabulator CSS -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            color: #00d4ff;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 0.9rem;
+        }
+        
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+        
+        .toolbar-left {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .record-count {
+            color: #00d4ff;
+            font-weight: bold;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #00d4ff;
+            color: #1a1a2e;
+        }
+        
+        .btn-primary:hover {
+            background: #00a8cc;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        #ser-table {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Custom Tabulator styling */
+        .tabulator {
+            background: #1e1e2f;
+            border: none;
+        }
+        
+        .tabulator-header {
+            background: #252540;
+            border-bottom: 2px solid #00d4ff;
+        }
+        
+        .tabulator-col {
+            background: #252540;
+        }
+        
+        .tabulator-col-title {
+            color: #00d4ff;
+            font-weight: 600;
+        }
+        
+        .tabulator-row {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .tabulator-row:hover {
+            background: rgba(0, 212, 255, 0.1) !important;
+        }
+        
+        .tabulator-cell {
+            color: #e0e0e0;
+        }
+        
+        /* Status badge styling */
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-active {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+        
+        .status-inactive {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+        
+        .last-update {
+            color: #666;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ SER Records Viewer</h1>
+            <p class="subtitle">System Event Records - Real-time Monitoring</p>
+        </header>
+        
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <span>Total Records: <span id="record-count" class="record-count">0</span></span>
+                <span class="last-update">Last updated: <span id="last-update">-</span></span>
+                <span id="connection-status" style="font-weight: bold;">🟡 Connecting...</span>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-secondary" onclick="exportCSV()">📥 Export CSV</button>
+                <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+            </div>
+        </div>
+        
+        <div id="ser-table"></div>
+    </div>
+    
+    <!-- Tabulator JS -->
+    <script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+    
+    <script>
+        let table;
+        let ws;
+        const WS_URL = 'ws://localhost:8765';
+        
+        // Status formatter
+        function statusFormatter(cell) {
+            const value = cell.getValue();
+            const statusClass = value === 'ACTIVE' ? 'status-active' : 'status-inactive';
+            return `<span class="status-badge ${statusClass}">${value}</span>`;
+        }
+        
+        // Initialize Tabulator
+        function initTable(data) {
+            table = new Tabulator("#ser-table", {
+                data: data,
+                layout: "fitColumns",
+                responsiveLayout: "collapse",
+                pagination: true,
+                paginationSize: 20,
+                paginationSizeSelector: [10, 20, 50, 100],
+                movableColumns: true,
+                placeholder: "No Records Available",
+                columns: [
+                    {
+                        title: "S.No",
+                        field: "sno",
+                        width: 80,
+                        hozAlign: "center",
+                        headerSort: true
+                    },
+                    {
+                        title: "Date",
+                        field: "date",
+                        width: 120,
+                        hozAlign: "center",
+                        headerSort: true
+                    },
+                    {
+                        title: "Time",
+                        field: "time",
+                        width: 100,
+                        hozAlign: "center",
+                        headerSort: true
+                    },
+                    {
+                        title: "Element",
+                        field: "element",
+                        minWidth: 300,
+                        headerSort: true
+                    },
+                    {
+                        title: "State",
+                        field: "state",
+                        width: 120,
+                        hozAlign: "center",
+                        formatter: statusFormatter,
+                        headerSort: true
+                    }
+                ],
+                initialSort: [
+                    { column: "sno", dir: "asc" }
+                ]
+            });
+            
+            document.getElementById('record-count').textContent = data.length;
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        }
+        
+        // WebSocket connection
+        function connectWebSocket() {
+            updateConnectionStatus('connecting');
+            
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                updateConnectionStatus('connected');
+                // Request initial data
+                ws.send('getData');
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Received', data.length, 'records');
+                    
+                    if (table) {
+                        table.setData(data);
+                    } else {
+                        initTable(data);
+                    }
+                    
+                    document.getElementById('record-count').textContent = data.length;
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                } catch (e) {
+                    console.error('Error parsing data:', e);
+                }
+            };
+            
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+                updateConnectionStatus('disconnected');
+                // Attempt to reconnect after 3 seconds
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus('error');
+            };
+        }
+        
+        function updateConnectionStatus(status) {
+            const statusEl = document.getElementById('connection-status');
+            const statusMap = {
+                'connecting': { text: '🟡 Connecting...', color: '#ffcc00' },
+                'connected': { text: '🟢 Connected', color: '#00ff88' },
+                'disconnected': { text: '🔴 Disconnected', color: '#ff6b6b' },
+                'error': { text: '🔴 Error', color: '#ff6b6b' }
+            };
+            
+            const info = statusMap[status] || statusMap['disconnected'];
+            statusEl.textContent = info.text;
+            statusEl.style.color = info.color;
+        }
+        
+        // Refresh data via WebSocket
+        function refreshData() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send('refresh');
+            } else {
+                console.log('WebSocket not connected, attempting reconnect...');
+                connectWebSocket();
+            }
+        }
+        
+        // Export to CSV
+        function exportCSV() {
+            if (table) {
+                table.download("csv", "ser_records.csv");
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initTable([]);  // Initialize empty table
+            connectWebSocket();
+        });
+    </script>
+</body>
+</html>

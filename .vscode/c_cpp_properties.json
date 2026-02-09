@@ -5,7 +5,8 @@
       "includePath": [
         "${workspaceFolder}/**",
         "${workspaceFolder}/third_party/sml/include",
-        "C:\\Development\\Libraries\\boost_1_90_0"
+        "C:\\Libraries\\boost_1_90_0",
+        "C:/sqlite"
       ],
       "compilerPath": "C:/Program Files/mingw64/bin/g++.exe",
       "cStandard": "c17",

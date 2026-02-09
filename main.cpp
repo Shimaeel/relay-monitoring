@@ -4,6 +4,8 @@
 
 #include "client.hpp"
 #include "telnet_fsm.hpp"
+#include "ser_database.hpp"
+#include "ws_server.hpp"
 
 int main()
 {
@@ -24,7 +26,27 @@ int main()
         "OTTER"
     };
 
-    sml::sm<TelnetFSM> fsm{ client, conn, creds };
+    // Retry configuration: 3 attempts, 30 second delay
+    RetryState retry{3, 0, std::chrono::seconds(30)};
+
+    // Initialize SQLite database for SER records
+    SERDatabase serDb("ser_records.db");
+    if (!serDb.open())
+    {
+        std::cerr << "Failed to open database: " << serDb.getLastError() << "\n";
+        return 1;
+    }
+    std::cout << "[DB] Database opened. Existing records: " << serDb.getRecordCount() << "\n";
+
+    // Start WebSocket server for UI
+    SERWebSocketServer wsServer(serDb, 8765);
+    if (!wsServer.start())
+    {
+        std::cerr << "Failed to start WebSocket server\n";
+        return 1;
+    }
+
+    sml::sm<TelnetFSM> fsm{ client, conn, creds, retry, serDb };
 
     fsm.process_event(start_event{});
 
@@ -53,6 +75,10 @@ int main()
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
-    // std::cout << "=== FSM DONE ===\n";
+    // Keep server running for UI access
+    std::cout << "\n[INFO] Press Enter to exit...\n";
+    std::cin.get();
+
+    wsServer.stop();
     return 0;
 }
