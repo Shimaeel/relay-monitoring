@@ -25,7 +25,6 @@ inline std::string recordsToJSON(const std::vector<SERRecord>& records)
 {
     std::string json = "[\n";
     
-    int sno = 1;
     for (size_t i = 0; i < records.size(); ++i)
     {
         const auto& rec = records[i];
@@ -53,7 +52,7 @@ inline std::string recordsToJSON(const std::vector<SERRecord>& records)
         }
         
         json += "  {\n";
-        json += "    \"sno\": " + std::to_string(sno++) + ",\n";
+        json += "    \"sno\": " + rec.record_id + ",\n";  // Use original # from relay
         json += "    \"date\": \"" + date + "\",\n";
         json += "    \"time\": \"" + time + "\",\n";
         json += "    \"element\": \"" + element + "\",\n";

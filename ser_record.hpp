@@ -4,6 +4,7 @@
 #include <vector>
 #include <sstream>
 #include <algorithm>
+#include <cctype>
 
 /**
  * @brief Structure representing a System Event Record (SER)
@@ -27,12 +28,10 @@ struct SERRecord
 /**
  * @brief Parse SER response string into vector of SERRecord
  * 
- * Expected format:
- * Total Records: 5
- * Record 1: SER-001 | 2026-01-14 09:15:23 | ACTIVE | Voltage threshold exceeded
- * Record 2: SER-002 | 2026-01-14 09:20:45 | ACTIVE | Temperature anomaly detected
- * ...
- * SER Response Complete
+ * Actual relay format:
+ * #      Date      Time           Element           State
+ *     45 02/14/22  12:47:19.970   Power loss
+ *     43 12/30/25  15:49:30.860   SALARM            Asserted
  */
 inline std::vector<SERRecord> parseSERResponse(const std::string& response)
 {
@@ -46,39 +45,86 @@ inline std::vector<SERRecord> parseSERResponse(const std::string& response)
         if (!line.empty() && line.back() == '\r')
             line.pop_back();
 
-        // Skip empty lines and non-record lines
-        if (line.empty() || line.find("Record ") != 0)
+        // Skip empty lines and header lines
+        if (line.empty() || line.find('#') == 0 || line.find("Date") != std::string::npos)
             continue;
 
-        // Find the colon after "Record N:"
-        size_t colonPos = line.find(':');
-        if (colonPos == std::string::npos)
+        // Trim leading whitespace
+        size_t start = line.find_first_not_of(" \t");
+        if (start == std::string::npos)
             continue;
 
-        // Get the part after "Record N: "
-        std::string recordData = line.substr(colonPos + 2);
-
-        // Split by " | "
-        std::vector<std::string> parts;
-        size_t start = 0;
-        size_t delimPos;
+        // Try to parse: "45 02/14/22  12:47:19.970   Power loss"
+        // Format: number date time element [state]
         
-        while ((delimPos = recordData.find(" | ", start)) != std::string::npos)
-        {
-            parts.push_back(recordData.substr(start, delimPos - start));
-            start = delimPos + 3; // Skip " | "
-        }
-        parts.push_back(recordData.substr(start)); // Last part
+        // Check if line starts with a number (SER record)
+        if (!std::isdigit(line[start]))
+            continue;
 
-        if (parts.size() >= 4)
+        // Parse using position-based extraction
+        std::istringstream lineStream(line);
+        
+        int recordNum;
+        std::string date, time, element, state;
+        
+        // Read record number, date, time
+        if (!(lineStream >> recordNum >> date >> time))
+            continue;
+
+        // Read rest of line as element + optional state
+        std::string rest;
+        std::getline(lineStream, rest);
+        
+        // Trim leading whitespace from rest
+        size_t restStart = rest.find_first_not_of(" \t");
+        if (restStart != std::string::npos)
+            rest = rest.substr(restStart);
+        else
+            rest = "";
+
+        // Check if last word is a state (Asserted/Deasserted)
+        size_t lastSpace = rest.rfind(' ');
+        if (lastSpace != std::string::npos)
         {
-            SERRecord record;
-            record.record_id = parts[0];
-            record.timestamp = parts[1];
-            record.status = parts[2];
-            record.description = parts[3];
-            records.push_back(record);
+            std::string lastWord = rest.substr(lastSpace + 1);
+            // Trim trailing whitespace from lastWord
+            size_t endPos = lastWord.find_last_not_of(" \t\r\n");
+            if (endPos != std::string::npos)
+                lastWord = lastWord.substr(0, endPos + 1);
+                
+            if (lastWord == "Asserted" || lastWord == "Deasserted")
+            {
+                state = lastWord;
+                element = rest.substr(0, lastSpace);
+                // Trim trailing whitespace from element
+                size_t elemEnd = element.find_last_not_of(" \t");
+                if (elemEnd != std::string::npos)
+                    element = element.substr(0, elemEnd + 1);
+            }
+            else
+            {
+                element = rest;
+                state = "";
+            }
         }
+        else
+        {
+            element = rest;
+            state = "";
+        }
+
+        if (element.empty())
+            continue;
+
+        // Keep original date format from relay (MM/DD/YY)
+        std::string formattedDate = date;
+
+        SERRecord record;
+        record.record_id = std::to_string(recordNum);  // Keep original # from relay
+        record.timestamp = formattedDate + " " + time;
+        record.status = state;  // Keep original state (Asserted/Deasserted/empty)
+        record.description = element;
+        records.push_back(record);
     }
 
     return records;

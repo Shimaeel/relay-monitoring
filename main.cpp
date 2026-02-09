@@ -50,25 +50,22 @@ int main()
 
     fsm.process_event(start_event{});
 
-    std::string lastPrinted;
     for (int i = 0; i < 10; ++i)
     {
-        // std::cout << "\n--- Step " << i << " ---\n";
-        // std::cout << "Last IO Result: " << (client.getLastIoResult() ? "OK" : "FAIL") << "\n";
-        // std::cout << "Last Response: [" << client.getLastResponse() << "]\n";
-        const std::string& response = client.getLastResponse();
-        if (response != lastPrinted) {
-            std::cout << response;
-            lastPrinted = response;
-        }
-        
         bool handled = fsm.process_event(step_event{});
         if (!handled)
             fsm.process_event(unhandled_event{});
 
         if (fsm.is("Error"_s))
         {
-            // std::cout << "FSM entered Error state!\n";
+            std::cout << "[ERROR] FSM entered Error state!\n";
+            break;
+        }
+
+        // Stop loop after SER polling is complete
+        if (fsm.is("Done"_s))
+        {
+            std::cout << "[INFO] SER data retrieved successfully.\n";
             break;
         }
 
@@ -76,7 +73,7 @@ int main()
     }
 
     // Keep server running for UI access
-    std::cout << "\n[INFO] Press Enter to exit...\n";
+    std::cout << "[INFO] Press Enter to exit...\n";
     std::cin.get();
 
     wsServer.stop();

@@ -70,17 +70,21 @@ struct PollSerAction
     template <class Event>
     void operator()(const Event&, TelnetClient& client, SERDatabase& db) const
     {
-        // std::cout << "[ACTION] Sending SER command\n";
         client.clearLastResponse();
         std::string buffer;
         client.SendCmdReceiveData("SER", buffer);
 
         // Parse and store SER records in database
         auto records = parseSERResponse(buffer);
+        
         if (!records.empty())
         {
             int inserted = db.insertRecords(records);
-            std::cout << "[DB] Stored " << inserted << " SER records\n";
+            std::cout << "[SER] Parsed " << records.size() << " records, stored " << inserted << " in database\n";
+        }
+        else
+        {
+            std::cout << "[SER] No records parsed - check response format!\n";
         }
     }
 };
@@ -253,8 +257,12 @@ struct TelnetFSM
 
             "Operational"_s + event<step_event> = "Polling"_s,
 
-            "Polling"_s + event<step_event> [ SerCompleteGuard{} ] = "Operational"_s,
+            // After successful poll, go to Done state (poll only once)
+            "Polling"_s + event<step_event> [ SerCompleteGuard{} ] = "Done"_s,
             "Polling"_s + event<step_event> [ SerFailGuard{} ] = "Error"_s,
+
+            // Done state - stay here (no more polling)
+            "Done"_s + event<step_event> = "Done"_s,
 
             // Safety
             state<_> + event<unhandled_event> / on_unhandled = "Error"_s,

@@ -91,46 +91,83 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
         asio::write(socket_, asio::buffer(fullCmd));
 
         auto start = std::chrono::steady_clock::now();
+        auto lastDataTime = start;
         int readCount = 0;
+        
+        // For SER command, use longer idle timeout to collect all data
+        bool isSERCmd = (cmd == "SER" || cmd == "ser");
+        auto idleTimeout = isSERCmd ? std::chrono::milliseconds(500) : std::chrono::milliseconds(200);
+
+        // Set socket to non-blocking for idle detection
+        socket_.non_blocking(true);
 
         while (true)
         {
-            std::array<char, 512> data{};
+            std::array<char, 4096> data{};  // Larger buffer
             boost::system::error_code ec;
             std::size_t bytes = socket_.read_some(asio::buffer(data), ec);
 
-            readCount++;
-            // std::cout << "[DEBUG] Read #" << readCount << ": " << bytes << " bytes\n";
-
+            if (ec == boost::asio::error::would_block)
+            {
+                // No data available, check if we should stop
+                auto now = std::chrono::steady_clock::now();
+                
+                // If we have data and haven't received anything for a while, we're done
+                if (!outBuffer.empty() && (now - lastDataTime) > idleTimeout)
+                {
+                    socket_.non_blocking(false);
+                    last_io_ok_ = true;
+                    return true;
+                }
+                
+                // Check overall timeout
+                if (now - start > io_timeout_)
+                {
+                    socket_.non_blocking(false);
+                    last_io_ok_ = !outBuffer.empty();  // Success if we got some data
+                    return last_io_ok_;
+                }
+                
+                // Small sleep to avoid busy loop
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                continue;
+            }
+            
             if (ec)
             {
+                socket_.non_blocking(false);
                 // std::cout << "[DEBUG] Read error: " << ec.message() << "\n";
                 last_io_ok_ = false;
                 return false;
             }
 
-            outBuffer.append(data.data(), bytes);
-            last_response_ = outBuffer;
+            if (bytes > 0)
+            {
+                readCount++;
+                lastDataTime = std::chrono::steady_clock::now();
+                outBuffer.append(data.data(), bytes);
+                last_response_ = outBuffer;
+            }
 
-            // std::cout << "[DEBUG] Buffer so far: [" << outBuffer << "]\n";
-
+            // Check for explicit completion markers
             if (isResponseComplete(outBuffer))
             {
-                // std::cout << "[DEBUG] Response complete!\n";
+                socket_.non_blocking(false);
                 last_io_ok_ = true;
                 return true;
             }
 
             if (std::chrono::steady_clock::now() - start > io_timeout_)
             {
-                // std::cout << "[DEBUG] Timeout after " << readCount << " reads\n";
-                last_io_ok_ = false;
-                return false;
+                socket_.non_blocking(false);
+                last_io_ok_ = !outBuffer.empty();
+                return last_io_ok_;
             }
         }
     }
     catch (const std::exception& e)
     {
+        socket_.non_blocking(false);
         std::cerr << "SendCmdReceiveData error: "
                   << e.what() << std::endl;
         last_io_ok_ = false;
@@ -185,21 +222,60 @@ bool TelnetClient::isResponseComplete(const std::string& buffer) const
     if (buffer.find("SER Response Complete") != std::string::npos)
         return true;
 
+    // For SER data, look for the actual command prompt at end of response
+    // The relay shows "=>" as the prompt after SER data
     return endsWithPrompt(buffer);
 }
 
 bool TelnetClient::endsWithPrompt(const std::string& buffer)
 {
-    // Check last 30 characters for prompt, ignoring telnet control codes
+    // Check last 50 characters for actual command prompt
+    // Looking for patterns like "\n=>" or "Level 1\n=>"
     size_t len = buffer.length();
-    if (len == 0) return false;
+    if (len < 3) return false;
     
-    // Look at last 30 characters for a prompt character
-    size_t start = (len > 30) ? len - 30 : 0;
-    for(size_t i = len; i > start; --i) {
-        char c = buffer[i-1];
-        if (c == '>' || c == '#' || c == '$' || c == ':' || c == '?')
+    // Look at last 50 characters
+    size_t start = (len > 50) ? len - 50 : 0;
+    std::string tail = buffer.substr(start);
+    
+    // Look for "=>" prompt which indicates end of relay response
+    // Must be at end of a line or end of buffer
+    size_t promptPos = tail.rfind("=>");
+    if (promptPos != std::string::npos)
+    {
+        // Check if it's at the end (possibly followed by whitespace)
+        size_t afterPrompt = promptPos + 2;
+        while (afterPrompt < tail.length())
+        {
+            char c = tail[afterPrompt];
+            if (c != ' ' && c != '\r' && c != '\n' && c != '\t')
+                break;
+            afterPrompt++;
+        }
+        if (afterPrompt >= tail.length())
             return true;
     }
+    
+    // Also check for other common prompts at end
+    // But NOT just ":" which appears in timestamps
+    if (tail.length() >= 2)
+    {
+        std::string lastTwo = tail.substr(tail.length() - 2);
+        if (lastTwo == "> " || lastTwo == ">\r" || lastTwo == ">\n")
+            return true;
+        if (lastTwo == "# " || lastTwo == "#\r" || lastTwo == "#\n")
+            return true;
+        if (lastTwo == "$ " || lastTwo == "$\r" || lastTwo == "$\n")
+            return true;
+    }
+    
+    // Check for "? " prompt (for questions)
+    if (tail.length() >= 2)
+    {
+        std::string lastTwo = tail.substr(tail.length() - 2);
+        if (lastTwo == "? ")
+            return true;
+    }
+    
     return false;
 }

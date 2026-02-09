@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SER Records Viewer</title>
     
-    <!-- Tabulator CSS -->
-    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    <!-- Tabulator CSS - Light Theme -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator.min.css" rel="stylesheet">
     
     <style>
         * {
@@ -17,7 +17,7 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -31,19 +31,19 @@
             text-align: center;
             margin-bottom: 30px;
             padding: 20px;
-            background: rgba(255, 255, 255, 0.05);
+            background: #ffffff;
             border-radius: 10px;
-            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
         }
         
         h1 {
-            color: #00d4ff;
+            color: #2563eb;
             font-size: 2rem;
             margin-bottom: 10px;
         }
         
         .subtitle {
-            color: #888;
+            color: #64748b;
             font-size: 0.9rem;
         }
         
@@ -53,18 +53,20 @@
             align-items: center;
             margin-bottom: 20px;
             padding: 15px;
-            background: rgba(255, 255, 255, 0.05);
+            background: #ffffff;
             border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
         }
         
         .toolbar-left {
             display: flex;
             gap: 15px;
             align-items: center;
+            color: #334155;
         }
         
         .record-count {
-            color: #00d4ff;
+            color: #2563eb;
             font-weight: bold;
         }
         
@@ -78,61 +80,61 @@
         }
         
         .btn-primary {
-            background: #00d4ff;
-            color: #1a1a2e;
+            background: #2563eb;
+            color: #ffffff;
         }
         
         .btn-primary:hover {
-            background: #00a8cc;
+            background: #1d4ed8;
             transform: translateY(-2px);
         }
         
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
         }
         
         .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: #e2e8f0;
         }
         
         #ser-table {
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
         
-        /* Custom Tabulator styling */
+        /* Custom Tabulator styling - Light Theme */
         .tabulator {
-            background: #1e1e2f;
-            border: none;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
         }
         
         .tabulator-header {
-            background: #252540;
-            border-bottom: 2px solid #00d4ff;
+            background: #f8fafc;
+            border-bottom: 2px solid #2563eb;
         }
         
         .tabulator-col {
-            background: #252540;
+            background: #f8fafc;
         }
         
         .tabulator-col-title {
-            color: #00d4ff;
+            color: #1e293b;
             font-weight: 600;
         }
         
         .tabulator-row {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid #e2e8f0;
         }
         
         .tabulator-row:hover {
-            background: rgba(0, 212, 255, 0.1) !important;
+            background: #f1f5f9 !important;
         }
         
         .tabulator-cell {
-            color: #e0e0e0;
+            color: #334155;
         }
         
         /* Status badge styling */
@@ -145,17 +147,22 @@
         }
         
         .status-active {
-            background: rgba(0, 255, 136, 0.2);
-            color: #00ff88;
+            background: #dcfce7;
+            color: #16a34a;
         }
         
         .status-inactive {
-            background: rgba(255, 107, 107, 0.2);
-            color: #ff6b6b;
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .status-event {
+            background: #fef3c7;
+            color: #d97706;
         }
         
         .last-update {
-            color: #666;
+            color: #64748b;
             font-size: 0.85rem;
         }
     </style>
@@ -193,8 +200,16 @@
         // Status formatter
         function statusFormatter(cell) {
             const value = cell.getValue();
-            const statusClass = value === 'ACTIVE' ? 'status-active' : 'status-inactive';
-            return `<span class="status-badge ${statusClass}">${value}</span>`;
+            let statusClass = 'status-event';
+            let displayValue = value || '-';
+            
+            if (value === 'Asserted') {
+                statusClass = 'status-active';
+            } else if (value === 'Deasserted') {
+                statusClass = 'status-inactive';
+            }
+            
+            return `<span class="status-badge ${statusClass}">${displayValue}</span>`;
         }
         
         // Initialize Tabulator
@@ -204,7 +219,7 @@
                 layout: "fitColumns",
                 responsiveLayout: "collapse",
                 pagination: true,
-                paginationSize: 20,
+                paginationSize: 50,
                 paginationSizeSelector: [10, 20, 50, 100],
                 movableColumns: true,
                 placeholder: "No Records Available",
@@ -214,7 +229,8 @@
                         field: "sno",
                         width: 80,
                         hozAlign: "center",
-                        headerSort: true
+                        headerSort: true,
+                        sorter: "number"
                     },
                     {
                         title: "Date",
@@ -270,8 +286,9 @@
             ws.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('Received', data.length, 'records');
+                    console.log('Received', data.length, 'records from relay');
                     
+                    // Always show real data from relay (via database)
                     if (table) {
                         table.setData(data);
                     } else {
@@ -301,10 +318,10 @@
         function updateConnectionStatus(status) {
             const statusEl = document.getElementById('connection-status');
             const statusMap = {
-                'connecting': { text: '🟡 Connecting...', color: '#ffcc00' },
-                'connected': { text: '🟢 Connected', color: '#00ff88' },
-                'disconnected': { text: '🔴 Disconnected', color: '#ff6b6b' },
-                'error': { text: '🔴 Error', color: '#ff6b6b' }
+                'connecting': { text: '🟡 Connecting...', color: '#d97706' },
+                'connected': { text: '🟢 Connected', color: '#16a34a' },
+                'disconnected': { text: '🔴 Disconnected', color: '#dc2626' },
+                'error': { text: '🔴 Error', color: '#dc2626' }
             };
             
             const info = statusMap[status] || statusMap['disconnected'];
@@ -329,10 +346,30 @@
             }
         }
         
+        // Auto-refresh interval (poll for new data every 2 seconds)
+        let autoRefreshInterval = null;
+        
+        function startAutoRefresh() {
+            if (autoRefreshInterval) return;
+            autoRefreshInterval = setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send('getData');
+                }
+            }, 2000);  // Poll every 2 seconds
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+        
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
             initTable([]);  // Initialize empty table
             connectWebSocket();
+            // Auto-refresh disabled - click "Refresh" button to update
         });
     </script>
 </body>
