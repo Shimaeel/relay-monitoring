@@ -58,7 +58,7 @@ if ($DLL) {
         -shared -o "$OUTPUT_DIR/telnet_sml.dll" `
         "-Wl,--out-implib,$OUTPUT_DIR/libtelnet_sml.a" `
         "-Wl,--export-all-symbols" `
-        client.cpp ser_database.cpp sqlite3.o `
+        client.cpp ser_database.cpp telnet_sml_app.cpp sqlite3.o `
         -lws2_32 -lmswsock
     
     if ($LASTEXITCODE -eq 0) {
@@ -106,7 +106,7 @@ else {
     & g++ -std=c++17 "-Wa,-mbig-obj" `
         -DTELNET_SML_STATIC `
         "-I$SML_INC" "-I$BOOST_INC" "-I$SQLITE_INC" `
-        main.cpp client.cpp ser_database.cpp sqlite3.o `
+        main.cpp client.cpp ser_database.cpp telnet_sml_app.cpp sqlite3.o `
         -o telnet_fsm_test.exe `
         -lws2_32 -lmswsock
 

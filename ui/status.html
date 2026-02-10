@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relay Status Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #111827;
+            --muted: #6b7280;
+            --accent: #0f766e;
+            --accent-2: #f59e0b;
+            --danger: #b91c1c;
+            --card: #ffffff;
+            --bg: #f3f4f6;
+            --ring: rgba(15, 118, 110, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Space Grotesk", "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top left, #dbeafe 0%, #fef3c7 32%, #f3f4f6 60%);
+            color: var(--ink);
+            min-height: 100vh;
+            padding: 28px;
+        }
+
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            gap: 24px;
+        }
+
+        header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+        }
+
+        .title-block h1 {
+            font-size: 2.4rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .title-block p {
+            color: var(--muted);
+            margin-top: 6px;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            background: #111827;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 999px;
+            font-size: 0.9rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .nav-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 18px rgba(17, 24, 39, 0.15);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+            gap: 24px;
+        }
+
+        .panel {
+            background: var(--card);
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .panel h2 {
+            font-size: 1.2rem;
+            margin-bottom: 16px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .status-card {
+            padding: 16px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(15, 118, 110, 0.03));
+            border: 1px solid rgba(15, 118, 110, 0.2);
+        }
+
+        .status-card h3 {
+            font-size: 0.85rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
+        }
+
+        .status-card .value {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .pill.good {
+            background: rgba(22, 163, 74, 0.15);
+            color: #15803d;
+        }
+
+        .pill.warn {
+            background: rgba(245, 158, 11, 0.16);
+            color: #b45309;
+        }
+
+        .pill.bad {
+            background: rgba(185, 28, 28, 0.16);
+            color: #b91c1c;
+        }
+
+        .mono {
+            font-family: "Source Code Pro", "Consolas", monospace;
+        }
+
+        .controls {
+            display: grid;
+            gap: 16px;
+        }
+
+        .btn-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn-connect {
+            background: var(--accent);
+            color: #ffffff;
+            box-shadow: 0 12px 20px rgba(15, 118, 110, 0.2);
+        }
+
+        .btn-disconnect {
+            background: #ffffff;
+            color: var(--danger);
+            border: 1px solid rgba(185, 28, 28, 0.3);
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .poll-rate {
+            padding: 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            background: #f8fafc;
+        }
+
+        .poll-rate label {
+            display: block;
+            color: var(--muted);
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .poll-inputs {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 140px;
+            gap: 12px;
+            align-items: center;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            font-size: 0.95rem;
+        }
+
+        .note {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+
+        .targets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .target-tag {
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(15, 118, 110, 0.12);
+            color: var(--accent);
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .poll-inputs {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <div class="title-block">
+                <h1>Relay Status Panel</h1>
+                <p>Live summary and connectivity controls for the relay channel.</p>
+            </div>
+        </header>
+
+        <section class="grid">
+            <div class="panel">
+                <h2>Status Information</h2>
+                <div class="status-grid">
+                    <div class="status-card">
+                        <h3>Relay Status</h3>
+                        <div class="value" id="relay-status">Normal</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Connectivity Status</h3>
+                        <div class="value" id="connectivity-status">
+                            <span class="pill warn">Disconnected</span>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Last Connected</h3>
+                        <div class="value mono" id="last-connected">-</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Relay Time</h3>
+                        <div class="value mono" id="relay-time">00:00:00</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Last Triggered</h3>
+                        <div class="value mono" id="last-triggered">-</div>
+                    </div>
+                    <div class="status-card">
+                        <h3>Targets</h3>
+                        <div class="targets" id="targets">
+                            <span class="target-tag">Relay-A1</span>
+                            <span class="target-tag">Breaker-03</span>
+                            <span class="target-tag">Bus-12</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Controls</h2>
+                <div class="controls">
+                    <div class="btn-row">
+                        <button class="btn btn-connect" id="connect-btn">Connect</button>
+                        <button class="btn btn-disconnect" id="disconnect-btn" disabled>Disconnect</button>
+                    </div>
+
+                    <div class="poll-rate">
+                        <label for="poll-range">Poll Rate (milliseconds)</label>
+                        <div class="poll-inputs">
+                            <input type="range" id="poll-range" min="500" max="10000" step="250" value="2000">
+                            <input type="number" id="poll-input" min="500" max="10000" step="250" value="2000">
+                        </div>
+                        <div class="note" id="poll-note">Currently polling every 2000 ms.</div>
+                    </div>
+
+                    <div class="status-card">
+                        <h3>Connection Log</h3>
+                        <div class="value mono" id="connection-log">Awaiting action.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const relayStatusEl = document.getElementById("relay-status");
+        const connectivityStatusEl = document.getElementById("connectivity-status");
+        const lastConnectedEl = document.getElementById("last-connected");
+        const relayTimeEl = document.getElementById("relay-time");
+        const lastTriggeredEl = document.getElementById("last-triggered");
+        const connectionLogEl = document.getElementById("connection-log");
+        const connectBtn = document.getElementById("connect-btn");
+        const disconnectBtn = document.getElementById("disconnect-btn");
+        const pollRange = document.getElementById("poll-range");
+        const pollInput = document.getElementById("poll-input");
+        const pollNote = document.getElementById("poll-note");
+
+        let pollInterval = null;
+        let connected = false;
+        let relaySeconds = 0;
+
+        function formatTime(totalSeconds) {
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+            const seconds = String(totalSeconds % 60).padStart(2, "0");
+            return `${hours}:${minutes}:${seconds}`;
+        }
+
+        function updateConnectivity(status) {
+            let pillClass = "warn";
+            let text = "Disconnected";
+
+            if (status === "connected") {
+                pillClass = "good";
+                text = "Connected";
+            } else if (status === "error") {
+                pillClass = "bad";
+                text = "Error";
+            }
+
+            connectivityStatusEl.innerHTML = `<span class="pill ${pillClass}">${text}</span>`;
+        }
+
+        function logMessage(message) {
+            connectionLogEl.textContent = message;
+        }
+
+        function startPolling() {
+            const rate = Number(pollInput.value);
+            pollNote.textContent = `Currently polling every ${rate} ms.`;
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+
+            pollInterval = setInterval(() => {
+                if (!connected) {
+                    return;
+                }
+                relaySeconds += 1;
+                relayTimeEl.textContent = formatTime(relaySeconds);
+                lastTriggeredEl.textContent = new Date().toLocaleTimeString();
+                relayStatusEl.textContent = relaySeconds % 12 === 0 ? "Alarm" : "Normal";
+            }, rate);
+        }
+
+        function connect() {
+            connected = true;
+            updateConnectivity("connected");
+            connectBtn.disabled = true;
+            disconnectBtn.disabled = false;
+            lastConnectedEl.textContent = new Date().toLocaleString();
+            logMessage("Connection established. Polling active.");
+            startPolling();
+        }
+
+        function disconnect() {
+            connected = false;
+            updateConnectivity("disconnected");
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            logMessage("Disconnected. Polling paused.");
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        function syncPollInputs(value) {
+            pollRange.value = value;
+            pollInput.value = value;
+            pollNote.textContent = `Currently polling every ${value} ms.`;
+            if (connected) {
+                startPolling();
+            }
+        }
+
+        connectBtn.addEventListener("click", connect);
+        disconnectBtn.addEventListener("click", disconnect);
+
+        pollRange.addEventListener("input", (event) => {
+            syncPollInputs(event.target.value);
+        });
+
+        pollInput.addEventListener("change", (event) => {
+            let value = Number(event.target.value);
+            if (Number.isNaN(value)) {
+                value = 2000;
+            }
+            value = Math.min(Math.max(value, 500), 10000);
+            syncPollInputs(value);
+        });
+
+        updateConnectivity("disconnected");
+        relayTimeEl.textContent = formatTime(relaySeconds);
+    </script>
+</body>
+</html>

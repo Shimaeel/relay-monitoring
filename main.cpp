@@ -88,27 +88,12 @@
  */
 
 #include <iostream>
-#include <thread>
-#include <chrono>
-#include <atomic>
-#include <mutex>
-
-#include "client.hpp"
-#include "telnet_fsm.hpp"
-#include "ser_database.hpp"
-#include "ws_server.hpp"
-#include "thread_manager.hpp"
+#include "telnet_sml_app.hpp"
 
 /**
  * @brief Main entry point for the Telnet-SML application
  * 
- * @details Initializes and orchestrates all system components:
- * 1. Creates TelnetClient for network communication
- * 2. Configures connection and authentication parameters
- * 3. Opens SQLite database for SER record storage
- * 4. Starts WebSocket server for real-time UI updates
- * 5. Initializes and runs the FSM to manage the connection workflow
- * 6. Waits for user input before graceful shutdown
+ * @details Delegates all application logic to the Telnet-SML DLL.
  * 
  * ## Configuration Parameters
  * 
@@ -130,144 +115,11 @@
  */
 int main()
 {
-    using namespace sml;
-
-    std::cout << "========================================\n";
-    std::cout << "  Telnet-SML Multi-threaded Application\n";
-    std::cout << "========================================\n\n";
-
-    // Shared stop flag for graceful shutdown
-    std::atomic<bool> app_running{true};
-    std::mutex fsm_mutex;  // Protect FSM access from multiple threads
-
-    TelnetClient client;
-
-    ConnectionConfig conn{
-        "192.168.0.2",
-        23,
-        std::chrono::milliseconds(2000)
-    };
-
-    LoginConfig creds{
-        "acc",
-        "OTTER"
-    };
-
-    // Retry configuration: 3 attempts, 30 second delay
-    RetryState retry{3, 0, std::chrono::seconds(30)};
-
-    // Initialize SQLite database for SER records
-    SERDatabase serDb("ser_records.db");
-    if (!serDb.open())
-    {
-        std::cerr << "Failed to open database: " << serDb.getLastError() << "\n";
+    TelnetSmlApp app;
+    if (!app.start())
         return 1;
-    }
-    std::cout << "[DB] Database opened. Existing records: " << serDb.getRecordCount() << "\n";
 
-    // =====================================================
-    // Thread 1: WebSocket Server (handles UI connections)
-    // =====================================================
-    SERWebSocketServer wsServer(serDb, 8765);
-    if (!wsServer.start())
-    {
-        std::cerr << "Failed to start WebSocket server\n";
-        return 1;
-    }
-
-    // =====================================================
-    // Thread 2 & 3: Thread Manager (DB Writer + SER Poller)
-    // =====================================================
-    ThreadManager threadMgr(serDb, std::chrono::seconds(120));  // Poll every 2 minutes
-
-    // Create FSM
-    sml::sm<TelnetFSM> fsm{ client, conn, creds, retry, serDb };
-
-    // Set up polling callback (Thread 2: Periodic SER polling)
-    threadMgr.setPollingCallback([&]() {
-        std::lock_guard<std::mutex> lock(fsm_mutex);
-        
-        if (!app_running.load()) return;
-        
-        std::cout << "[Poller] Re-running FSM for SER update...\n";
-        
-        // Reset retry state for new poll cycle
-        retry.reset();
-        
-        // Reinitialize FSM for new cycle
-        fsm.process_event(start_event{});
-        
-        for (int i = 0; i < 10 && app_running.load(); ++i)
-        {
-            bool handled = fsm.process_event(step_event{});
-            if (!handled)
-                fsm.process_event(unhandled_event{});
-
-            if (fsm.is("Error"_s) || fsm.is("Done"_s))
-                break;
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        }
-        
-        std::cout << "[Poller] Poll cycle complete\n";
-    });
-
-    // Start background threads (DB Writer + Poller)
-    threadMgr.startAll();
-
-    // =====================================================
-    // Main Thread: Initial FSM execution
-    // =====================================================
-    std::cout << "\n[Main] Starting initial SER retrieval...\n";
-    
-    {
-        std::lock_guard<std::mutex> lock(fsm_mutex);
-        fsm.process_event(start_event{});
-
-        for (int i = 0; i < 10; ++i)
-        {
-            bool handled = fsm.process_event(step_event{});
-            if (!handled)
-                fsm.process_event(unhandled_event{});
-
-            if (fsm.is("Error"_s))
-            {
-                std::cout << "[ERROR] FSM entered Error state!\n";
-                break;
-            }
-
-            if (fsm.is("Done"_s))
-            {
-                std::cout << "[INFO] SER data retrieved successfully.\n";
-                break;
-            }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        }
-    }
-
-    // =====================================================
-    // Main Thread: Wait for user input
-    // =====================================================
-    std::cout << "\n========================================\n";
-    std::cout << "  Active Threads:\n";
-    std::cout << "  - Main Thread: User input handler\n";
-    std::cout << "  - Thread 1: WebSocket Server (port 8765)\n";
-    std::cout << "  - Thread 2: SER Poller (2 min interval)\n";
-    std::cout << "  - Thread 3: Database Writer (async)\n";
-    std::cout << "========================================\n";
-    std::cout << "\n[INFO] Press Enter to exit...\n";
-    std::cin.get();
-
-    // =====================================================
-    // Graceful Shutdown
-    // =====================================================
-    std::cout << "\n[Main] Shutting down...\n";
-    app_running = false;
-    
-    threadMgr.stopAll();
-    wsServer.stop();
-    
-    std::cout << "[Main] Application terminated.\n";
+    app.waitForExit();
+    app.stop();
     return 0;
 }

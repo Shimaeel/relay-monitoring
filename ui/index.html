@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SER Records Viewer</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     
     <!-- Tabulator CSS - Light Theme -->
     <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator.min.css" rel="stylesheet">
@@ -14,12 +16,30 @@
             padding: 0;
             box-sizing: border-box;
         }
+
+        :root {
+            --bg: #eef2f6;
+            --surface: #ffffff;
+            --surface-soft: rgba(255, 255, 255, 0.7);
+            --ink: #0f172a;
+            --muted: #5b6477;
+            --accent: #0ea5a4;
+            --accent-2: #f97316;
+            --accent-3: #2563eb;
+            --border: rgba(148, 163, 184, 0.35);
+            --shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+        }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            font-family: "Sora", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(14, 165, 164, 0.2), transparent 45%),
+                radial-gradient(circle at top right, rgba(249, 115, 22, 0.16), transparent 40%),
+                repeating-linear-gradient(120deg, rgba(15, 23, 42, 0.04) 0px, rgba(15, 23, 42, 0.04) 1px, transparent 1px, transparent 60px),
+                var(--bg);
+            color: var(--ink);
             min-height: 100vh;
-            padding: 20px;
+            padding: 28px 20px 40px;
         }
         
         .container {
@@ -27,114 +47,175 @@
             margin: 0 auto;
         }
         
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        .hero {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px 24px;
+            margin-bottom: 28px;
+            padding: 26px 28px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
         }
-        
+
+        .hero-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            color: var(--accent);
+        }
+
         h1 {
-            color: #2563eb;
-            font-size: 2rem;
-            margin-bottom: 10px;
+            color: var(--ink);
+            font-size: 2.2rem;
+            margin: 6px 0 8px;
+            letter-spacing: -0.02em;
         }
-        
+
         .subtitle {
-            color: #64748b;
-            font-size: 0.9rem;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .hero-chips {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--ink);
+            background: rgba(14, 165, 164, 0.12);
+            border: 1px solid rgba(14, 165, 164, 0.35);
+        }
+
+        .chip.alt {
+            background: rgba(249, 115, 22, 0.12);
+            border: 1px solid rgba(249, 115, 22, 0.35);
         }
         
         .toolbar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            margin-bottom: 18px;
+            padding: 16px 18px;
+            background: var(--surface-soft);
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(6px);
         }
-        
+
         .toolbar-left {
             display: flex;
-            gap: 15px;
+            flex-wrap: wrap;
+            gap: 16px;
             align-items: center;
-            color: #334155;
+            color: var(--ink);
+            font-size: 0.92rem;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .hero-text {
+            max-width: 520px;
         }
         
         .record-count {
-            color: #2563eb;
-            font-weight: bold;
+            color: var(--accent-3);
+            font-weight: 700;
         }
         
         .btn {
-            padding: 10px 20px;
+            padding: 10px 18px;
             border: none;
-            border-radius: 5px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 0.9rem;
-            transition: all 0.3s ease;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         
         .btn-primary {
-            background: #2563eb;
+            background: linear-gradient(120deg, var(--accent-3), #38bdf8);
             color: #ffffff;
+            box-shadow: 0 12px 22px rgba(37, 99, 235, 0.22);
         }
-        
+
         .btn-primary:hover {
-            background: #1d4ed8;
-            transform: translateY(-2px);
+            transform: translateY(-1px) scale(1.01);
+            box-shadow: 0 16px 28px rgba(37, 99, 235, 0.28);
         }
         
         .btn-secondary {
-            background: #f1f5f9;
-            color: #334155;
-            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: var(--ink);
+            border: 1px solid var(--border);
         }
-        
+
         .btn-secondary:hover {
-            background: #e2e8f0;
+            transform: translateY(-1px);
+            box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
         }
         
         #ser-table {
-            border-radius: 10px;
+            border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            background: #ffffff;
+            animation: rise 0.6s ease;
         }
         
         /* Custom Tabulator styling - Light Theme */
         .tabulator {
             background: #ffffff;
-            border: 1px solid #e2e8f0;
+            border: none;
         }
-        
+
         .tabulator-header {
             background: #f8fafc;
-            border-bottom: 2px solid #2563eb;
+            border-bottom: 2px solid rgba(37, 99, 235, 0.25);
         }
-        
+
         .tabulator-col {
             background: #f8fafc;
         }
-        
+
         .tabulator-col-title {
-            color: #1e293b;
+            color: #0f172a;
             font-weight: 600;
+            font-size: 0.9rem;
         }
-        
+
         .tabulator-row {
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
         }
-        
+
         .tabulator-row:hover {
-            background: #f1f5f9 !important;
+            background: rgba(14, 165, 164, 0.08) !important;
         }
-        
+
         .tabulator-cell {
-            color: #334155;
+            color: #1f2937;
+            font-size: 0.9rem;
         }
         
         /* Status badge styling */
@@ -162,19 +243,134 @@
         }
         
         .last-update {
-            color: #64748b;
+            color: var(--muted);
             font-size: 0.85rem;
+        }
+
+        .config-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 14px 18px;
+            background: var(--surface-soft);
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(6px);
+        }
+
+        .config-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--ink);
+            font-size: 0.9rem;
+        }
+
+        .config-group label {
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .config-input {
+            padding: 9px 12px;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            min-width: 150px;
+            font-family: "JetBrains Mono", "Consolas", monospace;
+            background: #ffffff;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(14, 165, 164, 0.15);
+        }
+
+        .config-suffix {
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        @media (max-width: 900px) {
+            .hero {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .toolbar-right {
+                width: 100%;
+            }
+
+            .config-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .config-group {
+                justify-content: space-between;
+                width: 100%;
+            }
+
+            .config-input {
+                min-width: 0;
+                width: 100%;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease both;
+        }
+
+        .fade-in.delay {
+            animation-delay: 0.1s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(18px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>⚡ SER Records Viewer</h1>
-            <p class="subtitle">System Event Records - Real-time Monitoring</p>
+        <header class="hero fade-in">
+            <div class="hero-text">
+                <span class="hero-kicker">Live Monitoring</span>
+                <h1>⚡ SER Records Viewer</h1>
+                <p class="subtitle">System Event Records - Real-time Monitoring</p>
+            </div>
         </header>
         
-        <div class="toolbar">
+        <div class="toolbar fade-in delay">
             <div class="toolbar-left">
                 <span>Total Records: <span id="record-count" class="record-count">0</span></span>
                 <span class="last-update">Last updated: <span id="last-update">-</span></span>
@@ -183,6 +379,22 @@
             <div class="toolbar-right">
                 <button class="btn btn-secondary" onclick="exportCSV()">📥 Export CSV</button>
                 <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+            </div>
+        </div>
+
+        <div class="config-bar fade-in delay">
+            <div class="config-group">
+                <label for="ip-address">IP Address</label>
+                <input class="config-input" id="ip-address" type="text" value="localhost" placeholder="192.168.1.10">
+            </div>
+            <div class="config-group">
+                <label for="ws-port">WebSocket Port</label>
+                <input class="config-input" id="ws-port" type="number" min="1" max="65535" value="8765">
+            </div>
+            <div class="config-group">
+                <label for="poll-rate">Poll Rate</label>
+                <input class="config-input" id="poll-rate" type="number" min="250" step="250" value="2000">
+                <span class="config-suffix">ms</span>
             </div>
         </div>
         
@@ -196,6 +408,109 @@
         let table;
         let ws;
         const WS_URL = 'ws://localhost:8765';
+        const textDecoder = new TextDecoder();
+
+        function readLength(buffer, offset) {
+            const first = buffer[offset];
+            if ((first & 0x80) === 0) {
+                return { length: first, nextOffset: offset + 1 };
+            }
+
+            const count = first & 0x7f;
+            if (count === 0 || offset + count >= buffer.length) {
+                throw new Error('Invalid BER length');
+            }
+
+            let value = 0;
+            for (let i = 0; i < count; i += 1) {
+                value = (value << 8) | buffer[offset + 1 + i];
+            }
+
+            return { length: value, nextOffset: offset + 1 + count };
+        }
+
+        function readTlv(buffer, offset) {
+            const tag = buffer[offset];
+            const constructed = (tag & 0x20) !== 0;
+            const lengthInfo = readLength(buffer, offset + 1);
+            const valueStart = lengthInfo.nextOffset;
+            const tlvLen = (valueStart - offset) + lengthInfo.length;
+
+            return {
+                tag,
+                constructed,
+                valueStart,
+                length: lengthInfo.length,
+                nextOffset: valueStart + lengthInfo.length,
+                tlvLen
+            };
+        }
+
+        function decodeSerRecordsFromTlv(arrayBuffer) {
+            const buffer = new Uint8Array(arrayBuffer);
+            let offset = 0;
+            const topLevel = readTlv(buffer, offset);
+
+            if (topLevel.tag !== 0x61) {
+                throw new Error('Unexpected TLV tag');
+            }
+
+            const records = [];
+            offset = topLevel.valueStart;
+            const end = topLevel.valueStart + topLevel.length;
+
+            while (offset < end) {
+                const recordTlv = readTlv(buffer, offset);
+                if (recordTlv.tag !== 0x30) {
+                    offset = recordTlv.nextOffset;
+                    continue;
+                }
+
+                const fields = {};
+                let recordOffset = recordTlv.valueStart;
+                const recordEnd = recordTlv.valueStart + recordTlv.length;
+
+                while (recordOffset < recordEnd) {
+                    const fieldTlv = readTlv(buffer, recordOffset);
+                    const valueBytes = buffer.slice(fieldTlv.valueStart, fieldTlv.valueStart + fieldTlv.length);
+                    const value = textDecoder.decode(valueBytes);
+
+                    if (fieldTlv.tag === 0x80) {
+                        fields.recordId = value;
+                    } else if (fieldTlv.tag === 0x81) {
+                        fields.timestamp = value;
+                    } else if (fieldTlv.tag === 0x82) {
+                        fields.status = value;
+                    } else if (fieldTlv.tag === 0x83) {
+                        fields.description = value;
+                    }
+
+                    recordOffset = fieldTlv.nextOffset;
+                }
+
+                const timestamp = fields.timestamp || '';
+                let date = timestamp || '-';
+                let time = '-';
+                const spacePos = timestamp.indexOf(' ');
+                if (spacePos !== -1) {
+                    date = timestamp.slice(0, spacePos);
+                    time = timestamp.slice(spacePos + 1);
+                }
+
+                const snoValue = Number.parseInt(fields.recordId, 10);
+                records.push({
+                    sno: Number.isNaN(snoValue) ? (fields.recordId || '-') : snoValue,
+                    date,
+                    time,
+                    element: fields.description || '-',
+                    state: fields.status || '-'
+                });
+
+                offset = recordTlv.nextOffset;
+            }
+
+            return records;
+        }
         
         // Status formatter
         function statusFormatter(cell) {
@@ -275,6 +590,7 @@
             updateConnectionStatus('connecting');
             
             ws = new WebSocket(WS_URL);
+            ws.binaryType = 'arraybuffer';
             
             ws.onopen = function() {
                 console.log('WebSocket connected');
@@ -283,9 +599,18 @@
                 ws.send('getData');
             };
             
-            ws.onmessage = function(event) {
+            ws.onmessage = async function(event) {
                 try {
-                    const data = JSON.parse(event.data);
+                    let data = [];
+
+                    if (typeof event.data === 'string') {
+                        data = JSON.parse(event.data);
+                    } else {
+                        const buffer = event.data instanceof ArrayBuffer
+                            ? event.data
+                            : await event.data.arrayBuffer();
+                        data = decodeSerRecordsFromTlv(buffer);
+                    }
                     console.log('Received', data.length, 'records from relay');
                     
                     // Always show real data from relay (via database)

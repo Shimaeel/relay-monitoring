@@ -45,34 +45,27 @@
  * Browser->Session [label="connect"];
  * Session->Database [label="getAllRecords()"];
  * Database->Session [label="records"];
- * Session->Browser [label="JSON data"];
+ * Session->Browser [label="ASN.1 BER/TLV"];
  * Browser->Session [label="\"refresh\""];
  * Session->Database [label="getAllRecords()"];
  * Database->Session [label="records"];
- * Session->Browser [label="JSON data"];
+ * Session->Browser [label="ASN.1 BER/TLV"];
  * Browser->Session [label="close"];
  * @endmsc
  * 
- * ## JSON Data Format
+ * ## ASN.1 BER/TLV Payload Format
  * 
- * @code{.json}
- * [
- *   {
- *     "sno": 45,
- *     "date": "02/14/22",
- *     "time": "12:47:19.970",
- *     "element": "Power loss",
- *     "state": ""
- *   },
- *   {
- *     "sno": 43,
- *     "date": "12/30/25",
- *     "time": "15:49:30.860",
- *     "element": "SALARM",
- *     "state": "Asserted"
- *   }
- * ]
- * @endcode
+ * Top-level TLV:
+ * - Tag 0x61 (APPLICATION 1, constructed)
+ * - Value: zero or more Record TLVs
+ * 
+ * Record TLV:
+ * - Tag 0x30 (SEQUENCE, constructed)
+ * - Value: context-specific primitive fields
+ *   - 0x80: record_id (string)
+ *   - 0x81: timestamp (string)
+ *   - 0x82: status (string)
+ *   - 0x83: description (string)
  * 
  * ## Usage Example
  * 
@@ -90,7 +83,7 @@
  * @endcode
  * 
  * @see SERDatabase Database for record storage
- * @see recordsToJSON() JSON conversion function
+ * @see recordsToAsn1Tlv() ASN.1 BER/TLV conversion function
  * @see index.html Web UI that connects to this server
  * 
  * @note Uses Boost.Beast for WebSocket implementation
@@ -113,6 +106,7 @@
 #include <memory>
 #include <functional>
 #include <string>
+#include <vector>
 #include <iostream>
 
 #include "ser_database.hpp"
@@ -186,6 +180,70 @@ inline std::string recordsToJSON(const std::vector<SERRecord>& records)
     return json;
 }
 
+inline void ber_append_length(std::vector<uint8_t>& out, size_t len)
+{
+    if (len < 128U)
+    {
+        out.push_back(static_cast<uint8_t>(len));
+        return;
+    }
+
+    size_t tmp = len;
+    uint8_t buf[8] = {0};
+    size_t count = 0U;
+
+    while (tmp > 0U && count < sizeof(buf))
+    {
+        buf[count++] = static_cast<uint8_t>(tmp & 0xFFU);
+        tmp >>= 8U;
+    }
+
+    out.push_back(static_cast<uint8_t>(0x80U | count));
+    while (count > 0U)
+    {
+        out.push_back(buf[count - 1U]);
+        count--;
+    }
+}
+
+inline void ber_append_tlv(std::vector<uint8_t>& out, uint8_t tag, const uint8_t* value, size_t len)
+{
+    out.push_back(tag);
+    ber_append_length(out, len);
+    if (len > 0U && value != nullptr)
+    {
+        out.insert(out.end(), value, value + len);
+    }
+}
+
+inline void ber_append_string(std::vector<uint8_t>& out, uint8_t tag, const std::string& value)
+{
+    ber_append_tlv(out, tag, reinterpret_cast<const uint8_t*>(value.data()), value.size());
+}
+
+inline std::vector<uint8_t> recordsToAsn1Tlv(const std::vector<SERRecord>& records)
+{
+    std::vector<uint8_t> content;
+    content.reserve(records.size() * 64U);
+
+    for (const auto& rec : records)
+    {
+        std::vector<uint8_t> record_value;
+        ber_append_string(record_value, 0x80U, rec.record_id);
+        ber_append_string(record_value, 0x81U, rec.timestamp);
+        ber_append_string(record_value, 0x82U, rec.status);
+        ber_append_string(record_value, 0x83U, rec.description);
+
+        std::vector<uint8_t> record_tlv;
+        ber_append_tlv(record_tlv, 0x30U, record_value.data(), record_value.size());
+        content.insert(content.end(), record_tlv.begin(), record_tlv.end());
+    }
+
+    std::vector<uint8_t> payload;
+    ber_append_tlv(payload, 0x61U, content.data(), content.size());
+    return payload;
+}
+
 /**
  * @class WebSocketSession
  * @brief Handles a single WebSocket client connection
@@ -194,7 +252,7 @@ inline std::string recordsToJSON(const std::vector<SERRecord>& records)
  * - Accepts WebSocket handshake
  * - Sends initial data upon connection
  * - Listens for client messages (e.g., "refresh")
- * - Responds with current database records as JSON
+ * - Responds with current database records as ASN.1 BER/TLV
  * 
  * Uses shared_from_this() pattern for safe async callback handling.
  * 
@@ -227,7 +285,7 @@ class TELNET_SML_API WebSocketSession : public std::enable_shared_from_this<WebS
     SERDatabase& db_;                            ///< Reference to database for queries
     bool writing_ = false;                       ///< Flag to prevent concurrent writes
     bool pending_read_ = false;                  ///< Flag for pending read after write
-    std::string write_buffer_;                   ///< Buffer to hold data during async write
+    std::vector<uint8_t> write_buffer_;          ///< Buffer to hold data during async write
 
 public:
     /**
@@ -354,9 +412,9 @@ private:
         writing_ = true;
         
         auto records = db_.getAllRecords();
-        write_buffer_ = recordsToJSON(records);  // Store in member to keep alive
-        
-        ws_.text(true);
+        write_buffer_ = recordsToAsn1Tlv(records);  // Store in member to keep alive
+
+        ws_.binary(true);
         ws_.async_write(
             net::buffer(write_buffer_),  // Use member buffer
             beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this()));

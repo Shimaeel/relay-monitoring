@@ -45,7 +45,8 @@ $CXX_FLAGS = @(
 
 $SOURCES = @(
     "client.cpp",
-    "ser_database.cpp"
+    "ser_database.cpp",
+    "telnet_sml_app.cpp"
 )
 
 $OBJECTS = @()
