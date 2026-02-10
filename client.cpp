@@ -1,3 +1,32 @@
+/**
+ * @file client.cpp
+ * @brief Implementation of TelnetClient class
+ * 
+ * @details Provides TCP/Telnet communication implementation using Boost.Asio.
+ * Handles connection establishment, command transmission, and response collection
+ * with non-blocking I/O and idle timeout detection.
+ * 
+ * ## Implementation Details
+ * 
+ * ### Connection Strategy
+ * Uses async_connect with steady_timer for timeout handling. The I/O context
+ * runs until either connection succeeds or timeout fires.
+ * 
+ * ### Response Collection
+ * Employs non-blocking socket reads with adaptive timeout:
+ * - Standard commands: 200ms idle timeout
+ * - SER command: 500ms idle timeout (more data expected)
+ * 
+ * ### Prompt Detection
+ * Supports multiple prompt styles:
+ * - Relay prompt: `=>`
+ * - Unix prompts: `>`, `#`, `$`
+ * - Question prompts: `?`
+ * 
+ * @see client.hpp Header file with class declaration
+ * @see TelnetFSM State machine using this client
+ */
+
 #include "client.hpp"
 
 #include <iostream>

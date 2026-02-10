@@ -1,5 +1,61 @@
+/**
+ * @file ser_record.hpp
+ * @brief System Event Record (SER) Data Structure and Parser
+ * 
+ * @details This header defines the SERRecord structure for representing
+ * substation System Event Records and provides a parser for converting
+ * raw Telnet response data into structured records.
+ * 
+ * ## SER Record Format
+ * 
+ * Substation relays output SER data in the following format:
+ * ```
+ * #      Date      Time           Element           State
+ *     45 02/14/22  12:47:19.970   Power loss
+ *     43 12/30/25  15:49:30.860   SALARM            Asserted
+ *     42 12/30/25  15:49:30.850   VMIN              Deasserted
+ * ```
+ * 
+ * ## Data Flow
+ * 
+ * @dot
+ * digraph SERFlow {
+ *     rankdir=LR;
+ *     node [shape=box, style=filled, fillcolor=lightyellow];
+ *     
+ *     Relay [label="Relay\n(Raw Text)"];
+ *     Parser [label="parseSERResponse()"];
+ *     Records [label="vector<SERRecord>"];
+ *     DB [label="SERDatabase"];
+ *     
+ *     Relay -> Parser [label="text response"];
+ *     Parser -> Records [label="parse"];
+ *     Records -> DB [label="store"];
+ * }
+ * @enddot
+ * 
+ * ## Usage Example
+ * 
+ * @code{.cpp}
+ * std::string response = "45 02/14/22 12:47:19.970 Power loss\n";
+ * auto records = parseSERResponse(response);
+ * 
+ * for (const auto& rec : records) {
+ *     std::cout << rec.record_id << ": " << rec.description << "\n";
+ * }
+ * @endcode
+ * 
+ * @see SERDatabase Database storage for SER records
+ * @see PollSerAction FSM action that uses the parser
+ * 
+ * @author Telnet-SML Development Team
+ * @version 1.0.0
+ * @date 2026
+ */
+
 #pragma once
 
+#include "dll_export.hpp"
 #include <string>
 #include <vector>
 #include <sstream>
@@ -7,17 +63,46 @@
 #include <cctype>
 
 /**
+ * @struct SERRecord
  * @brief Structure representing a System Event Record (SER)
+ * 
+ * @details Holds parsed data from a single SER entry retrieved from
+ * a substation relay device. Each record represents one event in the
+ * relay's event log.
+ * 
+ * ## Field Mapping
+ * 
+ * | Field | Source | Example |
+ * |-------|--------|---------|
+ * | record_id | Event # | "45" |
+ * | timestamp | Date + Time | "02/14/22 12:47:19.970" |
+ * | status | State | "Asserted" or "" |
+ * | description | Element | "SALARM" |
+ * 
+ * @note record_id is stored as string to preserve original relay numbering
+ * @note status may be empty for events without assertion state
  */
-struct SERRecord
+struct TELNET_SML_API SERRecord
 {
-    std::string record_id;    // e.g., "SER-001"
-    std::string timestamp;    // e.g., "2026-01-14 09:15:23"
-    std::string status;       // e.g., "ACTIVE" or "INACTIVE"
-    std::string description;  // e.g., "Voltage threshold exceeded"
+    std::string record_id;    ///< Record identifier (e.g., "45", "SER-001")
+    std::string timestamp;    ///< Event timestamp (e.g., "02/14/22 12:47:19.970")
+    std::string status;       ///< Event state ("Asserted", "Deasserted", or empty)
+    std::string description;  ///< Event element/description (e.g., "SALARM", "Power loss")
 
+    /**
+     * @brief Default constructor
+     * @details Creates an empty SERRecord with all fields initialized to empty strings.
+     */
     SERRecord() = default;
 
+    /**
+     * @brief Parameterized constructor
+     * 
+     * @param id Record identifier
+     * @param ts Timestamp string
+     * @param stat Status/state string
+     * @param desc Description/element string
+     */
     SERRecord(const std::string& id, const std::string& ts,
               const std::string& stat, const std::string& desc)
         : record_id(id), timestamp(ts), status(stat), description(desc)
@@ -28,10 +113,62 @@ struct SERRecord
 /**
  * @brief Parse SER response string into vector of SERRecord
  * 
- * Actual relay format:
+ * @details Parses raw text response from SER command into structured records.
+ * Handles the specific format output by substation relay devices.
+ * 
+ * ## Input Format
+ * 
+ * ```
  * #      Date      Time           Element           State
  *     45 02/14/22  12:47:19.970   Power loss
  *     43 12/30/25  15:49:30.860   SALARM            Asserted
+ * ```
+ * 
+ * ## Parsing Algorithm
+ * 
+ * @dot
+ * digraph ParseAlgo {
+ *     rankdir=TB;
+ *     node [shape=box];
+ *     
+ *     start [shape=ellipse, label="Start"];
+ *     readline [label="Read Line"];
+ *     skip [label="Skip Header/Empty?", shape=diamond];
+ *     parse [label="Parse: # Date Time Element [State]"];
+ *     hasstate [label="Has State?", shape=diamond];
+ *     addrecord [label="Add to Vector"];
+ *     more [label="More Lines?", shape=diamond];
+ *     done [shape=ellipse, label="Return Records"];
+ *     
+ *     start -> readline;
+ *     readline -> skip;
+ *     skip -> readline [label="Yes"];
+ *     skip -> parse [label="No"];
+ *     parse -> hasstate;
+ *     hasstate -> addrecord [label="Split element/state"];
+ *     hasstate -> addrecord [label="No state"];
+ *     addrecord -> more;
+ *     more -> readline [label="Yes"];
+ *     more -> done [label="No"];
+ * }
+ * @enddot
+ * 
+ * ## Parsing Rules
+ * 
+ * 1. Lines starting with '#' are skipped (header)
+ * 2. Lines containing "Date" are skipped (column headers)
+ * 3. Lines must start with a number (record #)
+ * 4. State detection: "Asserted" or "Deasserted" at end
+ * 5. Whitespace is trimmed from all fields
+ * 
+ * @param response Raw text response from SER command
+ * @return std::vector<SERRecord> Parsed records (may be empty if parsing fails)
+ * 
+ * @note Date format is preserved from relay (MM/DD/YY)
+ * @note Empty lines and non-record lines are silently skipped
+ * 
+ * @see SERRecord Structure for individual records
+ * @see SERDatabase::insertRecords() For storing parsed records
  */
 inline std::vector<SERRecord> parseSERResponse(const std::string& response)
 {

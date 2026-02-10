@@ -297,6 +297,10 @@
                     
                     document.getElementById('record-count').textContent = data.length;
                     document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                    
+                    // Show connected status when data is received
+                    dataReceived = true;
+                    updateConnectionStatus('connected');
                 } catch (e) {
                     console.error('Error parsing data:', e);
                 }
@@ -304,7 +308,12 @@
             
             ws.onclose = function() {
                 console.log('WebSocket disconnected');
-                updateConnectionStatus('disconnected');
+                // Show "Data Synced" if data was received, otherwise "Disconnected"
+                if (dataReceived) {
+                    updateConnectionStatus('synced');
+                } else {
+                    updateConnectionStatus('disconnected');
+                }
                 // Attempt to reconnect after 3 seconds
                 setTimeout(connectWebSocket, 3000);
             };
@@ -315,11 +324,14 @@
             };
         }
         
+        let dataReceived = false;  // Track if data was received
+        
         function updateConnectionStatus(status) {
             const statusEl = document.getElementById('connection-status');
             const statusMap = {
                 'connecting': { text: '🟡 Connecting...', color: '#d97706' },
                 'connected': { text: '🟢 Connected', color: '#16a34a' },
+                'synced': { text: '🟢 Data Synced', color: '#16a34a' },
                 'disconnected': { text: '🔴 Disconnected', color: '#dc2626' },
                 'error': { text: '🔴 Error', color: '#dc2626' }
             };

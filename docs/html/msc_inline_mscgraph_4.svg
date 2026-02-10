@@ -1,0 +1,72 @@
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1"
+ width="600px" height="134px"
+ viewBox="0 0 600 134"
+ xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"
+ stroke-width="1" text-rendering="geometricPrecision">
+<polygon fill="white" points="59,7 89,7 89,16 59,16"/>
+<text x="75" y="16" textLength="29" font-family="Helvetica" font-size="12" fill="black" text-anchor="middle">
+
+Login
+</text>
+<polygon fill="white" points="207,7 241,7 241,16 207,16"/>
+<text x="225" y="16" textLength="33" font-family="Helvetica" font-size="12" fill="black" text-anchor="middle">
+
+Guard
+</text>
+<polygon fill="white" points="357,7 391,7 391,16 357,16"/>
+<text x="375" y="16" textLength="33" font-family="Helvetica" font-size="12" fill="black" text-anchor="middle">
+
+Action
+</text>
+<polygon fill="white" points="508,7 540,7 540,16 508,16"/>
+<text x="525" y="16" textLength="31" font-family="Helvetica" font-size="12" fill="black" text-anchor="middle">
+
+Timer
+</text>
+<line x1="75" y1="22" x2="75" y2="50" stroke="black"/>
+<line x1="225" y1="22" x2="225" y2="50" stroke="black"/>
+<line x1="375" y1="22" x2="375" y2="50" stroke="black"/>
+<line x1="525" y1="22" x2="525" y2="50" stroke="black"/>
+<line x1="75" y1="33" x2="225" y2="33" stroke="black"/>
+<line x1="225" y1="33" x2="215" y2="39" stroke="black"/>
+<polygon fill="white" points="120,23 179,23 179,32 120,32"/>
+<text x="121" y="32" textLength="57" font-family="Helvetica" font-size="12" fill="black">
+CanRetry?
+</text>
+<line x1="75" y1="50" x2="75" y2="78" stroke="black"/>
+<line x1="225" y1="50" x2="225" y2="78" stroke="black"/>
+<line x1="375" y1="50" x2="375" y2="78" stroke="black"/>
+<line x1="525" y1="50" x2="525" y2="78" stroke="black"/>
+<line x1="225" y1="61" x2="375" y2="61" stroke="black"/>
+<line x1="375" y1="61" x2="365" y2="67" stroke="black"/>
+<polygon fill="white" points="289,51 310,51 310,60 289,60"/>
+<text x="290" y="60" textLength="19" font-family="Helvetica" font-size="12" fill="black">
+yes
+</text>
+<line x1="75" y1="78" x2="75" y2="106" stroke="black"/>
+<line x1="225" y1="78" x2="225" y2="106" stroke="black"/>
+<line x1="375" y1="78" x2="375" y2="106" stroke="black"/>
+<line x1="525" y1="78" x2="525" y2="106" stroke="black"/>
+<line x1="375" y1="89" x2="525" y2="89" stroke="black"/>
+<line x1="525" y1="89" x2="515" y2="95" stroke="black"/>
+<polygon fill="white" points="422,79 477,79 477,88 422,88"/>
+<text x="423" y="88" textLength="53" font-family="Helvetica" font-size="12" fill="black">
+wait delay
+</text>
+<line x1="75" y1="106" x2="75" y2="134" stroke="black"/>
+<line x1="225" y1="106" x2="225" y2="134" stroke="black"/>
+<line x1="375" y1="106" x2="375" y2="134" stroke="black"/>
+<line x1="525" y1="106" x2="525" y2="134" stroke="black"/>
+<line x1="525" y1="117" x2="75" y2="117" stroke="black"/>
+<line x1="75" y1="117" x2="85" y2="123" stroke="black"/>
+<polygon fill="white" points="286,107 312,107 312,116 286,116"/>
+<text x="287" y="116" textLength="24" font-family="Helvetica" font-size="12" fill="black">
+retry
+</text>
+<line x1="75" y1="128" x2="75" y2="134" stroke="black"/>
+<line x1="225" y1="128" x2="225" y2="134" stroke="black"/>
+<line x1="375" y1="128" x2="375" y2="134" stroke="black"/>
+<line x1="525" y1="128" x2="525" y2="134" stroke="black"/>
+</svg>

@@ -1,3 +1,31 @@
+/**
+ * @file ser_database.cpp
+ * @brief Implementation of SERDatabase class for SQLite storage
+ * 
+ * @details Provides SQLite-based persistent storage for System Event Records.
+ * Implements all CRUD operations, duplicate detection, and JSON export.
+ * 
+ * ## Implementation Notes
+ * 
+ * ### Transaction Strategy
+ * - Single inserts: Direct INSERT with duplicate check
+ * - Bulk inserts: Wrapped in BEGIN/COMMIT for performance
+ * - Duplicate detection before INSERT (not via ON CONFLICT)
+ * 
+ * ### Error Handling
+ * - All SQLite errors captured in last_error_
+ * - Operations return false/0 on error
+ * - Database state remains consistent after errors
+ * 
+ * ### Query Performance
+ * - Indexes on record_id, status, timestamp
+ * - Results ordered by timestamp DESC
+ * - UNIQUE constraint on (record_id, timestamp)
+ * 
+ * @see ser_database.hpp Header with class declaration
+ * @see SQLite documentation: https://sqlite.org/docs.html
+ */
+
 #include "ser_database.hpp"
 #include <iostream>
 

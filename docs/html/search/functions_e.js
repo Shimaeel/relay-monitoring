@@ -1,0 +1,5 @@
+var searchData=
+[
+  ['_7eserdatabase_0',['~SERDatabase',['../class_s_e_r_database.html#a7ae66f851404b0d3c2c0ee6d807f6087',1,'SERDatabase']]],
+  ['_7eserwebsocketserver_1',['~SERWebSocketServer',['../class_s_e_r_web_socket_server.html#ad4f4a969a5cdc573cdf96c401feeda6c',1,'SERWebSocketServer']]]
+];

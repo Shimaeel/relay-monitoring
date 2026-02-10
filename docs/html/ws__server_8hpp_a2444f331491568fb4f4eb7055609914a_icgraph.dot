@@ -1,0 +1,22 @@
+digraph "recordsToJSON"
+{
+ // INTERACTIVE_SVG=YES
+ // LATEX_PDF_SIZE
+  bgcolor="transparent";
+  edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
+  node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
+  rankdir="RL";
+  Node1 [id="Node000001",label="recordsToJSON",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip="Convert vector of SER records to JSON string."];
+  Node1 -> Node2 [id="edge1_Node000001_Node000002",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node2 [id="Node000002",label="WebSocketSession::sendData",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_web_socket_session.html#a2529887f34770366fc2c225bd085edba",tooltip="Send current database records to client as JSON."];
+  Node2 -> Node3 [id="edge2_Node000002_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="WebSocketSession::on\l_accept",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_web_socket_session.html#a7b82f2e9c71f6822c2d2f6dcc1a251c5",tooltip="Handle WebSocket handshake completion."];
+  Node3 -> Node4 [id="edge3_Node000003_Node000004",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node4 [id="Node000004",label="WebSocketSession::run",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_web_socket_session.html#aa60a520432526e90b74fd97713469a56",tooltip="Start the session by accepting WebSocket handshake."];
+  Node2 -> Node5 [id="edge4_Node000002_Node000005",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node5 [id="Node000005",label="WebSocketSession::on_read",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_web_socket_session.html#a6c0557f87f9f6050a8848237ace942bb",tooltip="Handle received client message."];
+  Node5 -> Node6 [id="edge5_Node000005_Node000006",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node6 [id="Node000006",label="WebSocketSession::do_read",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_web_socket_session.html#a2bc079950c2e39e8ff745f0da57646ba",tooltip="Initiate async read for next client message."];
+  Node6 -> Node3 [id="edge6_Node000006_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node6 -> Node5 [id="edge7_Node000006_Node000005",dir="back",color="steelblue1",style="solid",tooltip=" "];
+}

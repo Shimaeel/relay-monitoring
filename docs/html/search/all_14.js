@@ -1,0 +1,5 @@
+var searchData=
+[
+  ['network_20layer_0',['2. TelnetClient (client.hpp/cpp) - Network Layer',['../md_work.html#autotoc_md41',1,'']]],
+  ['notes_1',['Implementation Notes',['../ser__database_8cpp.html#autotoc_md13',1,'']]]
+];

@@ -1,0 +1,134 @@
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1"
+ width="600px" height="358px"
+ viewBox="0 0 600 358"
+ xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"
+ stroke-width="1" text-rendering="geometricPrecision">
+<polygon fill="white" points="88,7 110,7 110,16 88,16"/>
+<text x="100" y="16" textLength="21" font-family="Helvetica" font-size="12" fill="black" text-anchor="middle">
+
+App
+</text>
+<polygon fill="white" points="290,7 308,7 308,16 290,16"/>
+<text x="300" y="16" textLength="17" font-family="Helvetica" font-size="12" fill="black" text-anchor="middle">
+
+DB
+</text>
+<polygon fill="white" points="480,7 518,7 518,16 480,16"/>
+<text x="500" y="16" textLength="37" font-family="Helvetica" font-size="12" fill="black" text-anchor="middle">
+
+SQLite
+</text>
+<line x1="100" y1="22" x2="100" y2="50" stroke="black"/>
+<line x1="300" y1="22" x2="300" y2="50" stroke="black"/>
+<line x1="500" y1="22" x2="500" y2="50" stroke="black"/>
+<line x1="100" y1="33" x2="300" y2="33" stroke="black"/>
+<line x1="300" y1="33" x2="290" y2="39" stroke="black"/>
+<polygon fill="white" points="182,23 217,23 217,32 182,32"/>
+<text x="183" y="32" textLength="33" font-family="Helvetica" font-size="12" fill="black">
+create
+</text>
+<line x1="100" y1="50" x2="100" y2="78" stroke="black"/>
+<line x1="300" y1="50" x2="300" y2="78" stroke="black"/>
+<line x1="500" y1="50" x2="500" y2="78" stroke="black"/>
+<line x1="100" y1="61" x2="300" y2="61" stroke="black"/>
+<line x1="300" y1="61" x2="290" y2="67" stroke="black"/>
+<polygon fill="white" points="181,51 218,51 218,60 181,60"/>
+<text x="182" y="60" textLength="35" font-family="Helvetica" font-size="12" fill="black">
+open()
+</text>
+<line x1="100" y1="78" x2="100" y2="106" stroke="black"/>
+<line x1="300" y1="78" x2="300" y2="106" stroke="black"/>
+<line x1="500" y1="78" x2="500" y2="106" stroke="black"/>
+<line x1="300" y1="89" x2="500" y2="89" stroke="black"/>
+<line x1="500" y1="89" x2="490" y2="95" stroke="black"/>
+<polygon fill="white" points="364,79 434,79 434,88 364,88"/>
+<text x="365" y="88" textLength="68" font-family="Helvetica" font-size="12" fill="black">
+sqlite3_open
+</text>
+<line x1="100" y1="106" x2="100" y2="134" stroke="black"/>
+<line x1="300" y1="106" x2="300" y2="134" stroke="black"/>
+<line x1="500" y1="106" x2="500" y2="134" stroke="black"/>
+<line x1="300" y1="117" x2="500" y2="117" stroke="black"/>
+<line x1="500" y1="117" x2="490" y2="123" stroke="black"/>
+<polygon fill="white" points="353,107 445,107 445,116 353,116"/>
+<text x="354" y="116" textLength="90" font-family="Helvetica" font-size="12" fill="black">
+CREATE TABLE
+</text>
+<line x1="100" y1="134" x2="100" y2="162" stroke="black"/>
+<line x1="300" y1="134" x2="300" y2="162" stroke="black"/>
+<line x1="500" y1="134" x2="500" y2="162" stroke="black"/>
+<line x1="100" y1="145" x2="300" y2="145" stroke="black"/>
+<line x1="300" y1="145" x2="290" y2="151" stroke="black"/>
+<polygon fill="white" points="157,135 241,135 241,144 157,144"/>
+<text x="158" y="144" textLength="82" font-family="Helvetica" font-size="12" fill="black">
+insertRecords()
+</text>
+<line x1="100" y1="162" x2="100" y2="190" stroke="black"/>
+<line x1="300" y1="162" x2="300" y2="190" stroke="black"/>
+<line x1="500" y1="162" x2="500" y2="190" stroke="black"/>
+<line x1="300" y1="173" x2="500" y2="173" stroke="black"/>
+<line x1="500" y1="173" x2="490" y2="179" stroke="black"/>
+<polygon fill="white" points="327,163 472,163 472,172 327,172"/>
+<text x="328" y="172" textLength="143" font-family="Helvetica" font-size="12" fill="black">
+BEGIN; INSERT; COMMIT
+</text>
+<line x1="100" y1="190" x2="100" y2="218" stroke="black"/>
+<line x1="300" y1="190" x2="300" y2="218" stroke="black"/>
+<line x1="500" y1="190" x2="500" y2="218" stroke="black"/>
+<line x1="100" y1="201" x2="300" y2="201" stroke="black"/>
+<line x1="300" y1="201" x2="290" y2="207" stroke="black"/>
+<polygon fill="white" points="157,191 242,191 242,200 157,200"/>
+<text x="158" y="200" textLength="83" font-family="Helvetica" font-size="12" fill="black">
+getAllRecords()
+</text>
+<line x1="100" y1="218" x2="100" y2="246" stroke="black"/>
+<line x1="300" y1="218" x2="300" y2="246" stroke="black"/>
+<line x1="500" y1="218" x2="500" y2="246" stroke="black"/>
+<line x1="300" y1="229" x2="500" y2="229" stroke="black"/>
+<line x1="500" y1="229" x2="490" y2="235" stroke="black"/>
+<polygon fill="white" points="375,219 424,219 424,228 375,228"/>
+<text x="376" y="228" textLength="47" font-family="Helvetica" font-size="12" fill="black">
+SELECT
+</text>
+<line x1="100" y1="246" x2="100" y2="274" stroke="black"/>
+<line x1="300" y1="246" x2="300" y2="274" stroke="black"/>
+<line x1="500" y1="246" x2="500" y2="274" stroke="black"/>
+<line x1="500" y1="257" x2="300" y2="257" stroke="black"/>
+<line x1="300" y1="257" x2="310" y2="263" stroke="black"/>
+<polygon fill="white" points="386,247 413,247 413,256 386,256"/>
+<text x="387" y="256" textLength="25" font-family="Helvetica" font-size="12" fill="black">
+rows
+</text>
+<line x1="100" y1="274" x2="100" y2="302" stroke="black"/>
+<line x1="300" y1="274" x2="300" y2="302" stroke="black"/>
+<line x1="500" y1="274" x2="500" y2="302" stroke="black"/>
+<line x1="300" y1="285" x2="100" y2="285" stroke="black"/>
+<line x1="100" y1="285" x2="110" y2="291" stroke="black"/>
+<polygon fill="white" points="143,275 255,275 255,284 143,284"/>
+<text x="144" y="284" textLength="110" font-family="Helvetica" font-size="12" fill="black">
+vector&lt;SERRecord&gt;
+</text>
+<line x1="100" y1="302" x2="100" y2="330" stroke="black"/>
+<line x1="300" y1="302" x2="300" y2="330" stroke="black"/>
+<line x1="500" y1="302" x2="500" y2="330" stroke="black"/>
+<line x1="100" y1="313" x2="300" y2="313" stroke="black"/>
+<line x1="300" y1="313" x2="290" y2="319" stroke="black"/>
+<polygon fill="white" points="149,303 250,303 250,312 149,312"/>
+<text x="150" y="312" textLength="99" font-family="Helvetica" font-size="12" fill="black">
+close() / destructor
+</text>
+<line x1="100" y1="330" x2="100" y2="358" stroke="black"/>
+<line x1="300" y1="330" x2="300" y2="358" stroke="black"/>
+<line x1="500" y1="330" x2="500" y2="358" stroke="black"/>
+<line x1="300" y1="341" x2="500" y2="341" stroke="black"/>
+<line x1="500" y1="341" x2="490" y2="347" stroke="black"/>
+<polygon fill="white" points="364,331 435,331 435,340 364,340"/>
+<text x="365" y="340" textLength="69" font-family="Helvetica" font-size="12" fill="black">
+sqlite3_close
+</text>
+<line x1="100" y1="352" x2="100" y2="358" stroke="black"/>
+<line x1="300" y1="352" x2="300" y2="358" stroke="black"/>
+<line x1="500" y1="352" x2="500" y2="358" stroke="black"/>
+</svg>
