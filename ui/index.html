@@ -406,11 +406,13 @@
     
     <script>
         let table;
-        let ws;
         const WS_URL = 'ws://localhost:8765';
         const textDecoder = new TextDecoder();
         const pollRateInput = document.getElementById('poll-rate');
         let lastMessageAt = 0;
+        let shmRing = null;
+        let shmWorker = null;
+        let workerConnected = false;
 
         function readLength(buffer, offset) {
             const first = buffer[offset];
@@ -513,6 +515,167 @@
 
             return records;
         }
+
+        function createSharedRingBuffer(capacity) {
+            const headerBytes = 12; // writeIndex, readIndex, signal
+            const buffer = new SharedArrayBuffer(headerBytes + capacity);
+            const header = new Int32Array(buffer, 0, 3);
+            const data = new Uint8Array(buffer, headerBytes, capacity);
+            const view = new DataView(buffer, headerBytes, capacity);
+
+            header[0] = 0;
+            header[1] = 0;
+            header[2] = 0;
+
+            function readLength(pos) {
+                return view.getUint32(pos, true);
+            }
+
+            function readPayload() {
+                const readPos = Atomics.load(header, 1);
+                const writePos = Atomics.load(header, 0);
+                if (readPos === writePos) {
+                    return null;
+                }
+
+                let pos = readPos;
+                if (pos + 4 > capacity) {
+                    pos = 0;
+                }
+
+                let len = readLength(pos);
+                if (len === 0 || len > capacity - 4) {
+                    Atomics.store(header, 1, writePos);
+                    return null;
+                }
+
+                if (pos + 4 + len > capacity) {
+                    pos = 0;
+                    if (pos === writePos) {
+                        Atomics.store(header, 1, pos);
+                        return null;
+                    }
+                    len = readLength(pos);
+                    if (len === 0 || len > capacity - 4) {
+                        Atomics.store(header, 1, writePos);
+                        return null;
+                    }
+                }
+
+                const payload = data.slice(pos + 4, pos + 4 + len);
+                let newRead = pos + 4 + len;
+                if (newRead >= capacity) {
+                    newRead = 0;
+                }
+                Atomics.store(header, 1, newRead);
+                return payload;
+            }
+
+            return {
+                buffer,
+                capacity,
+                header,
+                readPayload,
+                readerRunning: false
+            };
+        }
+
+        function buildWsUrl() {
+            const hostInput = document.getElementById('ip-address');
+            const portInput = document.getElementById('ws-port');
+            const host = hostInput ? hostInput.value.trim() : '';
+            const port = portInput ? portInput.value.trim() : '';
+            if (host && port) {
+                return `ws://${host}:${port}`;
+            }
+            return WS_URL;
+        }
+
+        function startRingReader() {
+            if (!shmRing || shmRing.readerRunning) {
+                return;
+            }
+
+            shmRing.readerRunning = true;
+            let lastSignal = Atomics.load(shmRing.header, 2);
+
+            const pump = async () => {
+                while (shmRing && shmRing.readerRunning) {
+                    if (typeof Atomics.waitAsync === 'function') {
+                        const result = Atomics.waitAsync(shmRing.header, 2, lastSignal);
+                        if (result && result.value && typeof result.value.then === 'function') {
+                            await result.value;
+                        } else {
+                            await new Promise((resolve) => setTimeout(resolve, 50));
+                        }
+                    } else {
+                        await new Promise((resolve) => setTimeout(resolve, 50));
+                    }
+
+                    const current = Atomics.load(shmRing.header, 2);
+                    if (current === lastSignal) {
+                        continue;
+                    }
+                    lastSignal = current;
+
+                    let payload = shmRing.readPayload();
+                    while (payload) {
+                        try {
+                            const tlvBuffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+                            const records = decodeSerRecordsFromTlv(tlvBuffer);
+                            updateTable(records);
+                            lastMessageAt = Date.now();
+                            dataReceived = true;
+                            updateConnectionStatus('connected');
+                        } catch (err) {
+                            console.error('Shared ring decode error:', err);
+                        }
+                        payload = shmRing.readPayload();
+                    }
+                }
+            };
+
+            pump();
+        }
+
+        function setupSharedRing() {
+            shmRing = createSharedRingBuffer(500 * 1024);
+            shmWorker = new Worker('shm_worker.js');
+            shmWorker.postMessage({
+                type: 'init',
+                buffer: shmRing.buffer,
+                capacity: shmRing.capacity
+            });
+
+            shmWorker.onmessage = (event) => {
+                const msg = event.data;
+                if (!msg || !msg.type) {
+                    return;
+                }
+
+                if (msg.type === 'ws_status') {
+                    workerConnected = msg.status === 'connected';
+                    if (msg.status === 'disconnected' && dataReceived) {
+                        updateConnectionStatus('synced');
+                    } else {
+                        updateConnectionStatus(msg.status);
+                    }
+                    if (workerConnected) {
+                        startAutoRefresh();
+                    } else if (msg.status === 'disconnected') {
+                        stopAutoRefresh();
+                    }
+                } else if (msg.type === 'error') {
+                    console.error('Shared ring worker error:', msg.message);
+                }
+            };
+
+            shmWorker.onerror = (event) => {
+                console.error('Shared ring worker error:', event.message);
+            };
+
+            startRingReader();
+        }
         
         // Status formatter
         function statusFormatter(cell) {
@@ -587,72 +750,29 @@
             document.getElementById('record-count').textContent = data.length;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
         }
+
+        function updateTable(data) {
+            if (table) {
+                table.updateOrAddData(data);
+            } else {
+                initTable(data);
+            }
+
+            document.getElementById('record-count').textContent = data.length;
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        }
         
-        // WebSocket connection
+        // WebSocket connection (handled by worker)
         function connectWebSocket() {
             updateConnectionStatus('connecting');
-            
-            ws = new WebSocket(WS_URL);
-            ws.binaryType = 'arraybuffer';
-            
-            ws.onopen = function() {
-                console.log('WebSocket connected');
-                updateConnectionStatus('connected');
-                // Request initial data
-                ws.send('getData');
-                startAutoRefresh();
-            };
-            
-            ws.onmessage = async function(event) {
-                try {
-                    let data = [];
-
-                    if (typeof event.data === 'string') {
-                        data = JSON.parse(event.data);
-                    } else {
-                        const buffer = event.data instanceof ArrayBuffer
-                            ? event.data
-                            : await event.data.arrayBuffer();
-                        data = decodeSerRecordsFromTlv(buffer);
-                    }
-                    console.log('Received', data.length, 'records from relay');
-                    
-                    // Always show real data from relay (via database)
-                    if (table) {
-                        table.updateOrAddData(data);
-                    } else {
-                        initTable(data);
-                    }
-                    
-                    document.getElementById('record-count').textContent = data.length;
-                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-                    
-                    // Show connected status when data is received
-                    lastMessageAt = Date.now();
-                    dataReceived = true;
-                    updateConnectionStatus('connected');
-                } catch (e) {
-                    console.error('Error parsing data:', e);
-                }
-            };
-            
-            ws.onclose = function() {
-                console.log('WebSocket disconnected');
-                // Show "Data Synced" if data was received, otherwise "Disconnected"
-                if (dataReceived) {
-                    updateConnectionStatus('synced');
-                } else {
-                    updateConnectionStatus('disconnected');
-                }
-                stopAutoRefresh();
-                // Attempt to reconnect after 3 seconds
-                setTimeout(connectWebSocket, 3000);
-            };
-            
-            ws.onerror = function(error) {
-                console.error('WebSocket error:', error);
-                updateConnectionStatus('error');
-            };
+            if (!shmWorker) {
+                console.warn('Shared ring worker not initialized');
+                return;
+            }
+            shmWorker.postMessage({
+                type: 'connect',
+                wsUrl: buildWsUrl()
+            });
         }
         
         let dataReceived = false;  // Track if data was received
@@ -674,8 +794,8 @@
         
         // Refresh data via WebSocket
         function refreshData() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send('refresh');
+            if (shmWorker && workerConnected) {
+                shmWorker.postMessage({ type: 'send', payload: 'refresh' });
             } else {
                 console.log('WebSocket not connected, attempting reconnect...');
                 connectWebSocket();
@@ -698,12 +818,12 @@
                 clearInterval(autoRefreshInterval);
             }
             autoRefreshInterval = setInterval(() => {
-                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                if (!shmWorker || !workerConnected) {
                     return;
                 }
                 const now = Date.now();
                 if (now - lastMessageAt >= rate) {
-                    ws.send('getData');
+                    shmWorker.postMessage({ type: 'send', payload: 'getData' });
                 }
             }, rate);
         }
@@ -716,7 +836,7 @@
         }
 
         pollRateInput.addEventListener('change', () => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
+            if (workerConnected) {
                 startAutoRefresh();
             }
         });
@@ -724,6 +844,7 @@
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
             initTable([]);  // Initialize empty table
+            setupSharedRing();
             connectWebSocket();
         });
     </script>

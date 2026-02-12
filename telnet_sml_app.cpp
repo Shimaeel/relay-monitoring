@@ -9,7 +9,10 @@
 #include <thread>
 
 #include "client.hpp"
+#include "asn_tlv_codec.hpp"
 #include "ser_database.hpp"
+#include "ser_json_writer.hpp"
+#include "shared_ring_buffer.hpp"
 #include "telnet_fsm.hpp"
 #include "thread_manager.hpp"
 #include "ws_server.hpp"
@@ -90,8 +93,9 @@ public:
               LoginConfig& creds,
               RetryState& retry,
               SERDatabase& db,
+              SharedRingBuffer& ring,
               std::atomic<bool>& app_running)
-        : fsm_{ client, conn, creds, retry, db }
+        : fsm_{ client, conn, creds, retry, db, ring }
         , retry_(retry)
         , app_running_(app_running)
     {
@@ -122,6 +126,59 @@ public:
 };
 }  // namespace
 
+class SharedSerReader
+{
+    SharedRingBuffer& ring_;
+    std::string output_path_;
+    std::atomic<bool> stop_flag_{false};
+    std::thread worker_thread_;
+
+    void runLoop()
+    {
+        std::vector<uint8_t> payload;
+        while (!stop_flag_.load())
+        {
+            if (!ring_.waitRead(payload, stop_flag_))
+                continue;
+
+            std::vector<SERRecord> records;
+            std::string error;
+            if (!asn_tlv::decodeSerRecordsFromTlv(payload.data(), payload.size(), records, &error))
+            {
+                std::cout << "[SHM] Decode error: " << error << "\n";
+                continue;
+            }
+
+            std::string json = recordsToJsonTable(records);
+            std::string writeError;
+            if (!writeJsonToFile(output_path_, json, &writeError))
+            {
+                std::cout << "[SHM] JSON write error: " << writeError << "\n";
+            }
+        }
+    }
+
+public:
+    SharedSerReader(SharedRingBuffer& ring, std::string output_path)
+        : ring_(ring), output_path_(std::move(output_path))
+    {
+    }
+
+    void start()
+    {
+        stop_flag_ = false;
+        worker_thread_ = std::thread([this]() { runLoop(); });
+    }
+
+    void stop()
+    {
+        stop_flag_ = true;
+        ring_.notifyAll();
+        if (worker_thread_.joinable())
+            worker_thread_.join();
+    }
+};
+
 class TelnetSmlApp::Impl
 {
 public:
@@ -144,6 +201,8 @@ public:
     SERWebSocketServer wsServer{serDb, 8765};
     ThreadManager threadMgr{serDb, std::chrono::seconds(120)};
     std::unique_ptr<FsmWorker> fsmWorker;
+    SharedRingBuffer ring{500U * 1024U};
+    SharedSerReader shmReader{ring, "ui/data.json"};
     bool running = false;
 
     bool start()
@@ -171,8 +230,10 @@ public:
             return false;
         }
 
-        fsmWorker = std::make_unique<FsmWorker>(client, conn, creds, retry, serDb, app_running);
+        fsmWorker = std::make_unique<FsmWorker>(client, conn, creds, retry, serDb, ring, app_running);
         fsmWorker->start();
+
+        shmReader.start();
 
         threadMgr.setPollingCallback([this]() {
             if (!app_running.load())
@@ -195,6 +256,7 @@ public:
         std::cout << "  - Thread 2: FSM Worker (SER retrieval)\n";
         std::cout << "  - Thread 3: SER Poller (2 min interval)\n";
         std::cout << "  - Thread 4: Database Writer (async)\n";
+        std::cout << "  - Thread 5: Shared Memory Reader (JSON writer)\n";
         std::cout << "========================================\n";
 
         running = true;
@@ -218,6 +280,7 @@ public:
         threadMgr.stopAll();
         if (fsmWorker)
             fsmWorker->stop();
+        shmReader.stop();
         wsServer.stop();
         serDb.close();
 

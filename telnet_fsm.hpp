@@ -114,6 +114,8 @@
 #include "client.hpp"
 #include "ser_record.hpp"
 #include "ser_database.hpp"
+#include "asn_tlv_codec.hpp"
+#include "shared_ring_buffer.hpp"
 
 namespace sml = boost::sml;
 
@@ -303,7 +305,7 @@ struct PollSerAction
      * @param db Database for storing parsed records
      */
     template <class Event>
-    void operator()(const Event&, TelnetClient& client, SERDatabase& db) const
+    void operator()(const Event&, TelnetClient& client, SERDatabase& db, SharedRingBuffer& ring) const
     {
         client.clearLastResponse();
         std::string buffer;
@@ -316,6 +318,12 @@ struct PollSerAction
         {
             int inserted = db.insertRecords(records);
             std::cout << "[SER] Parsed " << records.size() << " records, stored " << inserted << " in database\n";
+
+            auto payload = asn_tlv::encodeSerRecordsToTlv(records);
+            if (!payload.empty())
+            {
+                ring.write(payload.data(), payload.size());
+            }
         }
         else
         {
@@ -682,6 +690,7 @@ inline auto on_unexpected = [](const auto&) {
  * - LoginConfig& creds - Authentication credentials
  * - RetryState& retry - Retry state tracking
  * - SERDatabase& db - Record storage
+ * - SharedRingBuffer& ring - ASN payload transfer
  */
 struct TelnetFSM
 {
