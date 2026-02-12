@@ -1,9 +1,75 @@
 /**
  * @file telnet_sml_app.hpp
- * @brief Telnet-SML DLL application facade
+ * @brief Telnet-SML Application Facade (Public API)
  *
- * @details Provides a single entry point for starting and stopping the
- * Telnet-SML runtime hosted in the DLL.
+ * @details This header defines the public interface for the Telnet-SML
+ * application. It provides a simple facade that hides the complexity of
+ * the multi-threaded architecture behind a clean, easy-to-use API.
+ *
+ * ## Architecture Overview
+ *
+ * @dot
+ * digraph TelnetSmlApp {
+ *     rankdir=TB;
+ *     node [shape=box, style=filled, fillcolor=lightyellow];
+ *
+ *     subgraph cluster_public {
+ *         label="Public API";
+ *         App [label="TelnetSmlApp\n(Facade)", fillcolor=lightgreen];
+ *     }
+ *
+ *     subgraph cluster_impl {
+ *         label="Implementation (Hidden)";
+ *         Impl [label="Impl\n(PIMPL)"];
+ *         Reception [label="ReceptionWorker"];
+ *         Processing [label="ProcessingWorker"];
+ *         WS [label="WebSocketServer"];
+ *         DB [label="SERDatabase"];
+ *     }
+ *
+ *     App -> Impl [label="owns"];
+ *     Impl -> Reception;
+ *     Impl -> Processing;
+ *     Impl -> WS;
+ *     Impl -> DB;
+ * }
+ * @enddot
+ *
+ * ## Thread Model
+ *
+ * The application spawns multiple threads upon start():
+ * | Thread | Purpose |
+ * |--------|---------|
+ * | Reception | Telnet I/O with relay |
+ * | Processing | Parse + DB + broadcast |
+ * | WebSocket | Browser communication |
+ * | Poller | Periodic data fetch |
+ * | SHM Reader | JSON file output |
+ *
+ * ## Usage Example
+ *
+ * @code{.cpp}
+ * #include "telnet_sml_app.hpp"
+ *
+ * int main() {
+ *     TelnetSmlApp app;
+ *
+ *     if (!app.start()) {
+ *         return 1;  // Startup failed
+ *     }
+ *
+ *     app.waitForExit();  // Block until user requests exit
+ *     app.stop();
+ *     return 0;
+ * }
+ * @endcode
+ *
+ * @see telnet_sml_app.cpp Implementation details
+ * @see architecture-daigram.mmd Full architecture diagram
+ *
+ * @author Telnet-SML Development Team
+ * @version 2.0.0
+ * @date 2026
  */
 
 #pragma once
@@ -12,24 +78,112 @@
 
 #include "dll_export.hpp"
 
+/**
+ * @class TelnetSmlApp
+ * @brief Main application facade for Telnet-SML system.
+ *
+ * @details Provides a simplified interface for the multi-threaded Telnet-SML
+ * application. Uses the PIMPL idiom to hide implementation details and
+ * maintain ABI stability.
+ *
+ * ## Lifecycle
+ *
+ * @msc
+ * User,App,Impl;
+ * User->App [label="create"];
+ * App->Impl [label="create Impl"];
+ * User->App [label="start()"];
+ * Impl->Impl [label="spawn threads"];
+ * App->User [label="true"];
+ * User->App [label="waitForExit()"];
+ * User note User [label="...running..."];
+ * User->App [label="stop()"];
+ * Impl->Impl [label="join threads"];
+ * User->App [label="destroy"];
+ * App->Impl [label="destroy Impl"];
+ * @endmsc
+ *
+ * @invariant impl_ is always valid after construction
+ * @invariant Thread-safe for single-threaded control (start/stop/wait)
+ *
+ * @note Non-copyable and non-movable to prevent resource confusion
+ */
 class TELNET_SML_API TelnetSmlApp
 {
 public:
+    /**
+     * @brief Constructs a TelnetSmlApp instance.
+     *
+     * @details Creates the private implementation but does not start
+     * any background threads. Call start() to begin operation.
+     *
+     * @post isRunning() == false
+     */
     TelnetSmlApp();
+
+    /**
+     * @brief Destroys the TelnetSmlApp instance.
+     *
+     * @details Ensures graceful shutdown by calling stop() if still running.
+     */
     ~TelnetSmlApp();
 
+    /// @name Deleted Copy/Move Operations
+    /// @{
     TelnetSmlApp(const TelnetSmlApp&) = delete;
     TelnetSmlApp& operator=(const TelnetSmlApp&) = delete;
-
     TelnetSmlApp(TelnetSmlApp&&) = delete;
     TelnetSmlApp& operator=(TelnetSmlApp&&) = delete;
+    /// @}
 
+    /**
+     * @brief Starts the application and all background threads.
+     *
+     * @details Initializes and starts:
+     * - SQLite database connection
+     * - WebSocket server (port 8765)
+     * - Reception worker thread
+     * - Processing worker thread
+     * - Polling scheduler
+     * - JSON file writer
+     *
+     * @return true All components started successfully
+     * @return false Startup failed (check console for details)
+     *
+     * @pre isRunning() == false
+     * @post On success: isRunning() == true
+     */
     bool start();
+
+    /**
+     * @brief Blocks until user requests application exit.
+     *
+     * @details Waits for Enter key press. Typically called from main()
+     * after start() returns successfully.
+     *
+     * @pre isRunning() == true
+     */
     void waitForExit();
+
+    /**
+     * @brief Stops the application and all background threads.
+     *
+     * @details Gracefully shuts down all components in reverse order.
+     * Safe to call multiple times or even if not started.
+     *
+     * @post isRunning() == false
+     */
     void stop();
+
+    /**
+     * @brief Checks if the application is currently running.
+     *
+     * @return true Application is running
+     * @return false Application is stopped
+     */
     bool isRunning() const;
 
 private:
-    class Impl;
-    std::unique_ptr<Impl> impl_;
+    class Impl;                     ///< Forward declaration of implementation
+    std::unique_ptr<Impl> impl_;    ///< PIMPL pointer to implementation
 };

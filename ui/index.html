@@ -413,6 +413,8 @@
         let shmRing = null;
         let shmWorker = null;
         let workerConnected = false;
+        let directWs = null;  // Fallback WebSocket when SharedArrayBuffer unavailable
+        const useSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
 
         function readLength(buffer, offset) {
             const first = buffer[offset];
@@ -639,6 +641,10 @@
         }
 
         function setupSharedRing() {
+            if (!useSharedArrayBuffer) {
+                console.warn('SharedArrayBuffer not available, using direct WebSocket fallback');
+                return;
+            }
             shmRing = createSharedRingBuffer(500 * 1024);
             shmWorker = new Worker('shm_worker.js');
             shmWorker.postMessage({
@@ -762,9 +768,16 @@
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
         }
         
-        // WebSocket connection (handled by worker)
+        // WebSocket connection (handled by worker or direct fallback)
         function connectWebSocket() {
             updateConnectionStatus('connecting');
+            
+            // Use direct WebSocket if SharedArrayBuffer not available
+            if (!useSharedArrayBuffer) {
+                connectDirectWebSocket();
+                return;
+            }
+            
             if (!shmWorker) {
                 console.warn('Shared ring worker not initialized');
                 return;
@@ -773,6 +786,76 @@
                 type: 'connect',
                 wsUrl: buildWsUrl()
             });
+        }
+        
+        // Direct WebSocket fallback when SharedArrayBuffer is unavailable
+        function connectDirectWebSocket() {
+            if (directWs) {
+                directWs.close();
+            }
+            
+            const wsUrl = buildWsUrl();
+            directWs = new WebSocket(wsUrl);
+            
+            directWs.onopen = () => {
+                workerConnected = true;
+                updateConnectionStatus('connected');
+                startAutoRefresh();
+            };
+            
+            directWs.onmessage = async (event) => {
+                try {
+                    let bytes;
+                    if (event.data instanceof Blob) {
+                        const arrayBuffer = await event.data.arrayBuffer();
+                        bytes = new Uint8Array(arrayBuffer);
+                    } else if (event.data instanceof ArrayBuffer) {
+                        bytes = new Uint8Array(event.data);
+                    } else {
+                        // Text message - try to parse as JSON
+                        try {
+                            const jsonData = JSON.parse(event.data);
+                            if (Array.isArray(jsonData)) {
+                                updateTable(jsonData);
+                                dataReceived = true;
+                            }
+                        } catch (e) {
+                            console.log('Text message:', event.data);
+                        }
+                        return;
+                    }
+                    
+                    // Try BER/TLV decoding
+                    const records = decodeSerRecordsFromTlv(bytes.buffer);
+                    if (records.length > 0) {
+                        updateTable(records);
+                        dataReceived = true;
+                    }
+                } catch (err) {
+                    console.error('Direct WebSocket decode error:', err);
+                }
+            };
+            
+            directWs.onclose = () => {
+                workerConnected = false;
+                if (dataReceived) {
+                    updateConnectionStatus('synced');
+                } else {
+                    updateConnectionStatus('disconnected');
+                }
+                stopAutoRefresh();
+                // Attempt reconnect after delay
+                setTimeout(() => {
+                    if (!workerConnected) {
+                        connectDirectWebSocket();
+                    }
+                }, 3000);
+            };
+            
+            directWs.onerror = (err) => {
+                console.error('Direct WebSocket error:', err);
+                updateConnectionStatus('error');
+            };
         }
         
         let dataReceived = false;  // Track if data was received
@@ -794,6 +877,17 @@
         
         // Refresh data via WebSocket
         function refreshData() {
+            if (!useSharedArrayBuffer) {
+                // Direct WebSocket fallback
+                if (directWs && directWs.readyState === WebSocket.OPEN) {
+                    directWs.send('refresh');
+                } else {
+                    console.log('WebSocket not connected, attempting reconnect...');
+                    connectDirectWebSocket();
+                }
+                return;
+            }
+            
             if (shmWorker && workerConnected) {
                 shmWorker.postMessage({ type: 'send', payload: 'refresh' });
             } else {

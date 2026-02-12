@@ -1,3 +1,47 @@
+/**
+ * @file telnet_sml_app.cpp
+ * @brief Telnet SML Application - Main orchestrator implementation.
+ *
+ * @details This file implements the TelnetSmlApp class, which orchestrates
+ * the multi-threaded Telnet-SML system for substation relay communication.
+ *
+ * ## Architecture Overview
+ * The application follows a sequential pipeline architecture:
+ * @code
+ * Relay Device (TCP:23)
+ *       │
+ *       ▼
+ * TelnetClient Thread (ReceptionWorker)
+ *       │
+ *       ▼
+ * C++ SPSC Ring Buffer (RawDataRingBuffer)
+ *       │
+ *       ▼
+ * FSM/Processing Thread (ProcessingWorker)
+ *       │
+ *       ▼
+ * SQLite (Persistent Storage)
+ *       │
+ *       ▼
+ * WebSocket Server (Push to Browser)
+ * @endcode
+ *
+ * ## Thread Model
+ * | Thread | Component | Responsibility |
+ * |--------|-----------|----------------|
+ * | 1 | ReceptionWorker | Non-blocking Telnet I/O |
+ * | 2 | ProcessingWorker | Parse + DB + WebSocket |
+ * | 3 | SERWebSocketServer | Push notifications |
+ * | 4 | ThreadManager | 2-minute polling |
+ * | 5 | SharedSerReader | JSON file writer |
+ *
+ * @author Telnet-SML Team
+ * @date 2026
+ * @version 2.0
+ * @see telnet_sml_app.hpp
+ * @see architecture-daigram.mmd
+ */
+
 #include "telnet_sml_app.hpp"
 
 #include <atomic>
@@ -10,6 +54,7 @@
 
 #include "client.hpp"
 #include "asn_tlv_codec.hpp"
+#include "raw_data_ring_buffer.hpp"
 #include "ser_database.hpp"
 #include "ser_json_writer.hpp"
 #include "shared_ring_buffer.hpp"
@@ -21,86 +66,219 @@ using namespace sml;
 
 namespace
 {
-class FsmWorker
+
+/**
+ * @class ReceptionWorker
+ * @brief Non-blocking reception thread that manages relay communication.
+ *
+ * @details The ReceptionWorker runs as Thread 1 in the application architecture.
+ * It handles all Telnet communication with the substation relay device and
+ * immediately pushes responses to the SPSC ring buffer without blocking.
+ *
+ * ## Responsibilities
+ * - Establish and maintain TCP connection to relay (port 23)
+ * - Execute login sequence (Level 1 authentication)
+ * - Process command queue and execute sequentially
+ * - Push command/response pairs to RawDataRingBuffer
+ *
+ * ## Thread Safety
+ * - Uses mutex-protected command queue
+ * - Condition variable for efficient waiting
+ * - Atomic stop flag for clean shutdown
+ *
+ * ## Data Flow
+ * @dot
+ * digraph Reception {
+ *     rankdir=LR;
+ *     Relay [shape=ellipse, label="Relay Device"];
+ *     Client [label="TelnetClient"];
+ *     Ring [label="RawDataRingBuffer\n(SPSC)"];
+ *
+ *     Relay -> Client [label="TCP:23"];
+ *     Client -> Ring [label="push\n(non-blocking)"];
+ * }
+ * @enddot
+ *
+ * @note This class is internal to the implementation file.
+ * @see ProcessingWorker Consumer of ring buffer data
+ * @see RawDataRingBuffer SPSC queue for command/response pairs
+ */
+class ReceptionWorker
 {
-    std::atomic<bool> stop_flag_{false};
-    std::thread worker_thread_;
-    std::mutex queue_mutex_;
-    std::condition_variable queue_cv_;
-    std::deque<bool> run_queue_;
+    std::atomic<bool> stop_flag_{false};       ///< Flag to signal worker thread termination
+    std::thread worker_thread_;                 ///< Worker thread handle
+    std::mutex queue_mutex_;                    ///< Mutex protecting command_queue_
+    std::condition_variable queue_cv_;          ///< CV for command queue notification
+    std::deque<std::string> command_queue_;     ///< Queue of commands pending execution
 
-    sml::sm<TelnetFSM> fsm_;
-    RetryState& retry_;
-    std::atomic<bool>& app_running_;
+    TelnetClient& client_;                      ///< Reference to Telnet client for I/O
+    ConnectionConfig& conn_;                    ///< Connection configuration (host, port, timeout)
+    LoginConfig& creds_;                        ///< Login credentials (user, password)
+    RawDataRingBuffer& rawBuffer_;              ///< SPSC ring buffer for output
+    std::atomic<bool>& app_running_;            ///< Application running state flag
 
-    void runCycle(bool reset_retry)
+    bool connected_ = false;                    ///< Current TCP connection state
+    bool logged_in_ = false;                    ///< Current login state
+
+    /**
+     * @brief Ensures connection and login to relay device.
+     *
+     * @details Executes the following sequence if not already connected:
+     * 1. Establish TCP connection to relay
+     * 2. Perform Level 1 login authentication
+     *
+     * Connection state is cached to avoid redundant operations.
+     *
+     * @return true if connected and logged in, false on failure
+     * @note Resets connection state on login failure
+     */
+    bool ensureConnected()
     {
-        if (!app_running_.load())
-            return;
-
-        if (reset_retry)
-            retry_.reset();
-
-        fsm_.process_event(start_event{});
-
-        for (int i = 0; i < 10 && app_running_.load(); ++i)
+        if (connected_ && logged_in_)
+            return true;
+        
+        if (!connected_)
         {
-            bool handled = fsm_.process_event(step_event{});
-            if (!handled)
-                fsm_.process_event(unhandled_event{});
-
-            if (fsm_.is("Error"_s))
+            std::cout << "[Reception] Connecting to " << conn_.host << ":" << conn_.port << "...\n";
+            connected_ = client_.connectCheck(conn_.host, conn_.port, conn_.timeout);
+            if (!connected_)
             {
-                std::cout << "[ERROR] FSM entered Error state!\n";
-                break;
+                std::cout << "[Reception] Connection failed\n";
+                return false;
             }
-
-            if (fsm_.is("Done"_s))
+            std::cout << "[Reception] Connected\n";
+        }
+        
+        if (!logged_in_)
+        {
+            std::cout << "[Reception] Logging in...\n";
+            logged_in_ = client_.LoginLevel1Function(creds_.l1_user, creds_.l1_pass);
+            if (!logged_in_)
             {
-                std::cout << "[INFO] SER data retrieved successfully.\n";
-                break;
+                std::cout << "[Reception] Login failed\n";
+                connected_ = false;
+                return false;
             }
+            std::cout << "[Reception] Logged in\n";
+        }
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        return true;
+    }
+
+    /**
+     * @brief Executes a command and pushes response to ring buffer.
+     *
+     * @details This method:
+     * 1. Ensures connection is established
+     * 2. Sends command to relay device
+     * 3. Receives response from relay
+     * 4. Pushes command/response pair to RawDataRingBuffer (non-blocking)
+     *
+     * @param cmd The command string to execute (e.g., "SER")
+     *
+     * @note Push is non-blocking; if buffer is full, oldest entry is overwritten
+     * @note Connection is reset on command failure for auto-recovery
+     */
+    void executeCommand(const std::string& cmd)
+    {
+        std::cout << "[Reception] executeCommand called for: " << cmd << "\n";
+        
+        if (!ensureConnected())
+        {
+            std::cout << "[Reception] Not connected, cannot execute command\n";
+            return;
+        }
+        
+        std::string response;
+        std::cout << "[Reception] Sending command to relay...\n";
+        bool ok = client_.SendCmdReceiveData(cmd, response);
+        
+        std::cout << "[Reception] SendCmdReceiveData returned: " << (ok ? "OK" : "FAIL") 
+                  << ", response size: " << response.size() << "\n";
+        
+        if (ok && !response.empty())
+        {
+            // Non-blocking push to ring buffer - processing happens in separate thread
+            bool pushed = rawBuffer_.push({cmd, response});
+            std::cout << "[Reception] Pushed to ring buffer: " << (pushed ? "OK" : "OVERWRITE") 
+                      << ", " << response.size() << " bytes for '" << cmd << "'\n";
+            std::cout << "[Reception] Ring buffer size now: " << rawBuffer_.size() << "\n";
+        }
+        else
+        {
+            std::cout << "[Reception] Command '" << cmd << "' failed or empty response\n";
+            connected_ = false;
+            logged_in_ = false;
         }
     }
 
+    /**
+     * @brief Main worker thread loop.
+     *
+     * @details Continuously processes commands from the queue:
+     * 1. Wait on condition variable for new commands
+     * 2. Dequeue and execute each command
+     * 3. Exit when stop_flag_ is set
+     *
+     * @note Thread-safe via mutex and condition variable
+     */
     void runLoop()
     {
+        std::cout << "[Reception] Worker thread started\n";
         while (!stop_flag_.load())
         {
-            bool reset_retry = false;
+            std::string cmd;
             {
                 std::unique_lock<std::mutex> lock(queue_mutex_);
+                std::cout << "[Reception] Waiting for command in queue...\n";
                 queue_cv_.wait(lock, [&]() {
-                    return stop_flag_.load() || !run_queue_.empty();
+                    return stop_flag_.load() || !command_queue_.empty();
                 });
-
+                
                 if (stop_flag_.load())
                     break;
-
-                reset_retry = run_queue_.front();
-                run_queue_.pop_front();
+                
+                if (command_queue_.empty())
+                    continue;
+                
+                cmd = std::move(command_queue_.front());
+                command_queue_.pop_front();
+                std::cout << "[Reception] Got command from queue: " << cmd << "\n";
             }
-
-            runCycle(reset_retry);
+            
+            executeCommand(cmd);
         }
+        std::cout << "[Reception] Worker thread exiting\n";
     }
 
 public:
-    FsmWorker(TelnetClient& client,
-              ConnectionConfig& conn,
-              LoginConfig& creds,
-              RetryState& retry,
-              SERDatabase& db,
-              SharedRingBuffer& ring,
-              std::atomic<bool>& app_running)
-        : fsm_{ client, conn, creds, retry, db, ring }
-        , retry_(retry)
+    /**
+     * @brief Constructs a ReceptionWorker instance.
+     *
+     * @param client Reference to TelnetClient for relay communication
+     * @param conn Connection configuration (host, port, timeout)
+     * @param creds Login credentials for Level 1 authentication
+     * @param rawBuffer SPSC ring buffer for command/response output
+     * @param app_running Application state flag for coordinated shutdown
+     */
+    ReceptionWorker(TelnetClient& client,
+                    ConnectionConfig& conn,
+                    LoginConfig& creds,
+                    RawDataRingBuffer& rawBuffer,
+                    std::atomic<bool>& app_running)
+        : client_(client)
+        , conn_(conn)
+        , creds_(creds)
+        , rawBuffer_(rawBuffer)
         , app_running_(app_running)
     {
     }
 
+    /**
+     * @brief Starts the worker thread.
+     *
+     * @details Resets stop flag and spawns worker thread running runLoop().
+     */
     void start()
     {
         stop_flag_ = false;
@@ -111,28 +289,279 @@ public:
     {
         stop_flag_ = true;
         queue_cv_.notify_all();
+        rawBuffer_.notifyAll();
         if (worker_thread_.joinable())
             worker_thread_.join();
     }
 
-    void requestRun(bool reset_retry)
+    /**
+     * @brief Queues a command for asynchronous execution.
+     *
+     * @details Adds command to the queue and notifies worker thread.
+     * This is a non-blocking operation; the command will be executed
+     * asynchronously by the worker thread.
+     *
+     * @param cmd Command string to queue (e.g., "SER", "ACC")
+     *
+     * @note Thread-safe; can be called from any thread
+     */
+    void queueCommand(const std::string& cmd)
     {
+        std::cout << "[Reception] queueCommand called: " << cmd << "\n";
         {
             std::lock_guard<std::mutex> lock(queue_mutex_);
-            run_queue_.push_back(reset_retry);
+            command_queue_.push_back(cmd);
+            std::cout << "[Reception] Command queued, queue size: " << command_queue_.size() << "\n";
         }
         queue_cv_.notify_one();
     }
+
+    /**
+     * @brief Resets connection state for reconnection.
+     *
+     * @details Clears connected and logged_in flags, forcing
+     * re-establishment of connection on next command.
+     */
+    void resetConnection()
+    {
+        connected_ = false;
+        logged_in_ = false;
+    }
 };
+
+/**
+ * @class ProcessingWorker
+ * @brief FSM/Processing thread that processes relay data and persists to storage.
+ *
+ * @details The ProcessingWorker runs as Thread 2 in the application architecture.
+ * It continuously reads from the SPSC ring buffer, processes SER data, and
+ * coordinates the sequential pipeline for data persistence and distribution.
+ *
+ * ## Responsibilities
+ * - Read command/response pairs from RawDataRingBuffer
+ * - Parse SER response text into structured records
+ * - Store validated records in SQLite database
+ * - Broadcast new records via WebSocket (only after DB success)
+ * - Write to shared memory for JSON file output
+ *
+ * ## Data Flow (Sequential Pipeline)
+ * @code
+ * SPSC Ring Buffer
+ *       │
+ *       ▼
+ * Parse SER Response
+ *       │
+ *       ▼
+ * SQLite (insertRecords)
+ *       │
+ *       ▼ (on success only)
+ * WebSocket Broadcast
+ *       │
+ *       ▼
+ * SharedRingBuffer (JSON writer)
+ * @endcode
+ *
+ * ## Thread Safety
+ * - Blocking wait on SPSC ring buffer
+ * - Atomic stop flag for clean shutdown
+ * - Database and WebSocket operations are thread-safe
+ *
+ * @dot
+ * digraph Processing {
+ *     rankdir=TB;
+ *     Ring [label="SPSC Ring Buffer"];
+ *     Parse [label="parseSERResponse()"];
+ *     DB [label="SQLite\n(Persistent Storage)"];
+ *     WS [label="WebSocket Server"];
+ *     SHM [label="SharedRingBuffer"];
+ *
+ *     Ring -> Parse;
+ *     Parse -> DB;
+ *     DB -> WS [label="on success"];
+ *     WS -> SHM;
+ * }
+ * @enddot
+ *
+ * @note This class is internal to the implementation file.
+ * @see ReceptionWorker Producer of ring buffer data
+ * @see SERDatabase SQLite persistence layer
+ * @see SERWebSocketServer WebSocket broadcast server
+ */
+class ProcessingWorker
+{
+    std::atomic<bool> stop_flag_{false};       ///< Flag to signal worker thread termination
+    std::thread worker_thread_;                 ///< Worker thread handle
+
+    RawDataRingBuffer& rawBuffer_;              ///< SPSC ring buffer input
+    SERDatabase& db_;                           ///< SQLite database for persistence
+    SERWebSocketServer& wsServer_;              ///< WebSocket server for broadcasting
+    SharedRingBuffer& shmRing_;                 ///< Shared memory ring for JSON output
+    std::atomic<bool>& app_running_;            ///< Application running state flag
+
+    /**
+     * @brief Main worker thread loop.
+     *
+     * @details Continuously processes data from ring buffer:
+     * 1. Wait for data (blocking)
+     * 2. Parse SER response into records
+     * 3. Insert records into SQLite
+     * 4. Broadcast via WebSocket (on success)
+     * 5. Write to shared memory for JSON output
+     */
+    void runLoop()
+    {
+        std::cout << "[Processing] Worker thread started\n";
+        while (!stop_flag_.load() && app_running_.load())
+        {
+            std::cout << "[Processing] Waiting for data from ring buffer...\n";
+            auto msg = rawBuffer_.waitPop(stop_flag_);
+            if (!msg)
+            {
+                std::cout << "[Processing] waitPop returned empty (stop signal?)\n";
+                continue;
+            }
+            
+            std::cout << "[Processing] Received message: cmd='" << msg->command 
+                      << "', response size=" << msg->response.size() << " bytes\n";
+            
+            // Only process SER command responses
+            if (msg->command != "SER")
+            {
+                std::cout << "[Processing] Skipping non-SER command: " << msg->command << "\n";
+                continue;
+            }
+            
+            // Parse SER response
+            std::cout << "[Processing] Parsing SER response...\n";
+            auto records = parseSERResponse(msg->response);
+            if (records.empty())
+            {
+                std::cout << "[Processing] No records parsed from response. First 200 chars:\n";
+                std::cout << msg->response.substr(0, 200) << "\n";
+                continue;
+            }
+            
+            std::cout << "[Processing] Parsed " << records.size() << " SER records\n";
+            
+            // Step 1: SQLite (Persistent Storage)
+            int inserted = db_.insertRecords(records);
+            std::cout << "[Processing] SQLite: Stored " << inserted << " new records\n";
+            
+            // Step 2: WebSocket Server (After DB Write) - only broadcast on successful storage
+            if (inserted > 0)
+            {
+                wsServer_.broadcast(records);
+                std::cout << "[Processing] WebSocket: Broadcast " << records.size() << " records to clients\n";
+                
+                // Write to shared memory for JSON file writer
+                auto payload = asn_tlv::encodeSerRecordsToTlv(records);
+                if (!payload.empty())
+                {
+                    shmRing_.write(payload.data(), payload.size());
+                }
+            }
+            else
+            {
+                std::cout << "[Processing] No new records inserted, skipping WebSocket broadcast\n";
+            }
+        }
+        std::cout << "[Processing] Worker thread exiting\n";
+    }
+
+public:
+    /**
+     * @brief Constructs a ProcessingWorker instance.
+     *
+     * @param rawBuffer SPSC ring buffer for command/response input
+     * @param db SQLite database for record persistence
+     * @param wsServer WebSocket server for broadcasting to clients
+     * @param shmRing Shared ring buffer for JSON file writer output
+     * @param app_running Application state flag for coordinated shutdown
+     */
+    ProcessingWorker(RawDataRingBuffer& rawBuffer,
+                     SERDatabase& db,
+                     SERWebSocketServer& wsServer,
+                     SharedRingBuffer& shmRing,
+                     std::atomic<bool>& app_running)
+        : rawBuffer_(rawBuffer)
+        , db_(db)
+        , wsServer_(wsServer)
+        , shmRing_(shmRing)
+        , app_running_(app_running)
+    {
+    }
+
+    /**
+     * @brief Starts the worker thread.
+     *
+     * @details Resets stop flag and spawns worker thread running runLoop().
+     */
+    void start()
+    {
+        stop_flag_ = false;
+        worker_thread_ = std::thread([this]() { runLoop(); });
+    }
+
+    /**
+     * @brief Stops the worker thread gracefully.
+     *
+     * @details Sets stop flag, notifies ring buffer, and joins worker thread.
+     */
+    void stop()
+    {
+        stop_flag_ = true;
+        rawBuffer_.notifyAll();
+        if (worker_thread_.joinable())
+            worker_thread_.join();
+    }
+};
+
 }  // namespace
 
+/**
+ * @class SharedSerReader
+ * @brief Thread 5 - Reads from SharedRingBuffer and writes JSON to file.
+ *
+ * @details Consumes ASN.1 TLV-encoded SER records from the shared ring buffer,
+ * decodes them, and writes to data.json for the web UI.
+ *
+ * ## Thread Role
+ * This is Thread 5 in the architecture, running independently to provide
+ * file-based data export without blocking the main processing pipeline.
+ *
+ * ## Data Flow
+ * @code
+ * SharedRingBuffer (from ProcessingWorker)
+ *       │
+ *       ▼
+ * ASN.1 TLV Decode
+ *       │
+ *       ▼
+ * JSON Serialization
+ *       │
+ *       ▼
+ * ui/data.json (file output)
+ * @endcode
+ *
+ * @see ProcessingWorker Produces data for this consumer
+ * @see asn_tlv::decodeSerRecordsFromTlv Decoding function
+ */
 class SharedSerReader
 {
-    SharedRingBuffer& ring_;
-    std::string output_path_;
-    std::atomic<bool> stop_flag_{false};
-    std::thread worker_thread_;
+    SharedRingBuffer& ring_;                    ///< Shared ring buffer input
+    std::string output_path_;                   ///< Output file path (e.g., "ui/data.json")
+    std::atomic<bool> stop_flag_{false};        ///< Flag to signal worker termination
+    std::thread worker_thread_;                  ///< Worker thread handle
 
+    /**
+     * @brief Main worker thread loop.
+     *
+     * @details Continuously reads from shared ring buffer:
+     * 1. Wait for TLV payload (blocking)
+     * 2. Decode ASN.1 TLV to SERRecord vector
+     * 3. Convert records to JSON string
+     * 4. Write JSON to output file
+     */
     void runLoop()
     {
         std::vector<uint8_t> payload;
@@ -159,17 +588,29 @@ class SharedSerReader
     }
 
 public:
+    /**
+     * @brief Constructs a SharedSerReader instance.
+     *
+     * @param ring Shared ring buffer to read TLV payloads from
+     * @param output_path File path for JSON output (e.g., "ui/data.json")
+     */
     SharedSerReader(SharedRingBuffer& ring, std::string output_path)
         : ring_(ring), output_path_(std::move(output_path))
     {
     }
 
+    /**
+     * @brief Starts the worker thread.
+     */
     void start()
     {
         stop_flag_ = false;
         worker_thread_ = std::thread([this]() { runLoop(); });
     }
 
+    /**
+     * @brief Stops the worker thread gracefully.
+     */
     void stop()
     {
         stop_flag_ = true;
@@ -179,32 +620,97 @@ public:
     }
 };
 
+/**
+ * @class TelnetSmlApp::Impl
+ * @brief Private implementation (PIMPL) of TelnetSmlApp.
+ *
+ * @details This class contains the actual implementation of the Telnet-SML
+ * application, following the PIMPL idiom for ABI stability and compilation
+ * firewall.
+ *
+ * ## Architecture
+ * The implementation manages the complete multi-threaded pipeline:
+ * @code
+ * Relay Device (TCP:23)
+ *       │
+ *       ▼
+ * TelnetClient Thread (ReceptionWorker)
+ *       │
+ *       ▼
+ * C++ SPSC Ring Buffer (RawDataRingBuffer)
+ *       │
+ *       ▼
+ * FSM/Processing Thread (ProcessingWorker)
+ *       │
+ *       ├──▶ SQLite (Persistent Storage)
+ *       │
+ *       ├──▶ WebSocket Server (After DB Write)
+ *       │
+ *       └──▶ SharedRingBuffer → JSON File
+ * @endcode
+ *
+ * ## Component Ownership
+ * | Component | Type | Purpose |
+ * |-----------|------|----------|
+ * | client | TelnetClient | Relay communication |
+ * | serDb | SERDatabase | SQLite persistence |
+ * | wsServer | SERWebSocketServer | WebSocket broadcast |
+ * | rawBuffer | RawDataRingBuffer | SPSC queue (100 slots) |
+ * | shmRing | SharedRingBuffer | JSON output (500KB) |
+ * | threadMgr | ThreadManager | 2-min polling |
+ *
+ * @see TelnetSmlApp Public interface
+ */
 class TelnetSmlApp::Impl
 {
 public:
-    std::atomic<bool> app_running{true};
-    TelnetClient client;
+    std::atomic<bool> app_running{true};                 ///< Global application running flag
+    TelnetClient client;                                 ///< Telnet client for relay I/O
 
+    /// @brief Connection configuration for relay
     ConnectionConfig conn{
-        "192.168.0.2",
-        23,
-        std::chrono::milliseconds(2000)
+        "192.168.0.2",                                   ///< Relay IP address
+        23,                                              ///< Telnet port
+        std::chrono::milliseconds(2000)                  ///< Connection timeout
     };
 
+    /// @brief Login credentials for Level 1 authentication
     LoginConfig creds{
-        "acc",
-        "OTTER"
+        "acc",                                           ///< Username
+        "OTTER"                                          ///< Password
     };
 
-    RetryState retry{3, 0, std::chrono::seconds(30)};
-    SERDatabase serDb{"ser_records.db"};
-    SERWebSocketServer wsServer{serDb, 8765};
-    ThreadManager threadMgr{serDb, std::chrono::seconds(120)};
-    std::unique_ptr<FsmWorker> fsmWorker;
-    SharedRingBuffer ring{500U * 1024U};
-    SharedSerReader shmReader{ring, "ui/data.json"};
-    bool running = false;
+    RetryState retry{3, 0, std::chrono::seconds(30)};    ///< Retry configuration
+    SERDatabase serDb{"ser_records.db"};                 ///< SQLite database (persistent storage)
+    SERWebSocketServer wsServer{serDb, 8765};            ///< WebSocket server (port 8765)
+    ThreadManager threadMgr{serDb, std::chrono::seconds(120)}; ///< Poller (2 min interval)
 
+    // Architecture components
+    RawDataRingBuffer rawBuffer{100};                    ///< SPSC ring buffer (100 slots)
+    SharedRingBuffer shmRing{500U * 1024U};              ///< Shared ring buffer (500KB)
+
+    std::unique_ptr<ReceptionWorker> receptionWorker;    ///< Thread 1: Reception worker
+    std::unique_ptr<ProcessingWorker> processingWorker;  ///< Thread 2: Processing worker
+
+    SharedSerReader shmReader{shmRing, "ui/data.json"}; ///< Thread 5: JSON file writer
+
+    bool running = false;                                ///< Application running state
+
+    /**
+     * @brief Starts all application components.
+     *
+     * @details Initialization sequence:
+     * 1. Open SQLite database
+     * 2. Start WebSocket server
+     * 3. Create and start ReceptionWorker (Thread 1)
+     * 4. Create and start ProcessingWorker (Thread 2)
+     * 5. Configure polling callback
+     * 6. Start SharedSerReader (Thread 5)
+     * 7. Start ThreadManager (Thread 4)
+     * 8. Queue initial SER command
+     *
+     * @return true on success, false if any component fails to start
+     */
     bool start()
     {
         if (running)
@@ -214,6 +720,7 @@ public:
 
         std::cout << "========================================\n";
         std::cout << "  Telnet-SML Multi-threaded Application\n";
+        std::cout << "  (Decoupled Architecture v2.0)\n";
         std::cout << "========================================\n\n";
 
         if (!serDb.open())
@@ -230,45 +737,99 @@ public:
             return false;
         }
 
-        fsmWorker = std::make_unique<FsmWorker>(client, conn, creds, retry, serDb, ring, app_running);
-        fsmWorker->start();
-
-        shmReader.start();
-
+        // Architecture: TelnetClient Thread -> SPSC Ring Buffer -> Processing Thread
+        
+        // 1. TelnetClient Thread (C++) - handles Telnet I/O, pushes to ring buffer
+        receptionWorker = std::make_unique<ReceptionWorker>(
+            client, conn, creds, rawBuffer, app_running);
+        receptionWorker->start();
+        
+        // 2. FSM / Processing Thread - reads from ring buffer, writes to DB, then WebSocket
+        processingWorker = std::make_unique<ProcessingWorker>(
+            rawBuffer, serDb, wsServer, shmRing, app_running);
+        processingWorker->start();
+        
+        // Polling callback requests SER data from TelnetClient Thread
         threadMgr.setPollingCallback([this]() {
             if (!app_running.load())
                 return;
-
-            std::cout << "[Poller] Re-running FSM for SER update...\n";
-            fsmWorker->requestRun(true);
-            std::cout << "[Poller] Poll cycle complete\n";
+            std::cout << "[Poller] Requesting SER data...\n";
+            receptionWorker->queueCommand("SER");
         });
 
+        shmReader.start();
         threadMgr.startAll();
 
+        // Initial data request to start the pipeline
         std::cout << "\n[Main] Starting initial SER retrieval...\n";
-        fsmWorker->requestRun(false);
+        receptionWorker->queueCommand("SER");
 
         std::cout << "\n========================================\n";
-        std::cout << "  Active Threads:\n";
-        std::cout << "  - Main Thread: User input handler\n";
-        std::cout << "  - Thread 1: WebSocket Server (port 8765)\n";
-        std::cout << "  - Thread 2: FSM Worker (SER retrieval)\n";
-        std::cout << "  - Thread 3: SER Poller (2 min interval)\n";
-        std::cout << "  - Thread 4: Database Writer (async)\n";
-        std::cout << "  - Thread 5: Shared Memory Reader (JSON writer)\n";
+        std::cout << "  Active Threads (Architecture):\n";
+        std::cout << "  - TelnetClient Thread: Relay communication\n";
+        std::cout << "  - FSM/Processing Thread: Parse + DB + WebSocket\n";
+        std::cout << "  - WebSocket Server Thread: port 8765\n";
+        std::cout << "  - Poller Thread: 2 min interval\n";
+        std::cout << "  - JSON Writer Thread: SharedRingBuffer consumer\n";
+        std::cout << "========================================\n";
+        std::cout << "\n[Architecture] C++ Process Data Flow:\n";
+        std::cout << "  Relay Device\n";
+        std::cout << "       |\n";
+        std::cout << "       v\n";
+        std::cout << "  TelnetClient Thread (C++)\n";
+        std::cout << "       |\n";
+        std::cout << "       v\n";
+        std::cout << "  C++ SPSC Ring Buffer\n";
+        std::cout << "       |\n";
+        std::cout << "       v\n";
+        std::cout << "  FSM / Processing Thread\n";
+        std::cout << "       |\n";
+        std::cout << "       v\n";
+        std::cout << "  SQLite (Persistent Storage)\n";
+        std::cout << "       |\n";
+        std::cout << "       v\n";
+        std::cout << "  WebSocket Server (After DB Write)\n";
+        std::cout << "========================================\n";
+        std::cout << "\n[Architecture] Browser Data Flow:\n";
+        std::cout << "  WebSocket Client\n";
+        std::cout << "       |\n";
+        std::cout << "       v\n";
+        std::cout << "  JS Worker (Optional)\n";
+        std::cout << "       |\n";
+        std::cout << "       v\n";
+        std::cout << "  Main JS Thread (DOM Access)\n";
+        std::cout << "       |\n";
+        std::cout << "       v\n";
+        std::cout << "  Tabulator / JSON Export\n";
         std::cout << "========================================\n";
 
         running = true;
         return true;
     }
 
+    /**
+     * @brief Blocks until user requests exit.
+     *
+     * @details Waits for Enter key press to signal shutdown.
+     */
     void waitForExit()
     {
         std::cout << "\n[INFO] Press Enter to exit...\n";
         std::cin.get();
     }
 
+    /**
+     * @brief Stops all application components gracefully.
+     *
+     * @details Shutdown sequence:
+     * 1. Set app_running flag to false
+     * 2. Stop ThreadManager (polling)
+     * 3. Stop ReceptionWorker
+     * 4. Stop ProcessingWorker
+     * 5. Stop SharedSerReader
+     * 6. Stop WebSocket server
+     * 7. Close database
+     */
     void stop()
     {
         if (!running)
@@ -278,8 +839,12 @@ public:
         app_running = false;
 
         threadMgr.stopAll();
-        if (fsmWorker)
-            fsmWorker->stop();
+        
+        if (receptionWorker)
+            receptionWorker->stop();
+        if (processingWorker)
+            processingWorker->stop();
+        
         shmReader.stop();
         wsServer.stop();
         serDb.close();
@@ -289,31 +854,74 @@ public:
     }
 };
 
+// ============================================================================
+// TelnetSmlApp Public Interface Implementation
+// ============================================================================
+
+/**
+ * @brief Constructs a TelnetSmlApp instance.
+ *
+ * @details Creates the private implementation (PIMPL) object.
+ * No connections are made until start() is called.
+ */
 TelnetSmlApp::TelnetSmlApp() : impl_(std::make_unique<Impl>())
 {
 }
 
+/**
+ * @brief Destroys the TelnetSmlApp instance.
+ *
+ * @details Ensures graceful shutdown by calling stop() if still running.
+ */
 TelnetSmlApp::~TelnetSmlApp()
 {
     if (impl_)
         impl_->stop();
 }
 
+/**
+ * @brief Starts the Telnet-SML application.
+ *
+ * @details Initializes and starts all components:
+ * - Database connection
+ * - WebSocket server
+ * - Worker threads (Reception, Processing, SHM Reader)
+ * - Polling thread
+ *
+ * @return true on success, false if initialization fails
+ */
 bool TelnetSmlApp::start()
 {
     return impl_->start();
 }
 
+/**
+ * @brief Waits for user to request application exit.
+ *
+ * @details Blocks the calling thread until Enter key is pressed.
+ * Typically called from main() after start().
+ */
 void TelnetSmlApp::waitForExit()
 {
     impl_->waitForExit();
 }
 
+/**
+ * @brief Stops the Telnet-SML application.
+ *
+ * @details Gracefully shuts down all components in reverse order.
+ * Safe to call multiple times.
+ */
 void TelnetSmlApp::stop()
 {
     impl_->stop();
 }
 
+/**
+ * @brief Checks if the application is currently running.
+ *
+ * @return true if running, false otherwise
+ */
 bool TelnetSmlApp::isRunning() const
 {
     return impl_ && impl_->running;

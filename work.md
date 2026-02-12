@@ -2,49 +2,113 @@
 
 ## Architecture Overview
 
+The process starts when the **Relay device** sends live data over the network, which is received by the **TelnetClient** written in C++. As soon as data is received, it is immediately pushed into a **C++ SPSC ring buffer** (struct-based) to ensure the reception path remains non-blocking and lightweight.
+
+A separate **processing thread** continuously reads from this ring buffer and forwards the data to the **FSM (Finite State Machine)** for validation and business logic handling. After processing, the validated data is written to **SQLite** for persistence and **then** emitted through the **WebSocket server** for real-time browser updates (only after successful DB write).
+
+On the browser side, the **WebSocket Client** receives the live messages. If additional parsing or heavy computation is required, a **JavaScript Worker** can handle that workload to avoid blocking the UI thread. The worker writes processed data into a **Shared Ring Buffer** (using SharedArrayBuffer), and the **main JavaScript thread** reads from this buffer to update the DOM (since only the main thread has DOM access).
+
+Finally, the main thread updates the **Tabulator table** to reflect real-time changes.
+
+### C++ Process Architecture
+
+```
+Relay Device
+     ↓
+TelnetClient Thread (C++)
+     ↓
+C++ SPSC Ring Buffer
+     ↓
+FSM / Processing Thread
+     ↓
+SQLite (Persistent Storage)
+     ↓
+WebSocket Server (After DB Write)
+```
+
+### Browser Architecture
+
+```
+WebSocket Client
+     ↓
+JS Worker (Optional)
+     ↓
+Main JS Thread (DOM Access)
+     ↓
+Tabulator / JSON Export
+```
+
 ### Architecture Diagram (Mermaid)
 
 ```mermaid
 flowchart TB
-    subgraph Client["Client Application"]
-        main["main.cpp\n(Entry Point)"]
-        fsm["TelnetFSM\n(State Machine)"]
-        client["TelnetClient\n(TCP/Telnet)"]
-        main -->|controls| fsm -->|actions| client
+    subgraph CPP["C++ Process - Sequential Pipeline"]
+        direction TB
+        relay["🔌 Relay Device"]
+        telnetThread["TelnetClient Thread\n(ReceptionWorker)"]
+        spscRing["C++ SPSC Ring Buffer\n(RawDataRingBuffer)"]
+        fsmThread["FSM / Processing Thread\n(ProcessingWorker)"]
+        sqlite["SQLite\n(Persistent Storage)"]
+        wsServer["WebSocket Server\n(After DB Write)"]
+        
+        relay -->|"TCP"| telnetThread
+        telnetThread -->|"push"| spscRing
+        spscRing -->|"waitPop"| fsmThread
+        fsmThread -->|"insertRecords"| sqlite
+        sqlite -->|"on success"| wsServer
     end
 
-    subgraph Data["Data Layer"]
-        db["SERDatabase\n(SQLite)"]
-        json["data.json\n(UI Export)"]
+    subgraph Browser["Browser - Sequential Pipeline"]
+        direction TB
+        wsClient["WebSocket Client"]
+        jsWorker["JS Worker\n(Optional)"]
+        mainJS["Main JS Thread\n(DOM Access)"]
+        tabulator["Tabulator / JSON Export"]
+        
+        wsClient -->|"onmessage"| jsWorker
+        jsWorker -->|"postMessage"| mainJS
+        mainJS -->|"render"| tabulator
     end
 
-    subgraph UI["User Interface"]
-        ws["WebSocket Server"]
-        html["index.html\n(Web UI)"]
-    end
-
-    subgraph External["External"]
-        relay["Substation Relay\n(Telnet Server)"]
-    end
-
-    client -->|Telnet TCP:23| relay
-    fsm -->|stores SER| db
-    db -->|exports| json
-    db -->|real-time| ws
-    ws -->|WebSocket| html
+    wsServer -->|"WebSocket\nASN.1 BER/TLV"| wsClient
 ```
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
-│   main.cpp  │────▶│ TelnetFSM   │────▶│  TelnetClient   │
-│  (Driver)   │     │ (Boost.SML) │     │  (Boost.Asio)   │
-└─────────────┘     └─────────────┘     └─────────────────┘
-                                               │
-                                               ▼
-                                        ┌─────────────────┐
-                                        │  SEL-735 Relay  │
-                                        │  192.168.0.2:23 │
-                                        └─────────────────┘
+C++ PROCESS                                    BROWSER
+┌─────────────────┐                           ┌─────────────────┐
+│   Relay Device  │                           │ WebSocket Client│
+│  192.168.0.2:23 │                           └────────┬────────┘
+└────────┬────────┘                                    │
+         │ TCP                                         ▼
+         ▼                                    ┌─────────────────┐
+┌─────────────────┐                           │   JS Worker     │
+│ TelnetClient    │                           │   (Optional)    │
+│ Thread (C++)    │                           └────────┬────────┘
+└────────┬────────┘                                    │
+         │ push                                        ▼
+         ▼                                    ┌─────────────────┐
+┌─────────────────┐                           │ Main JS Thread  │
+│ C++ SPSC Ring   │                           │  (DOM Access)   │
+│ Buffer          │                           └────────┬────────┘
+└────────┬────────┘                                    │
+         │ waitPop                                     ▼
+         ▼                                    ┌─────────────────┐
+┌─────────────────┐                           │   Tabulator /   │
+│ FSM/Processing  │                           │   JSON Export   │
+│ Thread          │                           └─────────────────┘
+└────────┬────────┘
+         │ insertRecords
+         ▼
+┌─────────────────┐
+│     SQLite      │
+│   (Persistent)  │
+└────────┬────────┘
+         │ on success
+         ▼
+┌─────────────────┐
+│ WebSocket Server│──────────────────────────▶ (to Browser)
+│ (After DB Write)│        ASN.1 BER/TLV
+└─────────────────┘
 ```
 
 ---

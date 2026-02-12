@@ -53,6 +53,18 @@
  * Browser->Session [label="close"];
  * @endmsc
  * 
+ * ## Browser Architecture (Client Side)
+ * 
+ * ```
+ * WebSocket Client
+ *      ↓
+ * JS Worker (Optional)
+ *      ↓
+ * Main JS Thread (DOM Access)
+ *      ↓
+ * Tabulator / JSON Export
+ * ```
+ * 
  * ## ASN.1 BER/TLV Payload Format
  * 
  * Top-level TLV:
@@ -102,15 +114,22 @@
 #include <boost/beast/websocket.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/asio/post.hpp>
 #include <thread>
 #include <memory>
 #include <functional>
 #include <string>
 #include <vector>
 #include <iostream>
+#include <set>
+#include <mutex>
 
 #include "asn_tlv_codec.hpp"
 #include "ser_database.hpp"
+
+// Forward declaration for session manager
+class WebSocketSession;
+class SessionManager;
 
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -181,6 +200,80 @@ inline std::string recordsToJSON(const std::vector<SERRecord>& records)
     return json;
 }
 
+/**
+ * @class SessionManager
+ * @brief Manages all active WebSocket sessions for broadcast
+ * 
+ * @details Thread-safe container for tracking connected WebSocket sessions.
+ * Enables push-based data delivery to all connected clients simultaneously.
+ * 
+ * ## Broadcast Flow
+ * 
+ * @dot
+ * digraph Broadcast {
+ *     rankdir=LR;
+ *     node [shape=box, style=filled];
+ *     
+ *     FSM [label="FSM\n(after processing)", fillcolor=lightyellow];
+ *     Manager [label="SessionManager", fillcolor=lightgreen];
+ *     S1 [label="Session 1"];
+ *     S2 [label="Session 2"];
+ *     S3 [label="Session N"];
+ *     
+ *     FSM -> Manager [label="broadcast()"];
+ *     Manager -> S1;
+ *     Manager -> S2;
+ *     Manager -> S3;
+ * }
+ * @enddot
+ */
+class TELNET_SML_API SessionManager
+{
+public:
+    /**
+     * @brief Register a new session for broadcast
+     * @param session Shared pointer to the WebSocket session
+     */
+    void add(std::shared_ptr<WebSocketSession> session)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        sessions_.insert(session);
+    }
+
+    /**
+     * @brief Unregister a session (on disconnect)
+     * @param session Shared pointer to the WebSocket session
+     */
+    void remove(std::shared_ptr<WebSocketSession> session)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        sessions_.erase(session);
+    }
+
+    /**
+     * @brief Get all currently connected sessions
+     * @return Vector of shared pointers to active sessions
+     */
+    std::vector<std::shared_ptr<WebSocketSession>> getSessions() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return {sessions_.begin(), sessions_.end()};
+    }
+
+    /**
+     * @brief Get number of connected clients
+     */
+    std::size_t count() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return sessions_.size();
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::set<std::shared_ptr<WebSocketSession>> sessions_;
+};
+
 
 /**
  * @class WebSocketSession
@@ -221,9 +314,11 @@ class TELNET_SML_API WebSocketSession : public std::enable_shared_from_this<WebS
     websocket::stream<beast::tcp_stream> ws_;   ///< WebSocket stream over TCP
     beast::flat_buffer buffer_;                  ///< Buffer for incoming messages
     SERDatabase& db_;                            ///< Reference to database for queries
+    SessionManager* sessionMgr_;                 ///< Session manager for registration
     bool writing_ = false;                       ///< Flag to prevent concurrent writes
     bool pending_read_ = false;                  ///< Flag for pending read after write
     std::vector<uint8_t> write_buffer_;          ///< Buffer to hold data during async write
+    std::vector<uint8_t> broadcast_buffer_;      ///< Buffer for broadcast data
 
 public:
     /**
@@ -231,11 +326,38 @@ public:
      * 
      * @param socket TCP socket from accepted connection (moved)
      * @param db Reference to SER database for data access
+     * @param sessionMgr Pointer to session manager (may be null for legacy mode)
      */
-    explicit WebSocketSession(tcp::socket&& socket, SERDatabase& db)
+    explicit WebSocketSession(tcp::socket&& socket, SERDatabase& db, SessionManager* sessionMgr = nullptr)
         : ws_(std::move(socket))
         , db_(db)
+        , sessionMgr_(sessionMgr)
     {
+    }
+    
+    /**
+     * @brief Destructor - unregister from session manager
+     */
+    ~WebSocketSession()
+    {
+        // Note: Cannot use shared_from_this() in destructor
+        // Deregistration is handled in on_read when connection closes
+    }
+
+    /**
+     * @brief Send data to this client (for broadcast push)
+     * 
+     * @details Called by SessionManager to push data to connected clients.
+     * Thread-safe via strand posting.
+     * 
+     * @param data Binary data to send (ASN.1 BER/TLV encoded)
+     */
+    void sendBroadcast(const std::vector<uint8_t>& data)
+    {
+        // Post to strand to ensure thread safety
+        net::post(ws_.get_executor(), [self = shared_from_this(), data]() {
+            self->do_broadcast(data);
+        });
     }
 
     /**
@@ -276,9 +398,46 @@ private:
 
         std::cout << "[WS] Client connected\n";
         
+        // Register with session manager for broadcast
+        if (sessionMgr_)
+            sessionMgr_->add(shared_from_this());
+        
         // Send initial data, then start reading when write completes
         pending_read_ = true;
         sendData();
+    }
+
+    /**
+     * @brief Perform broadcast write operation (called on strand)
+     */
+    void do_broadcast(const std::vector<uint8_t>& data)
+    {
+        if (writing_)
+        {
+            // Queue for later or skip - for simplicity, skip if busy
+            return;
+        }
+        
+        writing_ = true;
+        broadcast_buffer_ = data;
+        
+        ws_.binary(true);
+        ws_.async_write(
+            net::buffer(broadcast_buffer_),
+            beast::bind_front_handler(&WebSocketSession::on_broadcast_write, shared_from_this()));
+    }
+    
+    /**
+     * @brief Handle broadcast write completion
+     */
+    void on_broadcast_write(beast::error_code ec, std::size_t /*bytes_transferred*/)
+    {
+        writing_ = false;
+        
+        if (ec)
+        {
+            std::cerr << "[WS] Broadcast write error: " << ec.message() << "\n";
+        }
     }
 
     /**
@@ -304,12 +463,18 @@ private:
         if (ec == websocket::error::closed)
         {
             std::cout << "[WS] Client disconnected\n";
+            // Deregister from session manager
+            if (sessionMgr_)
+                sessionMgr_->remove(shared_from_this());
             return;
         }
 
         if (ec)
         {
             std::cerr << "[WS] Read error: " << ec.message() << "\n";
+            // Deregister from session manager on error too
+            if (sessionMgr_)
+                sessionMgr_->remove(shared_from_this());
             return;
         }
 
@@ -416,6 +581,7 @@ class TELNET_SML_API WebSocketListener : public std::enable_shared_from_this<Web
     net::io_context& ioc_;       ///< Reference to I/O context
     tcp::acceptor acceptor_;      ///< TCP acceptor for incoming connections
     SERDatabase& db_;             ///< Reference to database for sessions
+    SessionManager* sessionMgr_;  ///< Session manager for broadcast support
 
 public:
     /**
@@ -424,11 +590,13 @@ public:
      * @param ioc I/O context for async operations
      * @param endpoint TCP endpoint to listen on (address + port)
      * @param db Database reference to pass to sessions
+     * @param sessionMgr Session manager for broadcast (may be null)
      */
-    WebSocketListener(net::io_context& ioc, tcp::endpoint endpoint, SERDatabase& db)
+    WebSocketListener(net::io_context& ioc, tcp::endpoint endpoint, SERDatabase& db, SessionManager* sessionMgr = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , db_(db)
+        , sessionMgr_(sessionMgr)
     {
         beast::error_code ec;
 
@@ -500,8 +668,8 @@ private:
         }
         else
         {
-            // Create the session and run it
-            std::make_shared<WebSocketSession>(std::move(socket), db_)->run();
+            // Create the session and run it (with session manager for broadcast)
+            std::make_shared<WebSocketSession>(std::move(socket), db_, sessionMgr_)->run();
         }
 
         // Accept another connection
@@ -559,6 +727,7 @@ class TELNET_SML_API SERWebSocketServer
     SERDatabase& db_;                              ///< Reference to SER database
     unsigned short port_;                          ///< Port number to listen on
     bool running_ = false;                         ///< Server running state flag
+    SessionManager sessionMgr_;                    ///< Session manager for broadcast
 
 public:
     /**
@@ -601,7 +770,7 @@ public:
         try
         {
             auto const address = net::ip::make_address("0.0.0.0");
-            listener_ = std::make_shared<WebSocketListener>(ioc_, tcp::endpoint{address, port_}, db_);
+            listener_ = std::make_shared<WebSocketListener>(ioc_, tcp::endpoint{address, port_}, db_, &sessionMgr_);
             listener_->run();
 
             server_thread_ = std::thread([this]() {
@@ -646,4 +815,57 @@ public:
      * @return false Server is stopped
      */
     bool isRunning() const { return running_; }
+    
+    /**
+     * @brief Broadcast data to all connected clients (push model)
+     * 
+     * @details Called after FSM processing to push new data to all browsers.
+     * This enables real-time updates without polling.
+     * 
+     * @param records Vector of SER records to broadcast
+     */
+    void broadcast(const std::vector<SERRecord>& records)
+    {
+        if (!running_)
+            return;
+        
+        auto payload = asn_tlv::encodeSerRecordsToTlv(records);
+        if (payload.empty())
+            return;
+        
+        auto sessions = sessionMgr_.getSessions();
+        std::cout << "[WS] Broadcasting to " << sessions.size() << " clients\n";
+        
+        for (auto& session : sessions)
+        {
+            if (session)
+                session->sendBroadcast(payload);
+        }
+    }
+    
+    /**
+     * @brief Broadcast raw binary payload to all connected clients
+     * 
+     * @param payload Pre-encoded ASN.1 BER/TLV data
+     */
+    void broadcastRaw(const std::vector<uint8_t>& payload)
+    {
+        if (!running_ || payload.empty())
+            return;
+        
+        auto sessions = sessionMgr_.getSessions();
+        for (auto& session : sessions)
+        {
+            if (session)
+                session->sendBroadcast(payload);
+        }
+    }
+    
+    /**
+     * @brief Get number of connected clients
+     */
+    std::size_t clientCount() const
+    {
+        return sessionMgr_.count();
+    }
 };

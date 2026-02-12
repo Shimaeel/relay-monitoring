@@ -1,3 +1,82 @@
+/**
+ * @file asn_tlv_codec.hpp
+ * @brief ASN.1 BER/TLV Codec for SER Record Serialization
+ *
+ * @details This header provides functions for encoding and decoding SER records
+ * using ASN.1 Basic Encoding Rules (BER) with Tag-Length-Value (TLV) structure.
+ * Used for efficient binary transmission via WebSocket.
+ *
+ * ## TLV Structure
+ *
+ * ```
+ * +--------+--------+------------------+
+ * |  Tag   | Length |      Value       |
+ * | 1 byte | 1-5 B  |  Length bytes    |
+ * +--------+--------+------------------+
+ * ```
+ *
+ * ## Payload Format
+ *
+ * Top-level TLV (APPLICATION 1, constructed):
+ * ```
+ * Tag: 0x61
+ * Value: Zero or more Record TLVs
+ * ```
+ *
+ * Record TLV (SEQUENCE, constructed):
+ * ```
+ * Tag: 0x30
+ * Value: Context-specific primitive fields
+ *   0x80: record_id (string)
+ *   0x81: timestamp (string)
+ *   0x82: status (string)
+ *   0x83: description (string)
+ * ```
+ *
+ * ## Data Flow
+ *
+ * @dot
+ * digraph ASNCodec {
+ *     rankdir=TB;
+ *     node [shape=box, style=filled, fillcolor=lightyellow];
+ *
+ *     Records [label="vector<SERRecord>"];
+ *     Encode [label="encodeSerRecordsToTlv()"];
+ *     Binary [label="vector<uint8_t>\n(TLV payload)", fillcolor=lightgreen];
+ *     Decode [label="decodeSerRecordsFromTlv()"];
+ *     Output [label="vector<SERRecord>"];
+ *
+ *     Records -> Encode [label="serialize"];
+ *     Encode -> Binary;
+ *     Binary -> Decode [label="deserialize"];
+ *     Decode -> Output;
+ * }
+ * @enddot
+ *
+ * ## Usage Example
+ *
+ * @code{.cpp}
+ * // Encode
+ * std::vector<SERRecord> records = getRecords();
+ * auto payload = asn_tlv::encodeSerRecordsToTlv(records);
+ * webSocket.send(payload);
+ *
+ * // Decode
+ * std::vector<SERRecord> decoded;
+ * std::string error;
+ * if (asn_tlv::decodeSerRecordsFromTlv(data, size, decoded, &error)) {
+ *     processRecords(decoded);
+ * }
+ * @endcode
+ *
+ * @see SERWebSocketServer Uses this codec for WebSocket messages
+ * @see SharedSerReader Uses this codec for shared memory data
+ *
+ * @author Telnet-SML Development Team
+ * @version 1.0.0
+ * @date 2026
+ */
+
 #pragma once
 
 #include <cstddef>
@@ -7,17 +86,44 @@
 
 #include "ser_record.hpp"
 
+/**
+ * @namespace asn_tlv
+ * @brief ASN.1 BER/TLV encoding and decoding utilities.
+ */
 namespace asn_tlv
 {
+
+/**
+ * @struct TlvInfo
+ * @brief Parsed TLV header information.
+ *
+ * @details Contains metadata extracted from a TLV structure.
+ */
 struct TlvInfo
 {
-    uint8_t tag = 0U;
-    bool constructed = false;
-    std::size_t valueStart = 0U;
-    std::size_t length = 0U;
-    std::size_t nextOffset = 0U;
+    uint8_t tag = 0U;           ///< Tag byte (identifies data type)
+    bool constructed = false;   ///< true if constructed (contains nested TLVs)
+    std::size_t valueStart = 0U;///< Offset where value bytes begin
+    std::size_t length = 0U;    ///< Length of value in bytes
+    std::size_t nextOffset = 0U;///< Offset of next TLV (after this one)
 };
 
+/**
+ * @brief Reads BER length encoding from buffer.
+ *
+ * @details Handles both short form (single byte < 128) and long form
+ * (first byte indicates count of following length bytes).
+ *
+ * @param buffer Input buffer
+ * @param size Buffer size
+ * @param offset Current position in buffer
+ * @param[out] length Decoded length value
+ * @param[out] nextOffset Position after length bytes
+ * @param[out] error Optional error message on failure
+ *
+ * @return true Successfully decoded length
+ * @return false Invalid encoding
+ */
 inline bool readLength(const uint8_t* buffer, std::size_t size, std::size_t offset,
                        std::size_t& length, std::size_t& nextOffset, std::string* error)
 {
@@ -55,6 +161,20 @@ inline bool readLength(const uint8_t* buffer, std::size_t size, std::size_t offs
     return true;
 }
 
+/**
+ * @brief Reads and parses a complete TLV structure.
+ *
+ * @details Extracts tag, length, and value boundaries from buffer.
+ *
+ * @param buffer Input buffer
+ * @param size Buffer size
+ * @param offset Current position in buffer
+ * @param[out] info Parsed TLV information
+ * @param[out] error Optional error message on failure
+ *
+ * @return true Successfully parsed TLV
+ * @return false Invalid TLV structure
+ */
 inline bool readTlv(const uint8_t* buffer, std::size_t size, std::size_t offset,
                     TlvInfo& info, std::string* error)
 {
@@ -86,6 +206,14 @@ inline bool readTlv(const uint8_t* buffer, std::size_t size, std::size_t offset,
     return true;
 }
 
+/**
+ * @brief Appends BER length encoding to output buffer.
+ *
+ * @details Uses short form for lengths < 128, long form otherwise.
+ *
+ * @param[out] out Output buffer to append to
+ * @param len Length value to encode
+ */
 inline void berAppendLength(std::vector<uint8_t>& out, std::size_t len)
 {
     if (len < 128U)
@@ -112,6 +240,14 @@ inline void berAppendLength(std::vector<uint8_t>& out, std::size_t len)
     }
 }
 
+/**
+ * @brief Appends a complete TLV structure to output buffer.
+ *
+ * @param[out] out Output buffer to append to
+ * @param tag Tag byte
+ * @param value Pointer to value bytes (may be nullptr if len is 0)
+ * @param len Length of value
+ */
 inline void berAppendTlv(std::vector<uint8_t>& out, uint8_t tag, const uint8_t* value, std::size_t len)
 {
     out.push_back(tag);
@@ -122,11 +258,40 @@ inline void berAppendTlv(std::vector<uint8_t>& out, uint8_t tag, const uint8_t* 
     }
 }
 
+/**
+ * @brief Appends a string as a TLV structure.
+ *
+ * @param[out] out Output buffer to append to
+ * @param tag Tag byte
+ * @param value String value to encode
+ */
 inline void berAppendString(std::vector<uint8_t>& out, uint8_t tag, const std::string& value)
 {
     berAppendTlv(out, tag, reinterpret_cast<const uint8_t*>(value.data()), value.size());
 }
 
+/**
+ * @brief Encodes SER records to ASN.1 BER/TLV format.
+ *
+ * @details Creates a top-level APPLICATION 1 TLV containing zero or more
+ * SEQUENCE TLVs, each with context-specific fields for record data.
+ *
+ * ## Output Structure
+ * ```
+ * 0x61 [len] {
+ *   0x30 [len] {
+ *     0x80 [len] record_id
+ *     0x81 [len] timestamp
+ *     0x82 [len] status
+ *     0x83 [len] description
+ *   }
+ *   ... (more records)
+ * }
+ * ```
+ *
+ * @param records Vector of SERRecord to encode
+ * @return std::vector<uint8_t> Binary TLV payload
+ */
 inline std::vector<uint8_t> encodeSerRecordsToTlv(const std::vector<SERRecord>& records)
 {
     std::vector<uint8_t> content;
@@ -150,6 +315,22 @@ inline std::vector<uint8_t> encodeSerRecordsToTlv(const std::vector<SERRecord>& 
     return payload;
 }
 
+/**
+ * @brief Decodes ASN.1 BER/TLV payload to SER records.
+ *
+ * @details Parses a top-level APPLICATION 1 TLV and extracts all
+ * SEQUENCE TLVs containing record data.
+ *
+ * @param data Input buffer containing TLV payload
+ * @param size Size of input buffer
+ * @param[out] out Vector to receive decoded records
+ * @param[out] error Optional pointer to receive error message
+ *
+ * @return true Successfully decoded all records
+ * @return false Parse error (details in @p error if provided)
+ *
+ * @note Output vector is cleared before decoding
+ */
 inline bool decodeSerRecordsFromTlv(const uint8_t* data, std::size_t size,
                                     std::vector<SERRecord>& out, std::string* error = nullptr)
 {
