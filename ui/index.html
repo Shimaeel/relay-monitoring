@@ -409,6 +409,8 @@
         let ws;
         const WS_URL = 'ws://localhost:8765';
         const textDecoder = new TextDecoder();
+        const pollRateInput = document.getElementById('poll-rate');
+        let lastMessageAt = 0;
 
         function readLength(buffer, offset) {
             const first = buffer[offset];
@@ -531,6 +533,7 @@
         function initTable(data) {
             table = new Tabulator("#ser-table", {
                 data: data,
+                index: "sno",
                 layout: "fitColumns",
                 responsiveLayout: "collapse",
                 pagination: true,
@@ -597,6 +600,7 @@
                 updateConnectionStatus('connected');
                 // Request initial data
                 ws.send('getData');
+                startAutoRefresh();
             };
             
             ws.onmessage = async function(event) {
@@ -615,7 +619,7 @@
                     
                     // Always show real data from relay (via database)
                     if (table) {
-                        table.setData(data);
+                        table.updateOrAddData(data);
                     } else {
                         initTable(data);
                     }
@@ -624,6 +628,7 @@
                     document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
                     
                     // Show connected status when data is received
+                    lastMessageAt = Date.now();
                     dataReceived = true;
                     updateConnectionStatus('connected');
                 } catch (e) {
@@ -639,6 +644,7 @@
                 } else {
                     updateConnectionStatus('disconnected');
                 }
+                stopAutoRefresh();
                 // Attempt to reconnect after 3 seconds
                 setTimeout(connectWebSocket, 3000);
             };
@@ -683,16 +689,23 @@
             }
         }
         
-        // Auto-refresh interval (poll for new data every 2 seconds)
+        // Auto-refresh interval (fallback poll when no push data arrives)
         let autoRefreshInterval = null;
         
         function startAutoRefresh() {
-            if (autoRefreshInterval) return;
+            const rate = Number.parseInt(pollRateInput.value, 10) || 2000;
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
             autoRefreshInterval = setInterval(() => {
-                if (ws && ws.readyState === WebSocket.OPEN) {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    return;
+                }
+                const now = Date.now();
+                if (now - lastMessageAt >= rate) {
                     ws.send('getData');
                 }
-            }, 2000);  // Poll every 2 seconds
+            }, rate);
         }
         
         function stopAutoRefresh() {
@@ -701,12 +714,17 @@
                 autoRefreshInterval = null;
             }
         }
+
+        pollRateInput.addEventListener('change', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                startAutoRefresh();
+            }
+        });
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
             initTable([]);  // Initialize empty table
             connectWebSocket();
-            // Auto-refresh disabled - click "Refresh" button to update
         });
     </script>
 </body>

@@ -1,0 +1,27 @@
+flowchart TB
+  subgraph Client["Client Application"]
+    main["main.cpp\n(Entry Point)"]
+    fsm["TelnetFSM\n(State Machine)"]
+    client["TelnetClient\n(TCP/Telnet)"]
+    main -->|controls| fsm -->|actions| client
+  end
+
+  subgraph Data["Data Layer"]
+    db["SERDatabase\n(SQLite)"]
+    json["data.json\n(UI Export)"]
+  end
+
+  subgraph UI["User Interface"]
+    ws["WebSocket Server"]
+    html["index.html\n(Web UI)"]
+  end
+
+  subgraph External["External"]
+    relay["Substation Relay\n(Telnet Server)"]
+  end
+
+  client -->|Telnet TCP:23| relay
+  fsm -->|stores SER| db
+  db -->|exports| json
+  db -->|real-time| ws
+  ws -->|WebSocket| html
