@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file main.cpp
  * @brief Main entry point for Telnet-SML Substation Monitoring System

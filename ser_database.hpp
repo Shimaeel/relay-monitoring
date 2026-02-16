@@ -1,9 +1,11 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file ser_database.hpp
- * @brief SQLite Database Handler for SER Records
- * 
- * @details This header defines the SERDatabase class for persistent storage
- * of System Event Records using SQLite. Provides CRUD operations, querying,
+ * @brief SQLite database handler for SER records.
+ *
+ * @details Defines the SERDatabase class for persistent storage of
+ * System Event Records using SQLite. Provides CRUD operations, querying,
  * and JSON export for UI integration.
  * 
  * ## Database Schema
@@ -77,7 +79,7 @@
  * @see SERRecord Structure for individual records
  * @see PollSerAction FSM action that stores records
  * @see SERWebSocketServer Real-time data access
- * 
+ *
  * @note Thread-safe for single writer, multiple readers
  * @note Duplicate records (same record_id + timestamp) are silently skipped
  * 
@@ -98,7 +100,7 @@
 
 /**
  * @class SERDatabase
- * @brief SQLite database handler for storing and retrieving SER records
+ * @brief SQLite database handler for storing and retrieving SER records.
  * 
  * @details Manages persistent storage of System Event Records using SQLite.
  * Features:
@@ -133,21 +135,21 @@ class TELNET_SML_API SERDatabase
 {
 public:
     /**
-     * @brief Construct database handler with specified file path
-     * 
+     * @brief Construct database handler with specified file path.
+     *
      * @details Creates handler but does not open database. Call open() to
      * establish connection. File will be created if it doesn't exist.
-     * 
+     *
      * @param dbPath Path to SQLite database file (default: "ser_records.db")
-     * 
+     *
      * @post db_ == nullptr (not yet connected)
      * @post db_path_ == dbPath
      */
     explicit SERDatabase(const std::string& dbPath = "ser_records.db");
     
     /**
-     * @brief Destructor - automatically closes database connection
-     * 
+     * @brief Destructor that closes the database connection.
+     *
      * @details Calls close() to release SQLite resources.
      */
     ~SERDatabase();
@@ -159,116 +161,116 @@ public:
     /// @}
 
     /**
-     * @brief Open database connection and initialize schema
-     * 
+     * @brief Open database connection and initialize schema.
+     *
      * @details Opens SQLite database file and creates table if not exists.
      * Also creates indexes for efficient querying.
-     * 
-     * @return true Database opened and table created successfully
-     * @return false Failed to open or create table (check getLastError())
-     * 
+     *
+     * @return true if database opened and table created successfully
+     * @return false if open or create failed (check getLastError())
+     *
      * @post On success: isOpen() == true, table exists
      * @post On failure: isOpen() == false, last_error_ contains message
-     * 
+     *
      * @see createTable() Internal table creation
      */
     bool open();
 
     /**
-     * @brief Close database connection
-     * 
+     * @brief Close database connection.
+     *
      * @details Releases SQLite handle. Safe to call multiple times.
-     * 
+     *
      * @post isOpen() == false
      * @post db_ == nullptr
      */
     void close();
 
     /**
-     * @brief Check if database is currently open
-     * 
-     * @return true Database connection is active
-     * @return false Database is closed
+     * @brief Check if database is currently open.
+     *
+     * @return true if database connection is active
+     * @return false if database is closed
      */
     bool isOpen() const;
 
     /**
-     * @brief Insert a single SER record into database
-     * 
+     * @brief Insert a single SER record into the database.
+     *
      * @details Inserts record if not already present (by record_id + timestamp).
      * Duplicate records are silently skipped (returns true).
-     * 
+     *
      * @param record The SER record to insert
-     * 
-     * @return true Record inserted or already exists
-     * @return false Insert failed (check getLastError())
-     * 
+     *
+     * @return true if record was inserted or already exists
+     * @return false if insert failed (check getLastError())
+     *
      * @pre isOpen() == true
      */
     bool insertRecord(const SERRecord& record);
 
     /**
-     * @brief Insert multiple SER records with transaction support
-     * 
+     * @brief Insert multiple SER records with transaction support.
+     *
      * @details Inserts all records within a transaction for better performance.
      * Skips duplicates and continues with remaining records.
-     * 
+     *
      * @param records Vector of SER records to insert
-     * 
+     *
      * @return int Number of records successfully inserted (0 to records.size())
-     * 
+     *
      * @pre isOpen() == true
-     * 
+     *
      * @note Uses BEGIN/COMMIT transaction for performance
      * @note Duplicates are counted as "success" (not errors)
      */
     int insertRecords(const std::vector<SERRecord>& records);
 
     /**
-     * @brief Retrieve all SER records ordered by timestamp (newest first)
-     * 
+     * @brief Retrieve all SER records ordered by timestamp (newest first).
+     *
      * @return std::vector<SERRecord> All stored records, or empty if error/none
-     * 
+     *
      * @pre isOpen() == true
      */
     std::vector<SERRecord> getAllRecords();
 
     /**
-     * @brief Retrieve records filtered by status
-     * 
+     * @brief Retrieve records filtered by status.
+     *
      * @param status Status to filter by (e.g., "Asserted", "Deasserted")
-     * 
+     *
      * @return std::vector<SERRecord> Matching records ordered by timestamp
-     * 
+     *
      * @pre isOpen() == true
      */
     std::vector<SERRecord> getRecordsByStatus(const std::string& status);
 
     /**
-     * @brief Get total count of records in database
-     * 
+     * @brief Get total count of records in the database.
+     *
      * @return int Number of records, or 0 if error
-     * 
+     *
      * @pre isOpen() == true
      */
     int getRecordCount();
 
     /**
-     * @brief Delete all records from database
-     * 
-     * @return true Records cleared successfully
-     * @return false Clear failed (check getLastError())
-     * 
+     * @brief Delete all records from the database.
+     *
+     * @return true if records were cleared successfully
+     * @return false if clear failed (check getLastError())
+     *
      * @pre isOpen() == true
      * @post getRecordCount() == 0
      */
     bool clearAllRecords();
 
     /**
-     * @brief Export all records to JSON file for UI consumption
-     * 
-     * @details Generates JSON array compatible with web UI format.
-     * 
+     * @brief Export all records to a JSON file for UI consumption.
+     *
+     * @details Generates a JSON array compatible with web UI format.
+     *
      * Output Format:
      * @code{.json}
      * [
@@ -282,27 +284,39 @@ public:
      *   ...
      * ]
      * @endcode
-     * 
+     *
      * @param filePath Path to output JSON file (default: "ui/data.json")
-     * 
-     * @return true Export successful
-     * @return false Export failed (check getLastError())
-     * 
+     *
+     * @return true if export succeeded
+     * @return false if export failed (check getLastError())
+     *
      * @pre isOpen() == true
      */
     bool exportToJSON(const std::string& filePath = "ui/data.json");
 
     /**
-     * @brief Get last error message
-     * 
+     * @brief Get last error message.
+     *
      * @return const std::string& Error message from last failed operation
      */
     const std::string& getLastError() const;
 
+    /**
+     * @brief Get the raw SQLite database handle.
+     *
+     * @details Provides direct access to the underlying sqlite3 pointer
+     * for use by WSDBServer or other components needing generic DB access.
+     *
+     * @return sqlite3* Raw handle (nullptr if not open)
+     * @warning Caller must not close or free this handle.
+     * @see WSDBServer
+     */
+    sqlite3* getDbHandle() const { return db_; }
+
 private:
     /**
-     * @brief Create SER records table and indexes
-     * 
+     * @brief Create SER records table and indexes.
+     *
      * @details Creates table with schema:
      * - id: Auto-increment primary key
      * - record_id: Event number from relay
@@ -310,22 +324,22 @@ private:
      * - status: Event state (Asserted/Deasserted/empty)
      * - description: Event element/description
      * - created_at: When record was stored
-     * 
+     *
      * Also creates indexes on record_id, status, and timestamp.
-     * 
-     * @return true Table created or already exists
-     * @return false Creation failed
+     *
+     * @return true if table was created or already exists
+     * @return false if creation failed
      */
     bool createTable();
 
     /**
-     * @brief Check if record already exists in database
-     * 
+     * @brief Check if a record already exists in the database.
+     *
      * @param recordId Record ID to check
      * @param timestamp Timestamp to check
-     * 
-     * @return true Record with same ID and timestamp exists
-     * @return false Record not found
+     *
+     * @return true if record with same ID and timestamp exists
+     * @return false if record not found
      */
     bool recordExists(const std::string& recordId, const std::string& timestamp);
 

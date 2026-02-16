@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file server.cpp
  * @brief Basic Telnet Server for Substation Monitoring

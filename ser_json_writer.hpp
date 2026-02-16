@@ -1,13 +1,15 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file ser_json_writer.hpp
- * @brief JSON Serialization and File Output for SER Records
+ * @brief JSON serialization and file output for SER records.
  *
- * @details This header provides utility functions for converting SER records
- * to JSON format and writing to files for web UI consumption.
+ * @details Utility functions for converting SER records to JSON and writing
+ * the result to a file for web UI consumption.
  *
  * ## Output Format
  *
- * Generates JSON array compatible with Tabulator.js:
+ * Generates a JSON array compatible with Tabulator.js:
  * ```json
  * [
  *   {
@@ -58,7 +60,7 @@
 #include "ser_record.hpp"
 
 /**
- * @brief Escapes special characters for JSON string values.
+ * @brief Escape special characters for JSON string values.
  *
  * @details Escapes double quotes and backslashes to ensure valid JSON output.
  *
@@ -81,7 +83,7 @@ inline std::string escapeJson(const std::string& value)
 }
 
 /**
- * @brief Converts SER records to JSON array string.
+ * @brief Convert SER records to a JSON array string.
  *
  * @details Formats records as JSON array with fields:
  * - sno: Record ID (numeric if parseable, string otherwise)
@@ -142,7 +144,7 @@ inline std::string recordsToJsonTable(const std::vector<SERRecord>& records)
 }
 
 /**
- * @brief Writes JSON string to file.
+ * @brief Write JSON string to a file.
  *
  * @details Opens file in binary mode with truncation and writes JSON content.
  *
@@ -150,8 +152,8 @@ inline std::string recordsToJsonTable(const std::vector<SERRecord>& records)
  * @param json JSON string to write
  * @param[out] error Optional pointer to receive error message
  *
- * @return true Successfully wrote file
- * @return false Failed (error message in @p error if provided)
+ * @return true if the file was written successfully
+ * @return false if the write failed (error message in @p error if provided)
  *
  * @note Opens file with std::ios::binary to preserve line endings
  * @note Truncates existing file content

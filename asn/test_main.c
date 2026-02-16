@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /* test_main.c */
 /**
  * @file test_main.c

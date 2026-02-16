@@ -6,5 +6,5 @@ digraph "Graphical Class Hierarchy"
   edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
   node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
   rankdir="LR";
-  Node0 [id="Node000000",label="unhandled_event",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$structunhandled__event.html",tooltip="Event for unhandled situations."];
+  Node0 [id="Node000000",label="SharedSerReader",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ser_reader.html",tooltip="Thread 5 - Reads from SharedRingBuffer and writes JSON to file."];
 }

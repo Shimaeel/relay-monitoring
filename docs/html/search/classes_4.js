@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['pollseraction_0',['PollSerAction',['../struct_poll_ser_action.html',1,'']]]
+  ['maxretriesreachedguard_0',['MaxRetriesReachedGuard',['../struct_max_retries_reached_guard.html',1,'']]]
 ];

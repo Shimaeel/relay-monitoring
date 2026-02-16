@@ -1,5 +1,6 @@
 var searchData=
 [
-  ['port_0',['port',['../struct_connection_config.html#a0ca76a8de9271984eb07d724ad09d5ab',1,'ConnectionConfig']]],
-  ['port_5f_1',['port_',['../class_s_e_r_web_socket_server.html#a7975cfd6b238f1cd34f5e874c571ce7c',1,'SERWebSocketServer']]]
+  ['on_5funexpected_0',['on_unexpected',['../telnet__fsm_8hpp.html#adaa8d91e733d9dcb91c0b5985bf177a7',1,'telnet_fsm.hpp']]],
+  ['on_5funhandled_1',['on_unhandled',['../telnet__fsm_8hpp.html#abe237a3131becdc159c1f9f060f4d8f2',1,'telnet_fsm.hpp']]],
+  ['output_5fpath_5f_2',['output_path_',['../class_shared_ser_reader.html#a5198bfd684b9ae335f5cc81861db62f0',1,'SharedSerReader']]]
 ];

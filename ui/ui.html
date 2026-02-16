@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Relay Monitoring Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: #f0f4f8;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        /* ── Header ─────────────────────────────── */
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%);
+            padding: 18px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(79, 70, 229, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h2 {
+            margin: 0;
+            font-weight: 700;
+            font-size: 1.3rem;
+            letter-spacing: 0.5px;
+        }
+
+        .header small {
+            opacity: 0.85;
+            font-size: 0.8rem;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.18);
+            padding: 8px 18px;
+            border-radius: 50px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #34d399;
+            box-shadow: 0 0 8px #34d399;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 6px #34d399; }
+            50% { box-shadow: 0 0 16px #34d399, 0 0 30px rgba(52,211,153,0.3); }
+        }
+
+        /* ── Layout ─────────────────────────────── */
+        .container {
+            display: flex;
+            height: calc(100vh - 70px);
+        }
+
+        /* ── Sidebar ────────────────────────────── */
+        .sidebar {
+            width: 240px;
+            background: #ffffff;
+            padding: 24px 16px;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+        }
+
+        .sidebar-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #94a3b8;
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+
+        .sidebar button {
+            width: 100%;
+            padding: 11px 16px;
+            background: transparent;
+            border: none;
+            color: #475569;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar button .material-icons-round {
+            font-size: 20px;
+            color: #94a3b8;
+            transition: color 0.2s ease;
+        }
+
+        .sidebar button:hover {
+            background: #eef2ff;
+            color: #4f46e5;
+        }
+
+        .sidebar button:hover .material-icons-round {
+            color: #4f46e5;
+        }
+
+        .sidebar button.active {
+            background: #eef2ff;
+            color: #4f46e5;
+            font-weight: 600;
+        }
+
+        .sidebar button.active .material-icons-round {
+            color: #4f46e5;
+        }
+
+        /* ── Main Content ───────────────────────── */
+        .main {
+            flex: 1;
+            padding: 30px 35px;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0 0 18px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title .material-icons-round {
+            font-size: 22px;
+            color: #6366f1;
+        }
+
+        /* ── Dashboard Cards ────────────────────── */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 20px;
+            margin-bottom: 36px;
+        }
+
+        .card {
+            background: #ffffff;
+            padding: 22px 24px;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 16px rgba(0,0,0,0.04);
+            transition: all 0.25s ease;
+            border: 1px solid #e2e8f0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            border-radius: 14px 14px 0 0;
+        }
+
+        .card:nth-child(1)::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+        .card:nth-child(2)::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .card:nth-child(3)::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .card:nth-child(4)::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08), 0 12px 28px rgba(0,0,0,0.08);
+        }
+
+        .card-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 14px;
+        }
+
+        .card-icon .material-icons-round { font-size: 22px; color: #fff; }
+
+        .card:nth-child(1) .card-icon { background: linear-gradient(135deg, #6366f1, #818cf8); }
+        .card:nth-child(2) .card-icon { background: linear-gradient(135deg, #10b981, #34d399); }
+        .card:nth-child(3) .card-icon { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+        .card:nth-child(4) .card-icon { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+
+        .card h3 {
+            margin: 0 0 6px 0;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #94a3b8;
+        }
+
+        .card p {
+            margin: 0;
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        /* ── Buttons ────────────────────────────── */
+        .btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* ── Table ──────────────────────────────── */
+        .table-wrapper {
+            background: #ffffff;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 16px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 14px 18px;
+            text-align: left;
+        }
+
+        th {
+            background: #f8fafc;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.92rem;
+            color: #334155;
+        }
+
+        tbody tr {
+            transition: background 0.15s ease;
+        }
+
+        tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 50px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .badge-red {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .badge-amber {
+            background: #fffbeb;
+            color: #d97706;
+        }
+
+        .badge-green {
+            background: #f0fdf4;
+            color: #16a34a;
+        }
+
+        .badge-gray {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        /* ── Connection Banner ───────────────────── */
+        .conn-banner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .conn-banner.connected {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .conn-banner.disconnected {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .conn-banner.connecting {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #94a3b8;
+        }
+
+        .empty-state .material-icons-round {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #cbd5e1;
+        }
+
+        .ser-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-size: 0.75rem;
+            font-weight: 700;
+            min-width: 24px;
+            height: 24px;
+            border-radius: 50px;
+            padding: 0 8px;
+            margin-left: 8px;
+        }
+
+        /* ── Sections ───────────────────────────── */
+        .section {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 24px 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 16px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+        }
+
+        .section p {
+            margin: 6px 0;
+            color: #475569;
+        }
+
+        .section p strong {
+            color: #1e293b;
+        }
+
+        .divider {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 24px 0;
+            border: none;
+        }
+
+        /* ── Select ─────────────────────────────── */
+        select {
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: border-color 0.2s ease;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        /* ── Info Row ───────────────────────────── */
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+        }
+
+        .info-row .material-icons-round {
+            font-size: 18px;
+            color: #6366f1;
+        }
+
+        /* ── Responsive ─────────────────────────── */
+        @media(max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            .main {
+                padding: 20px 16px;
+            }
+            .header {
+                padding: 14px 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    <div>
+        <h2>Relay OTTER-01</h2>
+        <small id="device-time">Device Time: 16-02-2026 10:30:00</small>
+    </div>
+    <div class="status" id="ws-status">
+        <div class="status-dot" id="ws-dot"></div>
+        <span id="ws-label">Connecting...</span>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="sidebar">
+        <div class="sidebar-label">Navigation</div>
+        <button class="active">
+            <span class="material-icons-round">dashboard</span> Dashboard
+        </button>
+        <button>
+            <span class="material-icons-round">terminal</span> Commands
+        </button>
+        <button>
+            <span class="material-icons-round">list_alt</span> SER Events
+        </button>
+        <button>
+            <span class="material-icons-round">schedule</span> Time Sync
+        </button>
+        <button>
+            <span class="material-icons-round">lock</span> Password
+        </button>
+    </div>
+
+    <div class="main">
+
+        <!-- Dashboard Cards -->
+        <div class="section-title">
+            <span class="material-icons-round">monitoring</span> Overview
+        </div>
+        <div class="grid">
+            <div class="card">
+                <div class="card-icon">
+                    <span class="material-icons-round">lan</span>
+                </div>
+                <h3>ETH Status</h3>
+                <p>192.168.1.10</p>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">
+                    <span class="material-icons-round">cell_tower</span>
+                </div>
+                <h3>GOOSE</h3>
+                <p>Active</p>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">
+                    <span class="material-icons-round">warning</span>
+                </div>
+                <h3>Last SER</h3>
+                <p id="last-ser">—</p>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">
+                    <span class="material-icons-round">calendar_today</span>
+                </div>
+                <h3>Device Date</h3>
+                <p>16-02-2026</p>
+            </div>
+        </div>
+
+        <!-- Commands -->
+        <div class="section">
+            <div class="section-title">
+                <span class="material-icons-round">terminal</span> Commands
+            </div>
+            <button class="btn">Read ETH</button>
+            <button class="btn">Read DATE</button>
+            <button class="btn">Read GOOSE</button>
+            <button class="btn">Read SER</button>
+        </div>
+
+        <!-- SER Events -->
+        <div class="section-title">
+            <span class="material-icons-round">list_alt</span> SER Events
+            <span class="ser-count" id="ser-count">0</span>
+        </div>
+        <div id="ser-conn-banner" class="conn-banner connecting">
+            <span class="material-icons-round" style="font-size:18px;">sync</span>
+            <span id="ser-conn-text">Connecting to relay...</span>
+        </div>
+        <div class="table-wrapper" style="margin-bottom: 24px;">
+            <table id="ser-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Element</th>
+                        <th>State</th>
+                    </tr>
+                </thead>
+                <tbody id="ser-tbody">
+                    <tr id="ser-empty">
+                        <td colspan="5">
+                            <div class="empty-state">
+                                <span class="material-icons-round">hourglass_empty</span>
+                                <div>Waiting for SER data...</div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Time Sync -->
+        <div class="section">
+            <div class="section-title">
+                <span class="material-icons-round">schedule</span> Time Synchronization
+            </div>
+            <div class="info-row">
+                <span class="material-icons-round">devices</span>
+                <span><strong>Device Time:</strong> 16-02-2026 10:30:00</span>
+            </div>
+            <div class="info-row">
+                <span class="material-icons-round">computer</span>
+                <span><strong>Local PC Time:</strong> <span id="local-pc-time">—</span></span>
+            </div>
+            <div style="margin-top: 16px;">
+                <button class="btn">Sync with Local PC</button>
+            </div>
+        </div>
+
+        <!-- Password -->
+        <div class="section">
+            <div class="section-title">
+                <span class="material-icons-round">lock</span> Password Settings
+            </div>
+            <p>Allowed passwords: <strong>TAIL1</strong> / <strong>OTTER1</strong></p>
+            <div style="margin-top: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <select>
+                    <option>TAIL1</option>
+                    <option>OTTER1</option>
+                </select>
+                <button class="btn" style="margin: 0;">Change Password</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  WebSocket SER Data Connection
+//  Connects to SERWebSocketServer (ws_server.hpp) on port 8765
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SER_WS_URL = 'ws://localhost:8765';
+let ws = null;
+let reconnectTimer = null;
+
+// ── DOM References ──────────────────────────────────────────────────────
+const wsDot       = document.getElementById('ws-dot');
+const wsLabel     = document.getElementById('ws-label');
+const serTbody    = document.getElementById('ser-tbody');
+const serCount    = document.getElementById('ser-count');
+const serEmpty    = document.getElementById('ser-empty');
+const lastSerCard = document.getElementById('last-ser');
+const connBanner  = document.getElementById('ser-conn-banner');
+const connText    = document.getElementById('ser-conn-text');
+
+// ── Status Helpers ──────────────────────────────────────────────────────
+function setConnected() {
+    wsDot.style.background = '#34d399';
+    wsDot.style.boxShadow  = '0 0 8px #34d399';
+    wsLabel.textContent    = 'Connected';
+    connBanner.className   = 'conn-banner connected';
+    connBanner.querySelector('.material-icons-round').textContent = 'check_circle';
+    connText.textContent   = 'Live connection to relay established';
+}
+
+function setDisconnected() {
+    wsDot.style.background = '#ef4444';
+    wsDot.style.boxShadow  = '0 0 8px #ef4444';
+    wsLabel.textContent    = 'Disconnected';
+    connBanner.className   = 'conn-banner disconnected';
+    connBanner.querySelector('.material-icons-round').textContent = 'error';
+    connText.textContent   = 'Connection lost — retrying every 3s...';
+}
+
+function setConnecting() {
+    wsDot.style.background = '#fbbf24';
+    wsDot.style.boxShadow  = '0 0 8px #fbbf24';
+    wsLabel.textContent    = 'Connecting...';
+    connBanner.className   = 'conn-banner connecting';
+    connBanner.querySelector('.material-icons-round').textContent = 'sync';
+    connText.textContent   = 'Connecting to relay...';
+}
+
+// ── Badge class for state ───────────────────────────────────────────────
+function stateBadgeClass(state) {
+    if (!state) return 'badge badge-gray';
+    const s = state.toLowerCase();
+    if (s === 'asserted')   return 'badge badge-red';
+    if (s === 'deasserted') return 'badge badge-green';
+    return 'badge badge-amber';
+}
+
+// ── Render SER Records ──────────────────────────────────────────────────
+function updateSERTable(records) {
+    // Remove empty state
+    if (serEmpty) serEmpty.remove();
+
+    serTbody.innerHTML = '';
+    serCount.textContent = records.length;
+
+    if (records.length === 0) {
+        serTbody.innerHTML = `
+            <tr>
+                <td colspan="5">
+                    <div class="empty-state">
+                        <span class="material-icons-round">check_circle</span>
+                        <div>No SER events recorded</div>
+                    </div>
+                </td>
+            </tr>`;
+        lastSerCard.textContent = '—';
+        return;
+    }
+
+    records.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${r.sno ?? ''}</td>
+            <td>${r.date ?? ''}</td>
+            <td>${r.time ?? ''}</td>
+            <td>${r.element ?? ''}</td>
+            <td><span class="${stateBadgeClass(r.state)}">${r.state || '—'}</span></td>`;
+        serTbody.appendChild(tr);
+    });
+
+    // Update the "Last SER" dashboard card with the most recent event
+    const latest = records[0];
+    lastSerCard.textContent = latest.element || latest.description || '—';
+}
+
+// ── WebSocket Connection ────────────────────────────────────────────────
+function connectSER() {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+
+    setConnecting();
+
+    try {
+        ws = new WebSocket(SER_WS_URL);
+    } catch (e) {
+        console.error('WebSocket creation failed:', e);
+        setDisconnected();
+        scheduleReconnect();
+        return;
+    }
+
+    ws.onopen = () => {
+        console.log('[SER WS] Connected');
+        setConnected();
+        // Request initial SER data
+        ws.send('refresh');
+    };
+
+    ws.onmessage = (event) => {
+        try {
+            const records = JSON.parse(event.data);
+            if (Array.isArray(records)) {
+                updateSERTable(records);
+            }
+        } catch (e) {
+            console.warn('[SER WS] Non-JSON message:', event.data);
+        }
+    };
+
+    ws.onclose = () => {
+        console.log('[SER WS] Disconnected');
+        setDisconnected();
+        scheduleReconnect();
+    };
+
+    ws.onerror = (err) => {
+        console.error('[SER WS] Error:', err);
+    };
+}
+
+function scheduleReconnect() {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connectSER, 3000);
+}
+
+// ── Periodic Refresh ────────────────────────────────────────────────────
+setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send('refresh');
+    }
+}, 5000);
+
+// ── Update local PC time in Time Sync section ──────────────────────────
+function updateLocalTime() {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const formatted = `${pad(now.getDate())}-${pad(now.getMonth()+1)}-${now.getFullYear()} `
+                    + `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const el = document.getElementById('local-pc-time');
+    if (el) el.textContent = formatted;
+}
+setInterval(updateLocalTime, 1000);
+
+// ── Start ───────────────────────────────────────────────────────────────
+connectSER();
+updateLocalTime();
+</script>
+
+</body>
+</html>

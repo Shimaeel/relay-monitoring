@@ -1,0 +1,22 @@
+digraph "SharedRingBuffer::usedBytes"
+{
+ // INTERACTIVE_SVG=YES
+ // LATEX_PDF_SIZE
+  bgcolor="transparent";
+  edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
+  node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
+  rankdir="RL";
+  Node1 [id="Node000001",label="SharedRingBuffer::usedBytes",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip="Bytes occupied between a read position and the write position."];
+  Node1 -> Node2 [id="edge1_Node000001_Node000002",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node2 [id="Node000002",label="SharedRingBuffer::effective\lReadPos",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ring_buffer.html#a25649111607c9f8eb2b40b92bdae0bdf",tooltip="Find the effective read position (slowest active reader)."];
+  Node2 -> Node3 [id="edge2_Node000002_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="SharedRingBuffer::write",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ring_buffer.html#ab5ced2554f8b1713e043140d46fc2629",tooltip="Write a variable-length payload into the ring buffer."];
+  Node1 -> Node4 [id="edge3_Node000001_Node000004",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node4 [id="Node000004",label="SharedRingBuffer::freeBytes",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ring_buffer.html#a9eea3d738f6bd8ce58ccf8380d858479",tooltip="Available free space in the ring given a read and write position."];
+  Node4 -> Node3 [id="edge4_Node000004_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node1 -> Node5 [id="edge5_Node000001_Node000005",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node5 [id="Node000005",label="SharedRingBuffer::slowest\lReaderIndex",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ring_buffer.html#a08995e81919a18ddc20a50e87c5141e0",tooltip="Index of the slowest (most behind) active reader."];
+  Node5 -> Node6 [id="edge6_Node000005_Node000006",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node6 [id="Node000006",label="SharedRingBuffer::dropOldest\lForSlowest",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ring_buffer.html#ade161df7273c5dd5b0e1c9a13142e806",tooltip="Drop the oldest message for the slowest reader(s)."];
+  Node6 -> Node3 [id="edge7_Node000006_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+}

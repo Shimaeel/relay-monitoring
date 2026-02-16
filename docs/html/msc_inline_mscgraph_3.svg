@@ -52,9 +52,9 @@ records
 <line x1="500" y1="106" x2="500" y2="134" stroke="black"/>
 <line x1="300" y1="117" x2="100" y2="117" stroke="black"/>
 <line x1="100" y1="117" x2="110" y2="123" stroke="black"/>
-<polygon fill="white" points="169,107 230,107 230,116 169,116"/>
-<text x="170" y="116" textLength="59" font-family="Helvetica" font-size="12" fill="black">
-JSON data
+<polygon fill="white" points="154,107 244,107 244,116 154,116"/>
+<text x="155" y="116" textLength="88" font-family="Helvetica" font-size="12" fill="black">
+ASN.1 BER/TLV
 </text>
 <line x1="100" y1="134" x2="100" y2="162" stroke="black"/>
 <line x1="300" y1="134" x2="300" y2="162" stroke="black"/>
@@ -88,9 +88,9 @@ records
 <line x1="500" y1="218" x2="500" y2="246" stroke="black"/>
 <line x1="300" y1="229" x2="100" y2="229" stroke="black"/>
 <line x1="100" y1="229" x2="110" y2="235" stroke="black"/>
-<polygon fill="white" points="169,219 230,219 230,228 169,228"/>
-<text x="170" y="228" textLength="59" font-family="Helvetica" font-size="12" fill="black">
-JSON data
+<polygon fill="white" points="154,219 244,219 244,228 154,228"/>
+<text x="155" y="228" textLength="88" font-family="Helvetica" font-size="12" fill="black">
+ASN.1 BER/TLV
 </text>
 <line x1="100" y1="246" x2="100" y2="274" stroke="black"/>
 <line x1="300" y1="246" x2="300" y2="274" stroke="black"/>

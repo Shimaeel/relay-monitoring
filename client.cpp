@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file client.cpp
  * @brief Implementation of TelnetClient class

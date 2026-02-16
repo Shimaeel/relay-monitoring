@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /* goose_parser.c */
 
 #include "goose_parser.h"

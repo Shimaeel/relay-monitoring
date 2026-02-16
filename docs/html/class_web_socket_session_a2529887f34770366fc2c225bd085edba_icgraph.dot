@@ -15,6 +15,8 @@ digraph "WebSocketSession::sendData"
   Node4 [id="Node000004",label="WebSocketSession::on_read",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_web_socket_session.html#a6c0557f87f9f6050a8848237ace942bb",tooltip="Handle received client message."];
   Node4 -> Node5 [id="edge4_Node000004_Node000005",dir="back",color="steelblue1",style="solid",tooltip=" "];
   Node5 [id="Node000005",label="WebSocketSession::do_read",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_web_socket_session.html#a2bc079950c2e39e8ff745f0da57646ba",tooltip="Initiate async read for next client message."];
-  Node5 -> Node2 [id="edge5_Node000005_Node000002",dir="back",color="steelblue1",style="solid",tooltip=" "];
-  Node5 -> Node4 [id="edge6_Node000005_Node000004",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node5 -> Node4 [id="edge5_Node000005_Node000004",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node5 -> Node6 [id="edge6_Node000005_Node000006",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node6 [id="Node000006",label="WebSocketSession::on\l_write",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_web_socket_session.html#a0fed81151d5dcbe23dbee79f1bf12c66",tooltip="Handle write completion."];
+  Node6 -> Node1 [id="edge7_Node000006_Node000001",dir="back",color="steelblue1",style="solid",tooltip=" "];
 }

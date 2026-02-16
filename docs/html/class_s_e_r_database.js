@@ -8,6 +8,7 @@ var class_s_e_r_database =
     [ "createTable", "class_s_e_r_database.html#ad55583b39ff6c9cc9d2d44f20f34ad47", null ],
     [ "exportToJSON", "class_s_e_r_database.html#a798696a9c47ba55f7a3473afff3efe9f", null ],
     [ "getAllRecords", "class_s_e_r_database.html#a1a997738e16c0b0153823c259b33b071", null ],
+    [ "getDbHandle", "class_s_e_r_database.html#ab6e8076a79c4fdd6082444fed11eac59", null ],
     [ "getLastError", "class_s_e_r_database.html#ae42bb6aa2a4723f2696e2f5c67605765", null ],
     [ "getRecordCount", "class_s_e_r_database.html#af9f462113ba171ab65d126a4689c02be", null ],
     [ "getRecordsByStatus", "class_s_e_r_database.html#adbe68cbe0623ec047941da1c63528328", null ],

@@ -1,0 +1,16 @@
+digraph "escapeJson"
+{
+ // INTERACTIVE_SVG=YES
+ // LATEX_PDF_SIZE
+  bgcolor="transparent";
+  edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
+  node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
+  rankdir="RL";
+  Node1 [id="Node000001",label="escapeJson",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip="Escape special characters for JSON string values."];
+  Node1 -> Node2 [id="edge1_Node000001_Node000002",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node2 [id="Node000002",label="recordsToJsonTable",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$ser__json__writer_8hpp.html#a0201bcca7300a0ca2317b4b737232aa0",tooltip="Convert SER records to a JSON array string."];
+  Node2 -> Node3 [id="edge2_Node000002_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="SharedSerReader::runLoop",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ser_reader.html#a9ca0e190a57fd3c195a860076ac729c7",tooltip="Main worker thread loop."];
+  Node3 -> Node4 [id="edge3_Node000003_Node000004",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node4 [id="Node000004",label="SharedSerReader::start",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ser_reader.html#aabd6c5c15122509fe63d3eef072ff6df",tooltip="Starts the worker thread."];
+}

@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['work_2emd_0',['work.md',['../work_8md.html',1,'']]],
-  ['ws_5fserver_2ehpp_1',['ws_server.hpp',['../ws__server_8hpp.html',1,'']]]
+  ['raw_5fdata_5fring_5fbuffer_2ehpp_0',['raw_data_ring_buffer.hpp',['../raw__data__ring__buffer_8hpp.html',1,'']]]
 ];

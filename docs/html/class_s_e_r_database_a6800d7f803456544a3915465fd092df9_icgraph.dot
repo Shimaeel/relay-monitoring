@@ -8,5 +8,7 @@ digraph "SERDatabase::close"
   rankdir="RL";
   Node1 [id="Node000001",label="SERDatabase::close",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip="Close database connection."];
   Node1 -> Node2 [id="edge1_Node000001_Node000002",dir="back",color="steelblue1",style="solid",tooltip=" "];
-  Node2 [id="Node000002",label="SERDatabase::~SERDatabase",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_database.html#a7ae66f851404b0d3c2c0ee6d807f6087",tooltip="Destructor - automatically closes database connection."];
+  Node2 [id="Node000002",label="SERDatabase::operator=",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_database.html#ab9a60e734536bd80a75f9e8bacf86882",tooltip=" "];
+  Node1 -> Node3 [id="edge2_Node000001_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="SERDatabase::~SERDatabase",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_database.html#a7ae66f851404b0d3c2c0ee6d807f6087",tooltip="Destructor that closes the database connection."];
 }

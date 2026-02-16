@@ -9,8 +9,8 @@ digraph "client.hpp"
   Node1 -> Node2 [id="edge1_Node000001_Node000002",dir="back",color="steelblue1",style="solid",tooltip=" "];
   Node2 [id="Node000002",label="client.cpp",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$client_8cpp.html",tooltip="Implementation of TelnetClient class."];
   Node1 -> Node3 [id="edge2_Node000001_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
-  Node3 [id="Node000003",label="main.cpp",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$main_8cpp.html",tooltip="Main entry point for Telnet-SML Substation Monitoring System."];
-  Node1 -> Node4 [id="edge3_Node000001_Node000004",dir="back",color="steelblue1",style="solid",tooltip=" "];
-  Node4 [id="Node000004",label="telnet_fsm.hpp",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$telnet__fsm_8hpp.html",tooltip="Boost.SML Finite State Machine for Telnet Communication."];
-  Node4 -> Node3 [id="edge4_Node000004_Node000003",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="telnet_fsm.hpp",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$telnet__fsm_8hpp.html",tooltip="Boost.SML Finite State Machine for Telnet Communication."];
+  Node3 -> Node4 [id="edge3_Node000003_Node000004",dir="back",color="steelblue1",style="solid",tooltip=" "];
+  Node4 [id="Node000004",label="telnet_sml_app.cpp",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$telnet__sml__app_8cpp.html",tooltip="Telnet SML Application - Main orchestrator implementation."];
+  Node1 -> Node4 [id="edge4_Node000001_Node000004",dir="back",color="steelblue1",style="solid",tooltip=" "];
 }

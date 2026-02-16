@@ -1,12 +1,20 @@
 var files_dup =
 [
+    [ "asn_tlv_codec.hpp", "asn__tlv__codec_8hpp.html", "asn__tlv__codec_8hpp" ],
     [ "client.cpp", "client_8cpp.html", null ],
     [ "client.hpp", "client_8hpp.html", "client_8hpp" ],
+    [ "dll_example.cpp", "dll__example_8cpp.html", "dll__example_8cpp" ],
+    [ "dll_export.hpp", "dll__export_8hpp.html", "dll__export_8hpp" ],
     [ "main.cpp", "main_8cpp.html", "main_8cpp" ],
+    [ "raw_data_ring_buffer.hpp", "raw__data__ring__buffer_8hpp.html", "raw__data__ring__buffer_8hpp" ],
     [ "ser_database.cpp", "ser__database_8cpp.html", null ],
     [ "ser_database.hpp", "ser__database_8hpp.html", "ser__database_8hpp" ],
+    [ "ser_json_writer.hpp", "ser__json__writer_8hpp.html", "ser__json__writer_8hpp" ],
     [ "ser_record.hpp", "ser__record_8hpp.html", "ser__record_8hpp" ],
     [ "server.cpp", "server_8cpp.html", "server_8cpp" ],
     [ "telnet_fsm.hpp", "telnet__fsm_8hpp.html", "telnet__fsm_8hpp" ],
+    [ "telnet_sml_app.cpp", "telnet__sml__app_8cpp.html", "telnet__sml__app_8cpp" ],
+    [ "telnet_sml_app.hpp", "telnet__sml__app_8hpp.html", "telnet__sml__app_8hpp" ],
+    [ "thread_manager.hpp", "thread__manager_8hpp.html", "thread__manager_8hpp" ],
     [ "ws_server.hpp", "ws__server_8hpp.html", "ws__server_8hpp" ]
 ];

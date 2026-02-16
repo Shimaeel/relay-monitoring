@@ -8,15 +8,9 @@ digraph "main"
   rankdir="LR";
   Node1 [id="Node000001",label="main",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip="Main entry point for the Telnet-SML application."];
   Node1 -> Node2 [id="edge1_Node000001_Node000002",color="steelblue1",style="solid",tooltip=" "];
-  Node2 [id="Node000002",label="SERDatabase::getLastError",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_database.html#ae42bb6aa2a4723f2696e2f5c67605765",tooltip="Get last error message."];
+  Node2 [id="Node000002",label="TelnetSmlApp::start",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_telnet_sml_app.html#a3fca74b7b73809c81c999a74aa603ed1",tooltip="Start the application and all background threads."];
   Node1 -> Node3 [id="edge2_Node000001_Node000003",color="steelblue1",style="solid",tooltip=" "];
-  Node3 [id="Node000003",label="SERDatabase::getRecordCount",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_database.html#af9f462113ba171ab65d126a4689c02be",tooltip="Get total count of records in database."];
+  Node3 [id="Node000003",label="TelnetSmlApp::stop",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_telnet_sml_app.html#a6ade3b1035abc4396ad39f120fb516c5",tooltip="Stop the application and all background threads."];
   Node1 -> Node4 [id="edge3_Node000001_Node000004",color="steelblue1",style="solid",tooltip=" "];
-  Node4 [id="Node000004",label="SERDatabase::open",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_database.html#a4526bdbd509f3fc64952fa3a7f33bd5f",tooltip="Open database connection and initialize schema."];
-  Node4 -> Node5 [id="edge4_Node000004_Node000005",color="steelblue1",style="solid",tooltip=" "];
-  Node5 [id="Node000005",label="SERDatabase::createTable",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_database.html#ad55583b39ff6c9cc9d2d44f20f34ad47",tooltip="Create SER records table and indexes."];
-  Node1 -> Node6 [id="edge5_Node000001_Node000006",color="steelblue1",style="solid",tooltip=" "];
-  Node6 [id="Node000006",label="SERWebSocketServer\l::start",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_web_socket_server.html#a4dc37355e67affcb34a10f7e1236e524",tooltip="Start the WebSocket server."];
-  Node1 -> Node7 [id="edge6_Node000001_Node000007",color="steelblue1",style="solid",tooltip=" "];
-  Node7 [id="Node000007",label="SERWebSocketServer\l::stop",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_s_e_r_web_socket_server.html#a2be0dc7d49fd9a743c00e9452d8e0f91",tooltip="Stop the WebSocket server."];
+  Node4 [id="Node000004",label="TelnetSmlApp::waitForExit",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_telnet_sml_app.html#a33b4aa9fa0549e37f8814684a18449da",tooltip="Block until user requests application exit."];
 }

@@ -1,10 +1,8 @@
 var searchData=
 [
-  ['sercompleteguard_0',['SerCompleteGuard',['../struct_ser_complete_guard.html',1,'']]],
-  ['serdatabase_1',['SERDatabase',['../class_s_e_r_database.html',1,'']]],
-  ['serfailguard_2',['SerFailGuard',['../struct_ser_fail_guard.html',1,'']]],
-  ['serrecord_3',['SERRecord',['../struct_s_e_r_record.html',1,'']]],
-  ['serwebsocketserver_4',['SERWebSocketServer',['../class_s_e_r_web_socket_server.html',1,'']]],
-  ['start_5fevent_5',['start_event',['../structstart__event.html',1,'']]],
-  ['step_5fevent_6',['step_event',['../structstep__event.html',1,'']]]
+  ['rawdatamessage_0',['RawDataMessage',['../struct_raw_data_message.html',1,'']]],
+  ['rawdataringbuffer_1',['RawDataRingBuffer',['../class_raw_data_ring_buffer.html',1,'']]],
+  ['resetretryaction_2',['ResetRetryAction',['../struct_reset_retry_action.html',1,'']]],
+  ['retrystate_3',['RetryState',['../struct_retry_state.html',1,'']]],
+  ['retrywaitaction_4',['RetryWaitAction',['../struct_retry_wait_action.html',1,'']]]
 ];

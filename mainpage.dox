@@ -1,65 +1,65 @@
 /**
  * @mainpage Telnet-SML Documentation
- * 
+ *
  * @section intro_sec Introduction
- * 
- * **Telnet-SML** is a substation monitoring system that communicates with electrical
- * relay devices via Telnet protocol, using a Boost.SML finite state machine for
- * robust connection management and System Event Record (SER) data collection.
- * 
+ *
+ * Telnet-SML is a substation monitoring system that communicates with relay
+ * devices over the Telnet protocol. It uses a Boost.SML finite state machine
+ * for connection control and System Event Record (SER) collection.
+ *
  * @section features_sec Key Features
- * 
- * - **State Machine Architecture**: Robust FSM using Boost.SML for connection management
- * - **Automatic Retry Logic**: Configurable retry attempts with delays for authentication failures
- * - **SQLite Persistence**: Durable storage of System Event Records in SQLite database
- * - **Real-time WebSocket Server**: Live data access for web-based UI
- * - **SER Parsing**: Automatic parsing of relay-format SER responses
- * 
+ *
+ * - State machine orchestration with Boost.SML
+ * - Configurable authentication retry logic
+ * - SQLite persistence for SER data
+ * - Real-time WebSocket server for UI clients
+ * - SER parsing from relay-formatted responses
+ *
  * @section arch_sec System Architecture
- * 
+ *
  * @dot
  * digraph SystemArchitecture {
  *     rankdir=TB;
  *     compound=true;
  *     node [shape=box, style=filled];
- *     
+ *
  *     subgraph cluster_app {
  *         label="Telnet-SML Application";
  *         style=filled;
  *         fillcolor=lightgray;
- *         
+ *
  *         main [label="main.cpp\n(Entry Point)", fillcolor=lightyellow];
  *         fsm [label="TelnetFSM\n(State Machine)", fillcolor=lightblue];
  *         client [label="TelnetClient\n(TCP/Telnet)", fillcolor=lightgreen];
  *         parser [label="parseSERResponse()\n(Data Parser)", fillcolor=lightpink];
  *     }
- *     
+ *
  *     subgraph cluster_data {
  *         label="Data Layer";
  *         style=filled;
  *         fillcolor=lightgray;
- *         
+ *
  *         db [label="SERDatabase\n(SQLite)", fillcolor=lightyellow];
  *         sqlite [label="ser_records.db", shape=cylinder, fillcolor=lightblue];
  *     }
- *     
+ *
  *     subgraph cluster_ui {
  *         label="User Interface";
  *         style=filled;
  *         fillcolor=lightgray;
- *         
+ *
  *         ws [label="SERWebSocketServer", fillcolor=lightgreen];
  *         html [label="index.html\n(Web UI)", shape=ellipse, fillcolor=lightpink];
  *     }
- *     
+ *
  *     subgraph cluster_external {
  *         label="External Systems";
  *         style=filled;
  *         fillcolor=lightgray;
- *         
+ *
  *         relay [label="Substation Relay\n(Telnet Server)", shape=ellipse, fillcolor=orange];
  *     }
- *     
+ *
  *     main -> fsm [label="creates"];
  *     fsm -> client [label="actions"];
  *     client -> relay [label="TCP:23", lhead=cluster_external];
@@ -70,16 +70,16 @@
  *     html -> ws [label="WebSocket\nws://localhost:8765"];
  * }
  * @enddot
- * 
+ *
  * @section fsm_sec State Machine
- * 
+ *
  * The application uses a Boost.SML state machine with the following states:
- * 
+ *
  * @dot
  * digraph FSM {
  *     rankdir=LR;
  *     node [shape=ellipse, style=filled];
- *     
+ *
  *     Idle [fillcolor=lightgray, label="Idle\n(Start)"];
  *     Connecting [fillcolor=lightyellow];
  *     Login_L1 [fillcolor=lightyellow, label="Login_L1"];
@@ -88,7 +88,7 @@
  *     Polling [fillcolor=lightblue];
  *     Done [fillcolor=lightgreen, label="Done\n(Success)"];
  *     Error [fillcolor=lightcoral, label="Error\n(Failed)"];
- *     
+ *
  *     Idle -> Connecting [label="start"];
  *     Connecting -> Login_L1 [label="ok"];
  *     Connecting -> Error [label="fail"];
@@ -101,9 +101,9 @@
  *     Polling -> Error [label="fail"];
  * }
  * @enddot
- * 
+ *
  * @section modules_sec Module Overview
- * 
+ *
  * | Module | Description |
  * |--------|-------------|
  * | @ref main.cpp | Application entry point and orchestration |
@@ -112,79 +112,79 @@
  * | @ref SERRecord | System Event Record data structure |
  * | @ref SERDatabase | SQLite database handler |
  * | @ref SERWebSocketServer | WebSocket server for UI |
- * 
+ *
  * @section deps_sec Dependencies
- * 
- * - **Boost.Asio**: TCP/IP networking
- * - **Boost.Beast**: WebSocket protocol implementation
- * - **Boost.SML**: State machine library (header-only)
- * - **SQLite3**: Embedded database
- * - **C++17**: Modern C++ features
- * 
+ *
+ * - Boost.Asio: TCP/IP networking
+ * - Boost.Beast: WebSocket protocol implementation
+ * - Boost.SML: State machine library (header-only)
+ * - SQLite3: Embedded database
+ * - C++17: Modern C++ features
+ *
  * @section build_sec Building
- * 
- * The project supports both static executable and DLL library builds.
- * 
+ *
+ * The project supports both static executable and DLL builds.
+ *
  * ### Static Executable (Default)
  * @code{.bash}
  * ./build.ps1
  * # Output: telnet_fsm_test.exe
  * @endcode
- * 
+ *
  * ### DLL Library
  * @code{.bash}
  * # Build the DLL
  * ./build.ps1 -DLL
  * # Output: lib/telnet_sml.dll, lib/libtelnet_sml.a
- * 
+ *
  * # Build example that uses the DLL
  * ./build.ps1 -Example
  * # Output: dll_example.exe
  * @endcode
- * 
+ *
  * ### Manual Compilation
  * @code{.bash}
  * # Static build
  * g++ -std=c++17 -DTELNET_SML_STATIC -I third_party/sml/include \
  *     main.cpp client.cpp ser_database.cpp \
  *     -o telnet_sml -lws2_32 -lmswsock -lsqlite3
- * 
+ *
  * # DLL build
  * g++ -std=c++17 -DTELNET_SML_EXPORTS -shared \
  *     client.cpp ser_database.cpp \
  *     -o telnet_sml.dll -Wl,--export-all-symbols
  * @endcode
- * 
+ *
  * @section usage_sec Usage
- * 
+ *
  * @code{.cpp}
  * // Configure connection
  * ConnectionConfig conn{"192.168.0.2", 23, 2000ms};
  * LoginConfig creds{"username", "password"};
  * RetryState retry{3, 0, 30s};
- * 
+ *
  * // Initialize components
  * TelnetClient client;
  * SERDatabase db("ser_records.db");
  * db.open();
- * 
+ *
  * SERWebSocketServer wsServer(db, 8765);
  * wsServer.start();
- * 
+ *
  * // Run state machine
  * sml::sm<TelnetFSM> fsm{client, conn, creds, retry, db};
  * fsm.process_event(start_event{});
- * 
+ *
  * while (!fsm.is("Done"_s) && !fsm.is("Error"_s)) {
  *     fsm.process_event(step_event{});
  *     std::this_thread::sleep_for(200ms);
  * }
  * @endcode
- * 
+ *
  * @section license_sec License
- * 
+ *
  * MIT License
- * 
+ *
  * @author Telnet-SML Development Team
  * @version 1.0.0
  * @date 2026

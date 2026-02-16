@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file telnet_fsm.hpp
  * @brief Boost.SML Finite State Machine for Telnet Communication
@@ -115,7 +117,7 @@
 #include "ser_record.hpp"
 #include "ser_database.hpp"
 #include "asn_tlv_codec.hpp"
-#include "shared_ring_buffer.hpp"
+#include "shared_memory/shared_ring_buffer.hpp"
 
 namespace sml = boost::sml;
 

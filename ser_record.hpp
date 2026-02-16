@@ -1,13 +1,14 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file ser_record.hpp
- * @brief System Event Record (SER) Data Structure and Parser
- * 
- * @details This header defines the SERRecord structure for representing
- * substation System Event Records and provides a parser for converting
- * raw Telnet response data into structured records.
- * 
+ * @brief System Event Record (SER) data structure and parser.
+ *
+ * @details Defines the SERRecord structure and a parser that converts raw
+ * Telnet SER responses into structured records.
+ *
  * ## SER Record Format
- * 
+ *
  * Substation relays output SER data in the following format:
  * ```
  * #      Date      Time           Element           State
@@ -15,39 +16,39 @@
  *     43 12/30/25  15:49:30.860   SALARM            Asserted
  *     42 12/30/25  15:49:30.850   VMIN              Deasserted
  * ```
- * 
+ *
  * ## Data Flow
- * 
+ *
  * @dot
  * digraph SERFlow {
  *     rankdir=LR;
  *     node [shape=box, style=filled, fillcolor=lightyellow];
- *     
+ *
  *     Relay [label="Relay\n(Raw Text)"];
  *     Parser [label="parseSERResponse()"];
  *     Records [label="vector<SERRecord>"];
  *     DB [label="SERDatabase"];
- *     
+ *
  *     Relay -> Parser [label="text response"];
  *     Parser -> Records [label="parse"];
  *     Records -> DB [label="store"];
  * }
  * @enddot
- * 
+ *
  * ## Usage Example
- * 
+ *
  * @code{.cpp}
  * std::string response = "45 02/14/22 12:47:19.970 Power loss\n";
  * auto records = parseSERResponse(response);
- * 
+ *
  * for (const auto& rec : records) {
  *     std::cout << rec.record_id << ": " << rec.description << "\n";
  * }
  * @endcode
- * 
+ *
  * @see SERDatabase Database storage for SER records
  * @see PollSerAction FSM action that uses the parser
- * 
+ *
  * @author Telnet-SML Development Team
  * @version 1.0.0
  * @date 2026
@@ -64,7 +65,7 @@
 
 /**
  * @struct SERRecord
- * @brief Structure representing a System Event Record (SER)
+ * @brief Structure representing a System Event Record (SER).
  * 
  * @details Holds parsed data from a single SER entry retrieved from
  * a substation relay device. Each record represents one event in the
@@ -90,14 +91,14 @@ struct TELNET_SML_API SERRecord
     std::string description;  ///< Event element/description (e.g., "SALARM", "Power loss")
 
     /**
-     * @brief Default constructor
+     * @brief Default constructor.
      * @details Creates an empty SERRecord with all fields initialized to empty strings.
      */
     SERRecord() = default;
 
     /**
-     * @brief Parameterized constructor
-     * 
+     * @brief Parameterized constructor.
+     *
      * @param id Record identifier
      * @param ts Timestamp string
      * @param stat Status/state string
@@ -111,9 +112,9 @@ struct TELNET_SML_API SERRecord
 };
 
 /**
- * @brief Parse SER response string into vector of SERRecord
- * 
- * @details Parses raw text response from SER command into structured records.
+ * @brief Parse SER response string into a vector of SERRecord.
+ *
+ * @details Parses raw text response from the SER command into structured records.
  * Handles the specific format output by substation relay devices.
  * 
  * ## Input Format
@@ -161,9 +162,9 @@ struct TELNET_SML_API SERRecord
  * 4. State detection: "Asserted" or "Deasserted" at end
  * 5. Whitespace is trimmed from all fields
  * 
- * @param response Raw text response from SER command
+ * @param response Raw text response from the SER command
  * @return std::vector<SERRecord> Parsed records (may be empty if parsing fails)
- * 
+ *
  * @note Date format is preserved from relay (MM/DD/YY)
  * @note Empty lines and non-record lines are silently skipped
  * 

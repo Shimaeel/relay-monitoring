@@ -1,3 +1,14 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
+/**
+ * @file shm_worker.js
+ * @brief Web worker bridge between WebSocket input and a shared ring buffer.
+ */
+
+/**
+ * Shared ring buffer state used by the worker.
+ * @type {{header: Int32Array|null, data: Uint8Array|null, view: DataView|null, capacity: number, signalIndex: number}}
+ */
 const STATE = {
     header: null,
     data: null,
@@ -6,9 +17,16 @@ const STATE = {
     signalIndex: 2
 };
 
+/** @type {WebSocket|null} */
 let ws = null;
+/** @type {string|null} */
 let wsUrl = null;
 
+/**
+ * Initialize the ring buffer views for the shared buffer.
+ * @param {ArrayBuffer|SharedArrayBuffer} buffer
+ * @param {number} capacity
+ */
 function initRing(buffer, capacity) {
     STATE.header = new Int32Array(buffer, 0, 3);
     STATE.data = new Uint8Array(buffer, 12, capacity);
@@ -16,6 +34,12 @@ function initRing(buffer, capacity) {
     STATE.capacity = capacity;
 }
 
+/**
+ * Compute free bytes available in the ring buffer.
+ * @param {number} readPos
+ * @param {number} writePos
+ * @returns {number}
+ */
 function freeBytes(readPos, writePos) {
     if (writePos >= readPos) {
         return STATE.capacity - (writePos - readPos);
@@ -23,14 +47,30 @@ function freeBytes(readPos, writePos) {
     return readPos - writePos;
 }
 
+/**
+ * Read a 32-bit little-endian length from the ring buffer.
+ * @param {number} pos
+ * @returns {number}
+ */
 function readLength(pos) {
     return STATE.view.getUint32(pos, true);
 }
 
+/**
+ * Write a 32-bit little-endian length into the ring buffer.
+ * @param {number} pos
+ * @param {number} len
+ */
 function writeLength(pos, len) {
     STATE.view.setUint32(pos, len, true);
 }
 
+/**
+ * Drop the oldest record to free space.
+ * @param {number} readPos
+ * @param {number} writePos
+ * @returns {number}
+ */
 function dropOldest(readPos, writePos) {
     if (readPos === writePos) {
         return readPos;
@@ -55,6 +95,11 @@ function dropOldest(readPos, writePos) {
     return newRead;
 }
 
+/**
+ * Write a payload into the ring buffer, evicting oldest data as needed.
+ * @param {Uint8Array} bytes
+ * @returns {boolean}
+ */
 function writePayload(bytes) {
     if (!bytes || bytes.length === 0) {
         return false;
@@ -92,6 +137,11 @@ function writePayload(bytes) {
     return true;
 }
 
+/**
+ * Append BER length bytes to the output array.
+ * @param {number[]} out
+ * @param {number} len
+ */
 function berAppendLength(out, len) {
     if (len < 128) {
         out.push(len);
@@ -111,6 +161,12 @@ function berAppendLength(out, len) {
     }
 }
 
+/**
+ * Append a BER TLV item to the output array.
+ * @param {number[]} out
+ * @param {number} tag
+ * @param {Uint8Array|number[]} valueBytes
+ */
 function berAppendTlv(out, tag, valueBytes) {
     out.push(tag);
     berAppendLength(out, valueBytes.length);
@@ -119,11 +175,22 @@ function berAppendTlv(out, tag, valueBytes) {
     }
 }
 
+/**
+ * Append a BER TLV string to the output array.
+ * @param {number[]} out
+ * @param {number} tag
+ * @param {string} value
+ */
 function berAppendString(out, tag, value) {
     const bytes = new TextEncoder().encode(value);
     berAppendTlv(out, tag, bytes);
 }
 
+/**
+ * Normalize a record entry into the expected SER shape.
+ * @param {Object} entry
+ * @returns {{record_id: string, timestamp: string, status: string, description: string}}
+ */
 function normalizeRecord(entry) {
     const recordId = entry.record_id ?? entry.recordId ?? entry.sno ?? '';
     const timestamp = entry.timestamp ?? `${entry.date ?? ''} ${entry.time ?? ''}`.trim();
@@ -137,6 +204,11 @@ function normalizeRecord(entry) {
     };
 }
 
+/**
+ * Encode SER records into a BER TLV payload.
+ * @param {Array<Object>} records
+ * @returns {Uint8Array}
+ */
 function encodeSerRecordsToTlv(records) {
     const content = [];
 
@@ -158,6 +230,11 @@ function encodeSerRecordsToTlv(records) {
     return new Uint8Array(payload);
 }
 
+/**
+ * Convert incoming WebSocket data into a ring-buffer payload.
+ * @param {string|ArrayBuffer|Blob} data
+ * @returns {Promise<void>}
+ */
 async function handleIncomingData(data) {
     let payload = null;
 
@@ -181,10 +258,18 @@ async function handleIncomingData(data) {
     }
 }
 
+/**
+ * Post a WebSocket status update to the main thread.
+ * @param {string} status
+ */
 function sendStatus(status) {
     self.postMessage({ type: 'ws_status', status });
 }
 
+/**
+ * Connect to the WebSocket server and start streaming data.
+ * @param {string} url
+ */
 function connectWebSocket(url) {
     if (!url) {
         return;
@@ -228,12 +313,20 @@ function connectWebSocket(url) {
     };
 }
 
+/**
+ * Send a command payload over the active WebSocket.
+ * @param {string|ArrayBuffer|Uint8Array} payload
+ */
 function sendWsCommand(payload) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(payload);
     }
 }
 
+/**
+ * Handle control messages from the main thread.
+ * @param {MessageEvent} event
+ */
 self.onmessage = (event) => {
     const msg = event.data;
     if (!msg || !msg.type) {

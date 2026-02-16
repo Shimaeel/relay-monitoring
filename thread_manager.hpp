@@ -1,19 +1,21 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file thread_manager.hpp
- * @brief Thread Management for Multi-threaded Application
- * 
- * @details Provides thread-safe utilities for the Telnet-SML application:
+ * @brief Thread management utilities for the Telnet-SML application.
+ *
+ * @details Provides thread-safe building blocks:
  * - Thread-safe database write queue
  * - Periodic SER polling scheduler
- * - Graceful shutdown management
- * 
+ * - Graceful shutdown coordination
+ *
  * ## Threading Model
- * 
+ *
  * @dot
  * digraph ThreadModel {
  *     rankdir=TB;
  *     node [shape=box, style=filled, fillcolor=lightyellow];
- *     
+ *
  *     subgraph cluster_threads {
  *         label="Application Threads";
  *         main [label="Main Thread\n(FSM Control)"];
@@ -21,13 +23,13 @@
  *         poll [label="Polling Thread\n(SER Fetcher)"];
  *         db [label="DB Writer Thread\n(Async Writes)"];
  *     }
- *     
+ *
  *     subgraph cluster_sync {
  *         label="Synchronization";
  *         queue [label="Write Queue\n(mutex protected)", shape=cylinder, fillcolor=lightblue];
  *         stop [label="Stop Flag\n(atomic)", shape=diamond, fillcolor=lightcoral];
  *     }
- *     
+ *
  *     main -> stop [label="sets"];
  *     poll -> queue [label="pushes"];
  *     db -> queue [label="pops"];
@@ -36,7 +38,7 @@
  *     db -> stop [label="checks"];
  * }
  * @enddot
- * 
+ *
  * @author Telnet-SML Development Team
  * @version 1.0.0
  * @date 2026
@@ -59,12 +61,12 @@
 
 /**
  * @class ThreadSafeQueue
- * @brief Thread-safe queue for producer-consumer pattern
+ * @brief Thread-safe queue for producer-consumer workflows.
  * 
  * @tparam T Type of elements stored in queue
  * 
  * @details Provides mutex-protected enqueue/dequeue operations with
- * condition variable signaling for efficient waiting.
+ * condition-variable signaling for efficient waiting.
  */
 template<typename T>
 class ThreadSafeQueue
@@ -75,8 +77,8 @@ class ThreadSafeQueue
 
 public:
     /**
-     * @brief Add item to queue
-     * @param item Item to enqueue (moved)
+    * @brief Add an item to the queue.
+    * @param item Item to enqueue (moved)
      */
     void push(T item)
     {
@@ -88,9 +90,10 @@ public:
     }
 
     /**
-     * @brief Remove and return front item (blocking)
-     * @param stop_flag Reference to atomic flag for graceful shutdown
-     * @return std::optional<T> Item if available, nullopt if stopped
+    * @brief Remove and return front item (blocking).
+    * @param item Output item (moved from front)
+    * @param stop_flag Reference to atomic flag for graceful shutdown
+    * @return true if an item was popped, false if stopped
      */
     bool pop(T& item, std::atomic<bool>& stop_flag)
     {
@@ -108,8 +111,8 @@ public:
     }
 
     /**
-     * @brief Check if queue is empty
-     * @return true if empty
+    * @brief Check if the queue is empty.
+    * @return true if empty
      */
     bool empty() const
     {
@@ -118,8 +121,8 @@ public:
     }
 
     /**
-     * @brief Get queue size
-     * @return Number of items in queue
+    * @brief Get queue size.
+    * @return Number of items in queue
      */
     size_t size() const
     {
@@ -128,7 +131,7 @@ public:
     }
 
     /**
-     * @brief Wake up all waiting threads (for shutdown)
+    * @brief Wake up all waiting threads (for shutdown).
      */
     void notify_all()
     {
@@ -138,7 +141,7 @@ public:
 
 /**
  * @class DatabaseWriter
- * @brief Asynchronous database writer thread
+ * @brief Asynchronous database writer thread.
  * 
  * @details Processes SER records from a queue and writes them to the database
  * in a background thread. This prevents database I/O from blocking the main
@@ -170,13 +173,13 @@ class DatabaseWriter
 
 public:
     /**
-     * @brief Construct database writer
-     * @param db Reference to SER database
+    * @brief Construct database writer.
+    * @param db Reference to SER database
      */
     explicit DatabaseWriter(SERDatabase& db) : db_(db) {}
 
     /**
-     * @brief Destructor - stops writer thread
+    * @brief Destructor that stops the writer thread.
      */
     ~DatabaseWriter()
     {
@@ -184,7 +187,7 @@ public:
     }
 
     /**
-     * @brief Start the background writer thread
+    * @brief Start the background writer thread.
      */
     void start()
     {
@@ -210,7 +213,7 @@ public:
     }
 
     /**
-     * @brief Stop the writer thread
+    * @brief Stop the writer thread.
      */
     void stop()
     {
@@ -222,8 +225,8 @@ public:
     }
 
     /**
-     * @brief Queue a single record for async writing
-     * @param record Record to write
+    * @brief Queue a single record for async writing.
+    * @param record Record to write
      */
     void queueRecord(const SERRecord& record)
     {
@@ -231,8 +234,8 @@ public:
     }
 
     /**
-     * @brief Queue multiple records for async writing
-     * @param records Vector of records to write
+    * @brief Queue multiple records for async writing.
+    * @param records Vector of records to write
      */
     void queueRecords(const std::vector<SERRecord>& records)
     {
@@ -244,21 +247,21 @@ public:
     }
 
     /**
-     * @brief Get mutex for direct database access
-     * @return Reference to database mutex
+    * @brief Get mutex for direct database access.
+    * @return Reference to database mutex
      */
     std::mutex& getDatabaseMutex() { return db_mutex_; }
 
     /**
-     * @brief Get pending write count
-     * @return Number of records waiting to be written
+    * @brief Get pending write count.
+    * @return Number of records waiting to be written
      */
     size_t pendingWrites() const { return write_queue_.size(); }
 };
 
 /**
  * @class SERPoller
- * @brief Periodic SER data polling thread
+ * @brief Periodic SER data polling thread.
  * 
  * @details Runs a background thread that periodically triggers SER data
  * fetching from the relay. This enables continuous monitoring without
@@ -291,8 +294,8 @@ class SERPoller
 
 public:
     /**
-     * @brief Construct SER poller
-     * @param interval Seconds between polls (default: 30)
+    * @brief Construct SER poller.
+    * @param interval Seconds between polls (default: 30)
      */
     explicit SERPoller(std::chrono::seconds interval = std::chrono::seconds(30))
         : poll_interval_(interval)
@@ -300,7 +303,7 @@ public:
     }
 
     /**
-     * @brief Destructor - stops polling thread
+    * @brief Destructor that stops the polling thread.
      */
     ~SERPoller()
     {
@@ -308,8 +311,8 @@ public:
     }
 
     /**
-     * @brief Set the callback to execute on each poll
-     * @param callback Function to call (e.g., FSM trigger)
+    * @brief Set the callback to execute on each poll.
+    * @param callback Function to call (e.g., FSM trigger)
      */
     void setCallback(std::function<void()> callback)
     {
@@ -317,7 +320,7 @@ public:
     }
 
     /**
-     * @brief Start the polling thread
+    * @brief Start the polling thread.
      */
     void start()
     {
@@ -352,7 +355,7 @@ public:
     }
 
     /**
-     * @brief Stop the polling thread
+    * @brief Stop the polling thread.
      */
     void stop()
     {
@@ -363,14 +366,14 @@ public:
     }
 
     /**
-     * @brief Check if poller is running
-     * @return true if running
+    * @brief Check if poller is running.
+    * @return true if running
      */
     bool isRunning() const { return !stop_flag_.load(); }
 
     /**
-     * @brief Set polling interval
-     * @param interval New interval in seconds
+    * @brief Set polling interval.
+    * @param interval New interval in seconds
      */
     void setInterval(std::chrono::seconds interval)
     {
@@ -380,13 +383,13 @@ public:
 
 /**
  * @class ThreadManager
- * @brief Centralized thread management for the application
+ * @brief Centralized thread management for the application.
  * 
  * @details Coordinates all background threads:
  * - WebSocket server (managed separately)
  * - Database writer
  * - SER poller
- * 
+ *
  * Provides unified start/stop control and graceful shutdown.
  */
 class ThreadManager
@@ -397,9 +400,9 @@ class ThreadManager
 
 public:
     /**
-     * @brief Construct thread manager
-     * @param db Reference to SER database
-     * @param poll_interval Polling interval in seconds
+    * @brief Construct thread manager.
+    * @param db Reference to SER database
+    * @param poll_interval Polling interval in seconds
      */
     ThreadManager(SERDatabase& db, std::chrono::seconds poll_interval = std::chrono::seconds(30))
         : db_writer_(std::make_unique<DatabaseWriter>(db))
@@ -408,8 +411,8 @@ public:
     }
 
     /**
-     * @brief Set the SER polling callback
-     * @param callback Function to call on each poll cycle
+    * @brief Set the SER polling callback.
+    * @param callback Function to call on each poll cycle
      */
     void setPollingCallback(std::function<void()> callback)
     {
@@ -417,7 +420,7 @@ public:
     }
 
     /**
-     * @brief Start all background threads
+    * @brief Start all background threads.
      */
     void startAll()
     {
@@ -429,7 +432,7 @@ public:
     }
 
     /**
-     * @brief Stop all background threads
+    * @brief Stop all background threads.
      */
     void stopAll()
     {
@@ -441,20 +444,20 @@ public:
     }
 
     /**
-     * @brief Get database writer for queuing records
-     * @return Reference to database writer
+    * @brief Get database writer for queuing records.
+    * @return Reference to database writer
      */
     DatabaseWriter& getWriter() { return *db_writer_; }
 
     /**
-     * @brief Get poller for configuration
-     * @return Reference to SER poller
+    * @brief Get poller for configuration.
+    * @return Reference to SER poller
      */
     SERPoller& getPoller() { return *poller_; }
 
     /**
-     * @brief Check if threads are running
-     * @return true if running
+    * @brief Check if threads are running.
+    * @return true if running
      */
     bool isRunning() const { return running_.load(); }
 };

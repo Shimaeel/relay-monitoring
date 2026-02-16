@@ -1,10 +1,12 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file asn_tlv_codec.hpp
- * @brief ASN.1 BER/TLV Codec for SER Record Serialization
+ * @brief ASN.1 BER/TLV codec for SER record payloads.
  *
- * @details This header provides functions for encoding and decoding SER records
- * using ASN.1 Basic Encoding Rules (BER) with Tag-Length-Value (TLV) structure.
- * Used for efficient binary transmission via WebSocket.
+ * @details Provides small, header-only helpers to encode and decode SER records
+ * using ASN.1 Basic Encoding Rules (BER) with a Tag-Length-Value (TLV) layout.
+ * The output is a compact binary payload used for WebSocket transfer.
  *
  * ## TLV Structure
  *
@@ -20,13 +22,13 @@
  * Top-level TLV (APPLICATION 1, constructed):
  * ```
  * Tag: 0x61
- * Value: Zero or more Record TLVs
+ * Value: zero or more Record TLVs
  * ```
  *
  * Record TLV (SEQUENCE, constructed):
  * ```
  * Tag: 0x30
- * Value: Context-specific primitive fields
+ * Value: context-specific primitive fields
  *   0x80: record_id (string)
  *   0x81: timestamp (string)
  *   0x82: status (string)
@@ -101,28 +103,28 @@ namespace asn_tlv
  */
 struct TlvInfo
 {
-    uint8_t tag = 0U;           ///< Tag byte (identifies data type)
-    bool constructed = false;   ///< true if constructed (contains nested TLVs)
-    std::size_t valueStart = 0U;///< Offset where value bytes begin
-    std::size_t length = 0U;    ///< Length of value in bytes
-    std::size_t nextOffset = 0U;///< Offset of next TLV (after this one)
+    uint8_t tag = 0U;            ///< Tag byte (type identifier)
+    bool constructed = false;    ///< true if constructed (contains nested TLVs)
+    std::size_t valueStart = 0U; ///< Offset where value bytes begin
+    std::size_t length = 0U;     ///< Length of value in bytes
+    std::size_t nextOffset = 0U; ///< Offset of next TLV (after this one)
 };
 
 /**
- * @brief Reads BER length encoding from buffer.
+ * @brief Read BER length encoding from a buffer.
  *
  * @details Handles both short form (single byte < 128) and long form
  * (first byte indicates count of following length bytes).
  *
  * @param buffer Input buffer
- * @param size Buffer size
+ * @param size Buffer size in bytes
  * @param offset Current position in buffer
  * @param[out] length Decoded length value
  * @param[out] nextOffset Position after length bytes
  * @param[out] error Optional error message on failure
  *
- * @return true Successfully decoded length
- * @return false Invalid encoding
+ * @return true if decoding succeeded
+ * @return false if encoding is invalid or out of range
  */
 inline bool readLength(const uint8_t* buffer, std::size_t size, std::size_t offset,
                        std::size_t& length, std::size_t& nextOffset, std::string* error)
@@ -162,18 +164,18 @@ inline bool readLength(const uint8_t* buffer, std::size_t size, std::size_t offs
 }
 
 /**
- * @brief Reads and parses a complete TLV structure.
+ * @brief Read and parse a complete TLV structure.
  *
  * @details Extracts tag, length, and value boundaries from buffer.
  *
  * @param buffer Input buffer
- * @param size Buffer size
+ * @param size Buffer size in bytes
  * @param offset Current position in buffer
  * @param[out] info Parsed TLV information
  * @param[out] error Optional error message on failure
  *
- * @return true Successfully parsed TLV
- * @return false Invalid TLV structure
+ * @return true if parsing succeeded
+ * @return false if the TLV is invalid or out of range
  */
 inline bool readTlv(const uint8_t* buffer, std::size_t size, std::size_t offset,
                     TlvInfo& info, std::string* error)
@@ -207,7 +209,7 @@ inline bool readTlv(const uint8_t* buffer, std::size_t size, std::size_t offset,
 }
 
 /**
- * @brief Appends BER length encoding to output buffer.
+ * @brief Append BER length encoding to an output buffer.
  *
  * @details Uses short form for lengths < 128, long form otherwise.
  *
@@ -241,7 +243,7 @@ inline void berAppendLength(std::vector<uint8_t>& out, std::size_t len)
 }
 
 /**
- * @brief Appends a complete TLV structure to output buffer.
+ * @brief Append a complete TLV structure to an output buffer.
  *
  * @param[out] out Output buffer to append to
  * @param tag Tag byte
@@ -259,7 +261,7 @@ inline void berAppendTlv(std::vector<uint8_t>& out, uint8_t tag, const uint8_t* 
 }
 
 /**
- * @brief Appends a string as a TLV structure.
+ * @brief Append a string as a TLV structure.
  *
  * @param[out] out Output buffer to append to
  * @param tag Tag byte
@@ -271,7 +273,7 @@ inline void berAppendString(std::vector<uint8_t>& out, uint8_t tag, const std::s
 }
 
 /**
- * @brief Encodes SER records to ASN.1 BER/TLV format.
+ * @brief Encode SER records to ASN.1 BER/TLV format.
  *
  * @details Creates a top-level APPLICATION 1 TLV containing zero or more
  * SEQUENCE TLVs, each with context-specific fields for record data.
@@ -316,18 +318,18 @@ inline std::vector<uint8_t> encodeSerRecordsToTlv(const std::vector<SERRecord>& 
 }
 
 /**
- * @brief Decodes ASN.1 BER/TLV payload to SER records.
+ * @brief Decode ASN.1 BER/TLV payload to SER records.
  *
  * @details Parses a top-level APPLICATION 1 TLV and extracts all
  * SEQUENCE TLVs containing record data.
  *
  * @param data Input buffer containing TLV payload
- * @param size Size of input buffer
+ * @param size Size of input buffer in bytes
  * @param[out] out Vector to receive decoded records
  * @param[out] error Optional pointer to receive error message
  *
- * @return true Successfully decoded all records
- * @return false Parse error (details in @p error if provided)
+ * @return true if all records were decoded successfully
+ * @return false on parse error (details in @p error if provided)
  *
  * @note Output vector is cleared before decoding
  */

@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file raw_data_ring_buffer.hpp
  * @brief Lock-free SPSC Ring Buffer for Raw Telnet Data

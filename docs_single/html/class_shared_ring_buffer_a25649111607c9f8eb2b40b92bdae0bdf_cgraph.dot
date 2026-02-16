@@ -1,0 +1,14 @@
+digraph "SharedRingBuffer::effectiveReadPos"
+{
+ // INTERACTIVE_SVG=YES
+ // LATEX_PDF_SIZE
+  bgcolor="transparent";
+  edge [fontname=Helvetica,fontsize=10,labelfontname=Helvetica,labelfontsize=10];
+  node [fontname=Helvetica,fontsize=10,shape=box,height=0.2,width=0.4];
+  rankdir="LR";
+  Node1 [id="Node000001",label="SharedRingBuffer::effective\lReadPos",height=0.2,width=0.4,color="gray40", fillcolor="grey60", style="filled", fontcolor="black",tooltip="Find the effective read position (slowest active reader)."];
+  Node1 -> Node2 [id="edge1_Node000001_Node000002",color="steelblue1",style="solid",tooltip=" "];
+  Node2 [id="Node000002",label="SharedRingBuffer::normalizePos",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ring_buffer.html#a625f9ff24b4edc17455284fd71345a41",tooltip="Clamp a position to a valid buffer offset."];
+  Node1 -> Node3 [id="edge2_Node000001_Node000003",color="steelblue1",style="solid",tooltip=" "];
+  Node3 [id="Node000003",label="SharedRingBuffer::usedBytes",height=0.2,width=0.4,color="grey40", fillcolor="white", style="filled",URL="$class_shared_ring_buffer.html#af4fe16a1103d0a9da1f996ff3aa4271b",tooltip="Bytes occupied between a read position and the write position."];
+}

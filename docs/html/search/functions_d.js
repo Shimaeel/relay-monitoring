@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['websocketlistener_0',['WebSocketListener',['../class_web_socket_listener.html#ac43e1171469d0132da122a67241c2bd3',1,'WebSocketListener']]],
-  ['websocketsession_1',['WebSocketSession',['../class_web_socket_session.html#aee00beee5414f4991223df4a1246aafc',1,'WebSocketSession']]]
+  ['queuerecord_0',['queueRecord',['../class_database_writer.html#a127d9199341e4655a3e60f5182ea419c',1,'DatabaseWriter']]],
+  ['queuerecords_1',['queueRecords',['../class_database_writer.html#a4be04730ce3ab448d4de382aa248a093',1,'DatabaseWriter']]]
 ];

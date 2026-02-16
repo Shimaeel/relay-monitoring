@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file ser_database.cpp
  * @brief Implementation of SERDatabase class for SQLite storage

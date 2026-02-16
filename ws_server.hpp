@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file ws_server.hpp
  * @brief WebSocket Server for Real-time SER Data Access

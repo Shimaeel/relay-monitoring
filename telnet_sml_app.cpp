@@ -1,3 +1,5 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
 /**
  * @file telnet_sml_app.cpp
  * @brief Telnet SML Application - Main orchestrator implementation.
@@ -57,10 +59,11 @@
 #include "raw_data_ring_buffer.hpp"
 #include "ser_database.hpp"
 #include "ser_json_writer.hpp"
-#include "shared_ring_buffer.hpp"
+#include "shared_memory/shared_ring_buffer.hpp"
 #include "telnet_fsm.hpp"
 #include "thread_manager.hpp"
 #include "ws_server.hpp"
+#include "ws_db_server.hpp"
 
 using namespace sml;
 
@@ -552,6 +555,7 @@ class SharedSerReader
     std::string output_path_;                   ///< Output file path (e.g., "ui/data.json")
     std::atomic<bool> stop_flag_{false};        ///< Flag to signal worker termination
     std::thread worker_thread_;                  ///< Worker thread handle
+    SharedRingBuffer::ReaderId readerId_{SharedRingBuffer::kInvalidReader}; ///< Registered reader ID
 
     /**
      * @brief Main worker thread loop.
@@ -567,7 +571,7 @@ class SharedSerReader
         std::vector<uint8_t> payload;
         while (!stop_flag_.load())
         {
-            if (!ring_.waitRead(payload, stop_flag_))
+            if (!ring_.waitRead(readerId_, payload, stop_flag_))
                 continue;
 
             std::vector<SERRecord> records;
@@ -605,6 +609,12 @@ public:
     void start()
     {
         stop_flag_ = false;
+        readerId_ = ring_.registerReader();
+        if (readerId_ == SharedRingBuffer::kInvalidReader)
+        {
+            std::cerr << "[SHM] Failed to register reader — max readers reached\n";
+            return;
+        }
         worker_thread_ = std::thread([this]() { runLoop(); });
     }
 
@@ -617,6 +627,11 @@ public:
         ring_.notifyAll();
         if (worker_thread_.joinable())
             worker_thread_.join();
+        if (readerId_ != SharedRingBuffer::kInvalidReader)
+        {
+            ring_.unregisterReader(readerId_);
+            readerId_ = SharedRingBuffer::kInvalidReader;
+        }
     }
 };
 
@@ -683,11 +698,12 @@ public:
     RetryState retry{3, 0, std::chrono::seconds(30)};    ///< Retry configuration
     SERDatabase serDb{"ser_records.db"};                 ///< SQLite database (persistent storage)
     SERWebSocketServer wsServer{serDb, 8765};            ///< WebSocket server (port 8765)
+    std::unique_ptr<WSDBServer> dbApiServer;                ///< Generic DB WebSocket API (port 8766)
     ThreadManager threadMgr{serDb, std::chrono::seconds(120)}; ///< Poller (2 min interval)
 
     // Architecture components
     RawDataRingBuffer rawBuffer{100};                    ///< SPSC ring buffer (100 slots)
-    SharedRingBuffer shmRing{500U * 1024U};              ///< Shared ring buffer (500KB)
+    SharedRingBuffer shmRing{"TelnetSmlShmRing", 500U * 1024U}; ///< Shared ring buffer (500KB)
 
     std::unique_ptr<ReceptionWorker> receptionWorker;    ///< Thread 1: Reception worker
     std::unique_ptr<ProcessingWorker> processingWorker;  ///< Thread 2: Processing worker
@@ -737,6 +753,11 @@ public:
             return false;
         }
 
+        // Generic database WebSocket API on port 8766
+        dbApiServer = std::make_unique<WSDBServer>(serDb.getDbHandle(), 8766);
+        if (!dbApiServer->start())
+            std::cerr << "[WSDB] Warning: DB API server failed to start\n";
+
         // Architecture: TelnetClient Thread -> SPSC Ring Buffer -> Processing Thread
         
         // 1. TelnetClient Thread (C++) - handles Telnet I/O, pushes to ring buffer
@@ -769,6 +790,7 @@ public:
         std::cout << "  - TelnetClient Thread: Relay communication\n";
         std::cout << "  - FSM/Processing Thread: Parse + DB + WebSocket\n";
         std::cout << "  - WebSocket Server Thread: port 8765\n";
+        std::cout << "  - DB API Server Thread:    port 8766\n";
         std::cout << "  - Poller Thread: 2 min interval\n";
         std::cout << "  - JSON Writer Thread: SharedRingBuffer consumer\n";
         std::cout << "========================================\n";
@@ -846,6 +868,7 @@ public:
             processingWorker->stop();
         
         shmReader.stop();
+        if (dbApiServer) dbApiServer->stop();
         wsServer.stop();
         serDb.close();
 

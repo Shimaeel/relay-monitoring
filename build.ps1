@@ -54,6 +54,7 @@ if ($DLL) {
     
     & g++ -std=c++17 "-Wa,-mbig-obj" `
         "-I$SML_INC" "-I$BOOST_INC" "-I$SQLITE_INC" `
+        "-Iwebsocket API" "-Ishared_memory" "-I." `
         -DTELNET_SML_EXPORTS `
         -shared -o "$OUTPUT_DIR/telnet_sml.dll" `
         "-Wl,--out-implib,$OUTPUT_DIR/libtelnet_sml.a" `
@@ -82,6 +83,7 @@ elseif ($Example) {
     
     & g++ -std=c++17 "-Wa,-mbig-obj" `
         "-I$SML_INC" "-I$BOOST_INC" "-I$SQLITE_INC" `
+        "-Iwebsocket API" "-Ishared_memory" "-I." `
         dll_example.cpp `
         -Llib -ltelnet_sml `
         -o dll_example.exe `
@@ -106,6 +108,7 @@ else {
     & g++ -std=c++17 "-Wa,-mbig-obj" `
         -DTELNET_SML_STATIC `
         "-I$SML_INC" "-I$BOOST_INC" "-I$SQLITE_INC" `
+        "-Iwebsocket API" "-Ishared_memory" "-I." `
         main.cpp client.cpp ser_database.cpp telnet_sml_app.cpp sqlite3.o `
         -o telnet_fsm_test.exe `
         -lws2_32 -lmswsock

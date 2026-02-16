@@ -1,10 +1,14 @@
 var searchData=
 [
-  ['increment_0',['increment',['../struct_retry_state.html#a426515c752e98d2853d41503a7bb6e5c',1,'RetryState']]],
-  ['insertrecord_1',['insertRecord',['../class_s_e_r_database.html#a7af7d201eef0336f5c599c3d05671f18',1,'SERDatabase']]],
-  ['insertrecords_2',['insertRecords',['../class_s_e_r_database.html#ac4611fbd8ff79ee0d8ec51cb04a171fc',1,'SERDatabase']]],
-  ['isconnected_3',['isConnected',['../class_telnet_client.html#a93f726073b26d3853f92dbceb5b2b73b',1,'TelnetClient']]],
-  ['isopen_4',['isOpen',['../class_s_e_r_database.html#adc5c3b4c9ed3d82e560fd9be47406d80',1,'SERDatabase']]],
-  ['isresponsecomplete_5',['isResponseComplete',['../class_telnet_client.html#afe6fcd4467c705692d781379926881e0',1,'TelnetClient']]],
-  ['isrunning_6',['isRunning',['../class_s_e_r_web_socket_server.html#a5b9713860598127ab27b80f229685eb1',1,'SERWebSocketServer']]]
+  ['getallrecords_0',['getAllRecords',['../class_s_e_r_database.html#a1a997738e16c0b0153823c259b33b071',1,'SERDatabase']]],
+  ['getdatabasemutex_1',['getDatabaseMutex',['../class_database_writer.html#aa785186906a24aa6b97ec3ada2b646ab',1,'DatabaseWriter']]],
+  ['getdbhandle_2',['getDbHandle',['../class_s_e_r_database.html#ab6e8076a79c4fdd6082444fed11eac59',1,'SERDatabase']]],
+  ['getlasterror_3',['getLastError',['../class_s_e_r_database.html#ae42bb6aa2a4723f2696e2f5c67605765',1,'SERDatabase']]],
+  ['getlastioresult_4',['getLastIoResult',['../class_telnet_client.html#a6555ca7753fe6733a191cb2f9ce941d4',1,'TelnetClient']]],
+  ['getlastresponse_5',['getLastResponse',['../class_telnet_client.html#acc16b6263ed9b2ffca7ae9927f5ed1f3',1,'TelnetClient']]],
+  ['getpoller_6',['getPoller',['../class_thread_manager.html#aae40097178e0b77e6444991321baa557',1,'ThreadManager']]],
+  ['getrecordcount_7',['getRecordCount',['../class_s_e_r_database.html#af9f462113ba171ab65d126a4689c02be',1,'SERDatabase']]],
+  ['getrecordsbystatus_8',['getRecordsByStatus',['../class_s_e_r_database.html#adbe68cbe0623ec047941da1c63528328',1,'SERDatabase']]],
+  ['getsessions_9',['getSessions',['../class_session_manager.html#a1a04188c1928b629e9903740b9656600',1,'SessionManager']]],
+  ['getwriter_10',['getWriter',['../class_thread_manager.html#a42778d7106bbf25b8d2b95505929b076',1,'ThreadManager']]]
 ];
