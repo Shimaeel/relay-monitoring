@@ -427,10 +427,13 @@ class ProcessingWorker
             std::cout << "[Processing] Received message: cmd='" << msg->command 
                       << "', response size=" << msg->response.size() << " bytes\n";
             
-            // Only process SER command responses
+            // Only process SER command responses through the SER pipeline
             if (msg->command != "SER")
             {
-                std::cout << "[Processing] Skipping non-SER command: " << msg->command << "\n";
+                // Non-SER command (e.g. FIL DIR) — broadcast raw text response to all WS clients
+                std::cout << "[Processing] Non-SER command '" << msg->command 
+                          << "', broadcasting text response (" << msg->response.size() << " bytes)\n";
+                wsServer_.broadcastText(msg->response);
                 continue;
             }
             
@@ -745,6 +748,16 @@ public:
             return false;
         }
         std::cout << "[DB] Database opened. Existing records: " << serDb.getRecordCount() << "\n";
+
+        // Set up command handler: queue UI commands (FIL DIR etc.) to ReceptionWorker
+        // Response will be routed by ProcessingWorker via broadcastText
+        wsServer.setCommandHandler([this](const std::string& cmd) -> std::string {
+            if (receptionWorker) {
+                std::cout << "[WS→Queue] Queuing UI command: " << cmd << "\n";
+                receptionWorker->queueCommand(cmd);
+            }
+            return "";  // Response comes async via ProcessingWorker
+        });
 
         if (!wsServer.start())
         {

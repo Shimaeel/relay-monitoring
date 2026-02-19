@@ -313,6 +313,13 @@ private:
  */
 class TELNET_SML_API WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
 {
+public:
+    /// Callback type for relay command forwarding:
+    ///   input  = command string (e.g. "FIL DIR")
+    ///   output = relay response text
+    using CommandHandler = std::function<std::string(const std::string&)>;
+
+private:
     websocket::stream<beast::tcp_stream> ws_;   ///< WebSocket stream over TCP
     beast::flat_buffer buffer_;                  ///< Buffer for incoming messages
     SERDatabase& db_;                            ///< Reference to database for queries
@@ -321,6 +328,8 @@ class TELNET_SML_API WebSocketSession : public std::enable_shared_from_this<WebS
     bool pending_read_ = false;                  ///< Flag for pending read after write
     std::vector<uint8_t> write_buffer_;          ///< Buffer to hold data during async write
     std::vector<uint8_t> broadcast_buffer_;      ///< Buffer for broadcast data
+    std::string text_write_buffer_;              ///< Buffer for text responses (FIL DIR etc.)
+    CommandHandler cmdHandler_;                   ///< Optional handler for relay commands
 
 public:
     /**
@@ -329,11 +338,15 @@ public:
      * @param socket TCP socket from accepted connection (moved)
      * @param db Reference to SER database for data access
      * @param sessionMgr Pointer to session manager (may be null for legacy mode)
+     * @param cmdHandler Optional callback for relay command forwarding
      */
-    explicit WebSocketSession(tcp::socket&& socket, SERDatabase& db, SessionManager* sessionMgr = nullptr)
+    explicit WebSocketSession(tcp::socket&& socket, SERDatabase& db,
+                              SessionManager* sessionMgr = nullptr,
+                              CommandHandler cmdHandler = nullptr)
         : ws_(std::move(socket))
         , db_(db)
         , sessionMgr_(sessionMgr)
+        , cmdHandler_(std::move(cmdHandler))
     {
     }
     
@@ -359,6 +372,22 @@ public:
         // Post to strand to ensure thread safety
         net::post(ws_.get_executor(), [self = shared_from_this(), data]() {
             self->do_broadcast(data);
+        });
+    }
+
+    /**
+     * @brief Send text data to this client (for non-SER command responses)
+     * 
+     * @details Called by SERWebSocketServer::broadcastText() to push
+     * raw relay text responses (e.g. FIL DIR) to connected clients.
+     * Thread-safe via strand posting.
+     * 
+     * @param text Text data to send
+     */
+    void sendTextBroadcast(const std::string& text)
+    {
+        net::post(ws_.get_executor(), [self = shared_from_this(), text]() {
+            self->sendTextResponse(text);
         });
     }
 
@@ -492,9 +521,16 @@ private:
             pending_read_ = true;
             sendData();
         }
+        else if (cmdHandler_)
+        {
+            // Queue command to ReceptionWorker (async — response comes via broadcastText)
+            std::cout << "[WS] Queuing command via handler: " << msg << "\n";
+            cmdHandler_(msg);
+            do_read();
+        }
         else
         {
-            // Continue reading for other messages
+            // No handler registered, ignore
             do_read();
         }
     }
@@ -550,6 +586,28 @@ private:
             do_read();
         }
     }
+
+    /**
+     * @brief Send a plain text response to this client (for FIL DIR etc.)
+     * 
+     * @param text The text response string to send
+     */
+    void sendTextResponse(const std::string& text)
+    {
+        if (writing_)
+        {
+            std::cout << "[WS] Write in progress, skipping text response\n";
+            return;
+        }
+
+        writing_ = true;
+        text_write_buffer_ = text;
+
+        ws_.text(true);  // Send as text frame (not binary)
+        ws_.async_write(
+            net::buffer(text_write_buffer_),
+            beast::bind_front_handler(&WebSocketSession::on_write, shared_from_this()));
+    }
 };
 
 /**
@@ -584,6 +642,7 @@ class TELNET_SML_API WebSocketListener : public std::enable_shared_from_this<Web
     tcp::acceptor acceptor_;      ///< TCP acceptor for incoming connections
     SERDatabase& db_;             ///< Reference to database for sessions
     SessionManager* sessionMgr_;  ///< Session manager for broadcast support
+    WebSocketSession::CommandHandler cmdHandler_;  ///< Command handler for relay forwarding
 
 public:
     /**
@@ -593,12 +652,16 @@ public:
      * @param endpoint TCP endpoint to listen on (address + port)
      * @param db Database reference to pass to sessions
      * @param sessionMgr Session manager for broadcast (may be null)
+     * @param cmdHandler Command handler for relay forwarding (may be null)
      */
-    WebSocketListener(net::io_context& ioc, tcp::endpoint endpoint, SERDatabase& db, SessionManager* sessionMgr = nullptr)
+    WebSocketListener(net::io_context& ioc, tcp::endpoint endpoint, SERDatabase& db,
+                      SessionManager* sessionMgr = nullptr,
+                      WebSocketSession::CommandHandler cmdHandler = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , db_(db)
         , sessionMgr_(sessionMgr)
+        , cmdHandler_(std::move(cmdHandler))
     {
         beast::error_code ec;
 
@@ -670,8 +733,8 @@ private:
         }
         else
         {
-            // Create the session and run it (with session manager for broadcast)
-            std::make_shared<WebSocketSession>(std::move(socket), db_, sessionMgr_)->run();
+            // Create the session and run it (with session manager + command handler)
+            std::make_shared<WebSocketSession>(std::move(socket), db_, sessionMgr_, cmdHandler_)->run();
         }
 
         // Accept another connection
@@ -730,6 +793,7 @@ class TELNET_SML_API SERWebSocketServer
     unsigned short port_;                          ///< Port number to listen on
     bool running_ = false;                         ///< Server running state flag
     SessionManager sessionMgr_;                    ///< Session manager for broadcast
+    WebSocketSession::CommandHandler cmdHandler_;  ///< Command handler for relay forwarding
 
 public:
     /**
@@ -755,6 +819,19 @@ public:
     }
 
     /**
+     * @brief Set command handler for forwarding relay commands (e.g. FIL DIR)
+     * 
+     * @details Must be called before start(). The handler receives a command
+     * string and returns the relay's text response.
+     * 
+     * @param handler Callback: string command → string response
+     */
+    void setCommandHandler(WebSocketSession::CommandHandler handler)
+    {
+        cmdHandler_ = std::move(handler);
+    }
+
+    /**
      * @brief Start the WebSocket server
      * 
      * @details Creates listener and starts I/O thread. Safe to call if already running.
@@ -772,7 +849,7 @@ public:
         try
         {
             auto const address = net::ip::make_address("0.0.0.0");
-            listener_ = std::make_shared<WebSocketListener>(ioc_, tcp::endpoint{address, port_}, db_, &sessionMgr_);
+            listener_ = std::make_shared<WebSocketListener>(ioc_, tcp::endpoint{address, port_}, db_, &sessionMgr_, cmdHandler_);
             listener_->run();
 
             server_thread_ = std::thread([this]() {
@@ -869,5 +946,28 @@ public:
     std::size_t clientCount() const
     {
         return sessionMgr_.count();
+    }
+
+    /**
+     * @brief Broadcast text response to all connected clients
+     * 
+     * @details Used for non-SER relay command responses (e.g. FIL DIR).
+     * Sends as text WebSocket frame so JS can read directly.
+     * 
+     * @param text Raw relay response text
+     */
+    void broadcastText(const std::string& text)
+    {
+        if (!running_ || text.empty())
+            return;
+        
+        auto sessions = sessionMgr_.getSessions();
+        std::cout << "[WS] Broadcasting text to " << sessions.size() << " clients (" << text.size() << " bytes)\n";
+        
+        for (auto& session : sessions)
+        {
+            if (session)
+                session->sendTextBroadcast(text);
+        }
     }
 };

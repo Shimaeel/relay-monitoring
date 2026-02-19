@@ -452,6 +452,115 @@
             color: #6366f1;
         }
 
+        /* ── File Directory Table ────────────────── */
+        .file-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .file-toolbar .btn {
+            margin: 0;
+        }
+
+        .file-search {
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+            font-family: inherit;
+            font-size: 0.9rem;
+            flex: 1;
+            min-width: 180px;
+            max-width: 320px;
+            transition: border-color 0.2s ease;
+        }
+
+        .file-search:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
+        .file-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eef2ff;
+            color: #4f46e5;
+            font-size: 0.75rem;
+            font-weight: 700;
+            min-width: 24px;
+            height: 24px;
+            border-radius: 50px;
+            padding: 0 8px;
+            margin-left: 8px;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .file-name .material-icons-round {
+            font-size: 18px;
+            color: #6366f1;
+        }
+
+        .file-ext {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .ext-txt { background: #dbeafe; color: #1d4ed8; }
+        .ext-bin { background: #fef3c7; color: #92400e; }
+        .ext-zbin { background: #fce7f3; color: #9d174d; }
+        .ext-ztxt { background: #d1fae5; color: #065f46; }
+        .ext-zds { background: #ede9fe; color: #5b21b6; }
+        .ext-none { background: #fff7ed; color: #c2410c; }
+        .ext-default { background: #f1f5f9; color: #475569; }
+
+        .perm-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-right: 4px;
+        }
+
+        .perm-r { background: #dcfce7; color: #166534; }
+        .perm-w { background: #fef9c3; color: #854d0e; }
+        .perm-d { background: #fee2e2; color: #991b1b; }
+
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 3px solid rgba(99,102,241,0.2);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         /* ── Responsive ─────────────────────────── */
         @media(max-width: 768px) {
             .sidebar {
@@ -546,10 +655,46 @@
             <div class="section-title">
                 <span class="material-icons-round">terminal</span> Commands
             </div>
+            <button class="btn" onclick="sendFilDir()">FIL DIR</button>
             <button class="btn">Read ETH</button>
             <button class="btn">Read DATE</button>
             <button class="btn">Read GOOSE</button>
             <button class="btn">Read SER</button>
+        </div>
+
+        <!-- File Directory -->
+        <div class="section-title">
+            <span class="material-icons-round">folder_open</span> File Directory
+            <span class="file-count" id="file-count">0</span>
+        </div>
+        <div id="fildir-conn-banner" class="conn-banner connecting" style="display:none;">
+            <span class="material-icons-round" style="font-size:18px;">sync</span>
+            <span id="fildir-status-text">Fetching file list from relay...</span>
+        </div>
+        <div class="file-toolbar">
+            <input type="text" class="file-search" id="file-search" placeholder="Search files..." oninput="filterFiles()">
+        </div>
+        <div class="table-wrapper" style="margin-bottom: 24px;">
+            <table id="file-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>File Name</th>
+                        <th>Type</th>
+                        <th>Permissions</th>
+                    </tr>
+                </thead>
+                <tbody id="file-tbody">
+                    <tr id="file-empty">
+                        <td colspan="4">
+                            <div class="empty-state">
+                                <span class="material-icons-round">folder_off</span>
+                                <div>Click <strong>FIL DIR</strong> to load file directory from relay</div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <!-- SER Events -->
@@ -739,6 +884,16 @@ function connectSER() {
     };
 
     ws.onmessage = (event) => {
+        // ── If we're waiting for a FIL DIR response ──
+        if (filDirPending) {
+            filDirPending = false;
+            const parsed = parseFilDirResponse(event.data);
+            allFiles = parsed;
+            renderFileTable(allFiles);
+            showFilDirBanner('success', `Loaded ${parsed.length} file(s) from relay`);
+            return;
+        }
+
         try {
             const records = JSON.parse(event.data);
             if (Array.isArray(records)) {
@@ -782,6 +937,173 @@ function updateLocalTime() {
     if (el) el.textContent = formatted;
 }
 setInterval(updateLocalTime, 1000);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  FIL DIR  –  File Directory from Relay
+// ═══════════════════════════════════════════════════════════════════════════
+
+let filDirPending   = false;   // true while waiting for FIL DIR response
+let allFiles        = [];      // parsed file list for filtering
+
+const fileTbody     = document.getElementById('file-tbody');
+const fileCount     = document.getElementById('file-count');
+const fileSearch    = document.getElementById('file-search');
+const fileDirBanner = document.getElementById('fildir-conn-banner');
+const fileDirText   = document.getElementById('fildir-status-text');
+
+// ── Send FIL DIR command ────────────────────────────────────────────────
+function sendFilDir() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showFilDirBanner('error', 'WebSocket not connected');
+        return;
+    }
+    filDirPending = true;
+    showFilDirBanner('loading', 'Fetching file list from relay...');
+    ws.send('FIL DIR');
+}
+
+// ── Banner helper ───────────────────────────────────────────────────────
+function showFilDirBanner(type, msg) {
+    fileDirBanner.style.display = 'flex';
+    fileDirText.textContent = msg;
+    if (type === 'loading') {
+        fileDirBanner.className = 'conn-banner connecting';
+        fileDirBanner.querySelector('.material-icons-round').textContent = 'sync';
+    } else if (type === 'success') {
+        fileDirBanner.className = 'conn-banner connected';
+        fileDirBanner.querySelector('.material-icons-round').textContent = 'check_circle';
+        setTimeout(() => { fileDirBanner.style.display = 'none'; }, 3000);
+    } else {
+        fileDirBanner.className = 'conn-banner disconnected';
+        fileDirBanner.querySelector('.material-icons-round').textContent = 'error';
+    }
+}
+
+// ── Parse relay FIL DIR response (multi-line text) ──────────────────────
+//  Actual relay format:
+//    EVENTS                           R D
+//    SET_PF.TXT                       RW
+//    FW.ZDS                            W
+//  Columns: FILENAME (left-padded), PERMISSIONS (R, W, D flags)
+function parseFilDirResponse(raw) {
+    const lines = raw.split(/\r?\n/);
+    const files = [];
+    let idx = 0;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Skip common header/separator/prompt patterns
+        if (/^[-=]+$/.test(trimmed)) continue;
+        if (/^>/.test(trimmed)) continue;
+        if (/^FIL DIR/i.test(trimmed)) continue;
+        if (/^\s*$/.test(trimmed)) continue;
+
+        // Parse: FILENAME followed by permission flags (R, W, D)
+        const parts = trimmed.split(/\s+/);
+        if (parts.length === 0) continue;
+
+        const name = parts[0];
+        const perms = [];
+
+        // Collect permission flags after filename
+        for (let i = 1; i < parts.length; i++) {
+            const token = parts[i].toUpperCase();
+            // Each token can be a single flag (R, W, D) or combined (RW, RD, RWD)
+            if (/^[RWD]+$/.test(token)) {
+                for (const ch of token) {
+                    if (!perms.includes(ch)) perms.push(ch);
+                }
+            }
+        }
+
+        idx++;
+        files.push({ idx, name, perms: perms.join('') });
+    }
+
+    return files;
+}
+
+// ── Extension badge class ───────────────────────────────────────────────
+function extBadgeClass(name) {
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    const map = { txt: 'ext-txt', bin: 'ext-bin', zbin: 'ext-zbin', ztxt: 'ext-ztxt', zds: 'ext-zds' };
+    // Files without extension (like EVENTS, ASCII)
+    if (!name.includes('.')) return 'ext-none';
+    return map[ext] || 'ext-default';
+}
+
+function getExtension(name) {
+    if (!name.includes('.')) return '—';
+    const parts = name.split('.');
+    return parts.pop().toUpperCase();
+}
+
+// ── Permission badges HTML ──────────────────────────────────────────────
+function permBadgesHtml(perms) {
+    if (!perms) return '<span class="perm-badge" style="background:#f1f5f9;color:#94a3b8;">—</span>';
+    let html = '';
+    if (perms.includes('R')) html += '<span class="perm-badge perm-r">R</span>';
+    if (perms.includes('W')) html += '<span class="perm-badge perm-w">W</span>';
+    if (perms.includes('D')) html += '<span class="perm-badge perm-d">D</span>';
+    return html || '—';
+}
+
+// File icon based on extension
+function fileIcon(name) {
+    if (!name.includes('.')) return 'topic';           // no extension = EVENTS, ASCII etc.
+    const ext = name.split('.').pop().toLowerCase();
+    if (ext === 'bin' || ext === 'zbin') return 'data_object';
+    if (ext === 'zds') return 'memory';
+    if (ext === 'txt' || ext === 'ztxt') return 'description';
+    return 'insert_drive_file';
+}
+
+// ── Render file table ───────────────────────────────────────────────────
+function renderFileTable(files) {
+    fileTbody.innerHTML = '';
+    fileCount.textContent = files.length;
+
+    if (files.length === 0) {
+        fileTbody.innerHTML = `
+            <tr>
+                <td colspan="4">
+                    <div class="empty-state">
+                        <span class="material-icons-round">folder_off</span>
+                        <div>No files found</div>
+                    </div>
+                </td>
+            </tr>`;
+        return;
+    }
+
+    files.forEach(f => {
+        const tr = document.createElement('tr');
+        const ext = getExtension(f.name);
+        const icon = fileIcon(f.name);
+        tr.innerHTML = `
+            <td>${f.idx}</td>
+            <td><span class="file-name">
+                    <span class="material-icons-round">${icon}</span>
+                    ${f.name}
+                </span></td>
+            <td><span class="file-ext ${extBadgeClass(f.name)}">${ext}</span></td>
+            <td>${permBadgesHtml(f.perms)}</td>`;
+        fileTbody.appendChild(tr);
+    });
+}
+
+// ── Filter files by search ──────────────────────────────────────────────
+function filterFiles() {
+    const q = fileSearch.value.toLowerCase();
+    if (!q) {
+        renderFileTable(allFiles);
+        return;
+    }
+    const filtered = allFiles.filter(f => f.name.toLowerCase().includes(q));
+    renderFileTable(filtered);
+}
 
 // ── Start ───────────────────────────────────────────────────────────────
 connectSER();

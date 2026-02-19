@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Relay Monitoring Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: #f0f4f8;
+    color: #334155;
+}
+
+/* HEADER */
+.header {
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    padding: 18px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #fff;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.18);
+    padding: 8px 18px;
+    border-radius: 50px;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fbbf24;
+}
+
+/* LAYOUT */
+.container { display: flex; height: calc(100vh - 70px); }
+
+.sidebar {
+    width: 220px;
+    background: #fff;
+    padding: 20px;
+    border-right: 1px solid #e2e8f0;
+}
+
+.sidebar button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.sidebar button:hover {
+    background: #eef2ff;
+    color: #4f46e5;
+}
+
+.main {
+    flex: 1;
+    padding: 25px;
+    overflow-y: auto;
+}
+
+/* SECTION */
+.section {
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #e2e8f0;
+}
+
+.section-title {
+    font-weight: 700;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    background: #6366f1;
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    margin-right: 8px;
+    margin-bottom: 8px;
+}
+
+.btn:hover { background: #4f46e5; }
+
+.btn-danger { background: #ef4444; }
+.btn-danger:hover { background: #dc2626; }
+
+/* CONSOLE */
+.console {
+    background: #0f172a;
+    color: #22c55e;
+    padding: 15px;
+    height: 180px;
+    overflow-y: auto;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+/* INPUT */
+input, select {
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="header">
+    <div>
+        <h3>Relay OTTER-01</h3>
+        <small id="device-time">Device Time: —</small>
+    </div>
+    <div class="status">
+        <div class="status-dot" id="ws-dot"></div>
+        <span id="ws-label">Connecting...</span>
+    </div>
+</div>
+
+<div class="container">
+
+<div class="sidebar">
+    <button>Dashboard</button>
+    <button>Commands</button>
+    <button>SER Events</button>
+    <button>Time Sync</button>
+    <button>Password</button>
+</div>
+
+<div class="main">
+
+<!-- Relay Commands -->
+<div class="section">
+    <div class="section-title">
+        <span class="material-icons-round">terminal</span> Relay Commands
+    </div>
+
+    <button class="btn" onclick="sendCommand('FIL DIR')">FIL DIR</button>
+    <button class="btn" onclick="sendCommand('FIL READ')">FIL READ</button>
+
+    <input type="number" id="eve-number" placeholder="Event #">
+    <button class="btn" onclick="sendEVE()">EVE n R</button>
+
+    <br><br>
+
+    <button class="btn" onclick="sendCommand('COM PTP')">COM PTP</button>
+    <button class="btn" onclick="sendCommand('DATE')">DATE</button>
+    <button class="btn" onclick="sendCommand('ETH')">ETH</button>
+    <button class="btn" onclick="sendCommand('GOOSE')">GOOSE</button>
+
+    <br><br>
+
+    <button class="btn btn-danger" onclick="sendCommand('QUIT')">QUIT</button>
+</div>
+
+<!-- File Operations -->
+<div class="section">
+    <div class="section-title">
+        <span class="material-icons-round">folder</span> File Operations
+    </div>
+    <div id="file-log">
+        <p><strong>Last Action:</strong> —</p>
+        <p><strong>Saved As:</strong> —</p>
+    </div>
+</div>
+
+<!-- Time Sync -->
+<div class="section">
+    <div class="section-title">
+        <span class="material-icons-round">schedule</span> Time Sync
+    </div>
+    <p><strong>Local PC Time:</strong> <span id="local-time"></span></p>
+    <button class="btn" onclick="syncTime()">Sync With Local PC</button>
+</div>
+
+<!-- Password -->
+<div class="section">
+    <div class="section-title">
+        <span class="material-icons-round">lock</span> Password
+    </div>
+    <select id="password-select">
+        <option>TAIL1</option>
+        <option>OTTER1</option>
+    </select>
+    <button class="btn" onclick="changePassword()">Change Password</button>
+</div>
+
+<!-- Console -->
+<div class="section">
+    <div class="section-title">
+        <span class="material-icons-round">code</span> Command Console
+    </div>
+    <div id="console" class="console"></div>
+</div>
+
+</div>
+</div>
+
+<script>
+
+/* WebSocket */
+const WS_URL = "ws://localhost:8765";
+let ws;
+
+/* Init */
+function connect() {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+        setStatus("Connected", "#22c55e");
+        log("Connected to relay", "in");
+    };
+
+    ws.onclose = () => {
+        setStatus("Disconnected", "#ef4444");
+        log("Disconnected", "in");
+        setTimeout(connect, 3000);
+    };
+
+    ws.onmessage = (event) => {
+        log(event.data, "in");
+        detectFileOperation(event.data);
+    };
+}
+
+function setStatus(text, color) {
+    document.getElementById("ws-label").innerText = text;
+    document.getElementById("ws-dot").style.background = color;
+}
+
+/* Command Send */
+function sendCommand(cmd) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        log("WebSocket not connected", "in");
+        return;
+    }
+    ws.send(cmd);
+    log(cmd, "out");
+}
+
+function sendEVE() {
+    const num = document.getElementById("eve-number").value;
+    if (!num) return;
+    sendCommand(`EVE ${num} R`);
+}
+
+/* Console Log */
+function log(msg, dir) {
+    const consoleDiv = document.getElementById("console");
+    const time = new Date().toLocaleTimeString();
+    const prefix = dir === "out" ? ">>" : "<<";
+    consoleDiv.innerHTML += `[${time}] ${prefix} ${msg}<br>`;
+    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+}
+
+/* File Detection */
+function detectFileOperation(msg) {
+    const logDiv = document.getElementById("file-log");
+
+    if (msg.includes("FIL DIR")) {
+        logDiv.innerHTML = "<p><strong>Last Action:</strong> Directory List</p><p><strong>Saved As:</strong> fil_dir_TIMESTAMP.txt</p>";
+    }
+    if (msg.includes("FIL READ")) {
+        logDiv.innerHTML = "<p><strong>Last Action:</strong> File Read</p><p><strong>Saved As:</strong> fil_read_FILENAME.txt</p>";
+    }
+    if (msg.includes("EVE")) {
+        logDiv.innerHTML = "<p><strong>Last Action:</strong> Event Report</p><p><strong>Saved As:</strong> event_n_TIMESTAMP.eve</p>";
+    }
+}
+
+/* Time */
+function updateLocalTime() {
+    document.getElementById("local-time").innerText = new Date().toLocaleString();
+}
+setInterval(updateLocalTime, 1000);
+
+function syncTime() {
+    const now = new Date().toISOString();
+    sendCommand(`DATE SET ${now}`);
+}
+
+/* Password */
+function changePassword() {
+    const pass = document.getElementById("password-select").value;
+    sendCommand(`PASS SET ${pass}`);
+}
+
+/* Start */
+connect();
+updateLocalTime();
+
+</script>
+
+</body>
+</html>
