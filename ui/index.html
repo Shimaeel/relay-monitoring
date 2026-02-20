@@ -413,8 +413,8 @@
         let shmRing = null;
         let shmWorker = null;
         let workerConnected = false;
-        let directWs = null;  // Fallback WebSocket when SharedArrayBuffer unavailable
-        const useSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
+        let directWs = null;  // Direct WebSocket connection
+        const useSharedArrayBuffer = false;  // Default to direct WebSocket for SER data
 
         function readLength(buffer, offset) {
             const first = buffer[offset];
@@ -990,8 +990,15 @@
                 if (now - lastMessageAt < rate) {
                     return;
                 }
-                const now = Date.now();
-                if (now - lastMessageAt >= rate) {
+                // Direct WebSocket path
+                if (!useSharedArrayBuffer) {
+                    if (directWs && directWs.readyState === WebSocket.OPEN) {
+                        directWs.send('getData');
+                    }
+                    return;
+                }
+                // Shared memory worker path
+                if (shmWorker && workerConnected) {
                     shmWorker.postMessage({ type: 'send', payload: 'getData' });
                 }
             }, rate);
