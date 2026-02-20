@@ -453,22 +453,20 @@ class ProcessingWorker
             int inserted = db_.insertRecords(records);
             std::cout << "[Processing] SQLite: Stored " << inserted << " new records\n";
             
-            // Step 2: WebSocket Server (After DB Write) - only broadcast on successful storage
+            // Step 2: WebSocket Server (After DB Write) - always broadcast so UI stays current
+            // Even when inserted==0 (all duplicates), connected browsers need the data
+            // (e.g. browser connected after app restart with existing DB)
+            wsServer_.broadcast(records);
+            std::cout << "[Processing] WebSocket: Broadcast " << records.size() << " records to clients\n";
+            
+            // Write to shared memory for JSON file writer (only on new data)
             if (inserted > 0)
             {
-                wsServer_.broadcast(records);
-                std::cout << "[Processing] WebSocket: Broadcast " << records.size() << " records to clients\n";
-                
-                // Write to shared memory for JSON file writer
                 auto payload = asn_tlv::encodeSerRecordsToTlv(records);
                 if (!payload.empty())
                 {
                     shmRing_.write(payload.data(), payload.size());
                 }
-            }
-            else
-            {
-                std::cout << "[Processing] No new records inserted, skipping WebSocket broadcast\n";
             }
         }
         std::cout << "[Processing] Worker thread exiting\n";
@@ -748,6 +746,20 @@ public:
             return false;
         }
         std::cout << "[DB] Database opened. Existing records: " << serDb.getRecordCount() << "\n";
+
+        // Seed data.json from existing DB records so the UI is never stale
+        {
+            auto existing = serDb.getAllRecords();
+            if (!existing.empty())
+            {
+                std::string json = recordsToJsonTable(existing);
+                std::string err;
+                if (writeJsonToFile("ui/data.json", json, &err))
+                    std::cout << "[Init] Exported " << existing.size() << " records to ui/data.json\n";
+                else
+                    std::cerr << "[Init] data.json export failed: " << err << "\n";
+            }
+        }
 
         // Set up command handler: queue UI commands (FIL DIR etc.) to ReceptionWorker
         // Response will be routed by ProcessingWorker via broadcastText

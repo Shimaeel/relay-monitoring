@@ -8,7 +8,7 @@
         "C:\\Libraries\\boost_1_90_0",
         "C:/sqlite"
       ],
-      "compilerPath": "\"C:/Program Files/mingw64/bin/g++.exe\"",
+      "compilerPath": "C:/Program Files/mingw64/bin/g++.exe",
       "cStandard": "c17",
       "cppStandard": "c++17",
       "intelliSenseMode": "windows-gcc-x64"

@@ -320,6 +320,8 @@ struct PollSerAction
         {
             int inserted = db.insertRecords(records);
             std::cout << "[SER] Parsed " << records.size() << " records, stored " << inserted << " in database\n";
+            std::cout << "Records size before TLV encode: "
+          << records.size() << std::endl;
 
             auto payload = asn_tlv::encodeSerRecordsToTlv(records);
             if (!payload.empty())
