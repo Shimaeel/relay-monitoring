@@ -171,6 +171,57 @@ struct TELNET_SML_API SERRecord
  * @see SERRecord Structure for individual records
  * @see SERDatabase::insertRecords() For storing parsed records
  */
+inline std::string sanitizeSerLine(const std::string& line)
+{
+    std::string out;
+    out.reserve(line.size());
+
+    for (std::size_t i = 0; i < line.size(); ++i)
+    {
+        unsigned char c = static_cast<unsigned char>(line[i]);
+
+        // Strip Telnet IAC sequences (0xFF cmd opt)
+        if (c == 0xFF)
+        {
+            if (i + 1 < line.size() && static_cast<unsigned char>(line[i + 1]) == 0xFF)
+            {
+                ++i;
+                continue;
+            }
+            if (i + 2 < line.size())
+            {
+                i += 2;
+                continue;
+            }
+            break;
+        }
+
+        // Strip ANSI escape sequences (ESC [ ...)
+        if (c == 0x1B)
+        {
+            if (i + 1 < line.size() && line[i + 1] == '[')
+            {
+                i += 2;
+                while (i < line.size())
+                {
+                    unsigned char esc = static_cast<unsigned char>(line[i]);
+                    if (esc >= 0x40 && esc <= 0x7E)
+                        break;
+                    ++i;
+                }
+                continue;
+            }
+            continue;
+        }
+
+        // Keep printable ASCII and tabs; drop other control chars
+        if (c >= 0x20 || c == '\t')
+            out.push_back(static_cast<char>(c));
+    }
+
+    return out;
+}
+
 inline std::vector<SERRecord> parseSERResponse(const std::string& response)
 {
     std::vector<SERRecord> records;
@@ -179,6 +230,8 @@ inline std::vector<SERRecord> parseSERResponse(const std::string& response)
 
     while (std::getline(stream, line))
     {
+        line = sanitizeSerLine(line);
+
         // Remove \r if present
         if (!line.empty() && line.back() == '\r')
             line.pop_back();
@@ -196,8 +249,11 @@ inline std::vector<SERRecord> parseSERResponse(const std::string& response)
         // Format: number date time element [state]
         
         // Check if line starts with a number (SER record)
-        if (!std::isdigit(line[start]))
+        size_t digitPos = line.find_first_of("0123456789", start);
+        if (digitPos == std::string::npos)
             continue;
+        if (digitPos != start)
+            line = line.substr(digitPos);
 
         // Parse using position-based extraction
         std::istringstream lineStream(line);

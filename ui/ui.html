@@ -378,20 +378,7 @@
             color: #cbd5e1;
         }
 
-        .ser-count {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: #eef2ff;
-            color: #4f46e5;
-            font-size: 0.75rem;
-            font-weight: 700;
-            min-width: 24px;
-            height: 24px;
-            border-radius: 50px;
-            padding: 0 8px;
-            margin-left: 8px;
-        }
+
 
         /* ── Sections ───────────────────────────── */
         .section {
@@ -599,9 +586,7 @@
         <button>
             <span class="material-icons-round">terminal</span> Commands
         </button>
-        <button>
-            <span class="material-icons-round">list_alt</span> SER Events
-        </button>
+
         <button>
             <span class="material-icons-round">schedule</span> Time Sync
         </button>
@@ -633,13 +618,7 @@
                 <p>Active</p>
             </div>
 
-            <div class="card">
-                <div class="card-icon">
-                    <span class="material-icons-round">warning</span>
-                </div>
-                <h3>Last SER</h3>
-                <p id="last-ser">—</p>
-            </div>
+
 
             <div class="card">
                 <div class="card-icon">
@@ -659,7 +638,7 @@
             <button class="btn">Read ETH</button>
             <button class="btn">Read DATE</button>
             <button class="btn">Read GOOSE</button>
-            <button class="btn">Read SER</button>
+
         </div>
 
         <!-- File Directory -->
@@ -697,38 +676,7 @@
             </table>
         </div>
 
-        <!-- SER Events -->
-        <div class="section-title">
-            <span class="material-icons-round">list_alt</span> SER Events
-            <span class="ser-count" id="ser-count">0</span>
-        </div>
-        <div id="ser-conn-banner" class="conn-banner connecting">
-            <span class="material-icons-round" style="font-size:18px;">sync</span>
-            <span id="ser-conn-text">Connecting to relay...</span>
-        </div>
-        <div class="table-wrapper" style="margin-bottom: 24px;">
-            <table id="ser-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Element</th>
-                        <th>State</th>
-                    </tr>
-                </thead>
-                <tbody id="ser-tbody">
-                    <tr id="ser-empty">
-                        <td colspan="5">
-                            <div class="empty-state">
-                                <span class="material-icons-round">hourglass_empty</span>
-                                <div>Waiting for SER data...</div>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+
 
         <!-- Time Sync -->
         <div class="section">
@@ -768,107 +716,45 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
-//  WebSocket SER Data Connection
-//  Connects to SERWebSocketServer (ws_server.hpp) on port 8765
+//  WebSocket Connection
+//  Connects to WebSocketServer (ws_server.hpp) on port 8765
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SER_WS_URL = 'ws://localhost:8765';
+const WS_URL = 'ws://localhost:8765';
 let ws = null;
 let reconnectTimer = null;
 
 // ── DOM References ──────────────────────────────────────────────────────
 const wsDot       = document.getElementById('ws-dot');
 const wsLabel     = document.getElementById('ws-label');
-const serTbody    = document.getElementById('ser-tbody');
-const serCount    = document.getElementById('ser-count');
-const serEmpty    = document.getElementById('ser-empty');
-const lastSerCard = document.getElementById('last-ser');
-const connBanner  = document.getElementById('ser-conn-banner');
-const connText    = document.getElementById('ser-conn-text');
 
 // ── Status Helpers ──────────────────────────────────────────────────────
 function setConnected() {
     wsDot.style.background = '#34d399';
     wsDot.style.boxShadow  = '0 0 8px #34d399';
     wsLabel.textContent    = 'Connected';
-    connBanner.className   = 'conn-banner connected';
-    connBanner.querySelector('.material-icons-round').textContent = 'check_circle';
-    connText.textContent   = 'Live connection to relay established';
 }
 
 function setDisconnected() {
     wsDot.style.background = '#ef4444';
     wsDot.style.boxShadow  = '0 0 8px #ef4444';
     wsLabel.textContent    = 'Disconnected';
-    connBanner.className   = 'conn-banner disconnected';
-    connBanner.querySelector('.material-icons-round').textContent = 'error';
-    connText.textContent   = 'Connection lost — retrying every 3s...';
 }
 
 function setConnecting() {
     wsDot.style.background = '#fbbf24';
     wsDot.style.boxShadow  = '0 0 8px #fbbf24';
     wsLabel.textContent    = 'Connecting...';
-    connBanner.className   = 'conn-banner connecting';
-    connBanner.querySelector('.material-icons-round').textContent = 'sync';
-    connText.textContent   = 'Connecting to relay...';
-}
-
-// ── Badge class for state ───────────────────────────────────────────────
-function stateBadgeClass(state) {
-    if (!state) return 'badge badge-gray';
-    const s = state.toLowerCase();
-    if (s === 'asserted')   return 'badge badge-red';
-    if (s === 'deasserted') return 'badge badge-green';
-    return 'badge badge-amber';
-}
-
-// ── Render SER Records ──────────────────────────────────────────────────
-function updateSERTable(records) {
-    // Remove empty state
-    if (serEmpty) serEmpty.remove();
-
-    serTbody.innerHTML = '';
-    serCount.textContent = records.length;
-
-    if (records.length === 0) {
-        serTbody.innerHTML = `
-            <tr>
-                <td colspan="5">
-                    <div class="empty-state">
-                        <span class="material-icons-round">check_circle</span>
-                        <div>No SER events recorded</div>
-                    </div>
-                </td>
-            </tr>`;
-        lastSerCard.textContent = '—';
-        return;
-    }
-
-    records.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${r.sno ?? ''}</td>
-            <td>${r.date ?? ''}</td>
-            <td>${r.time ?? ''}</td>
-            <td>${r.element ?? ''}</td>
-            <td><span class="${stateBadgeClass(r.state)}">${r.state || '—'}</span></td>`;
-        serTbody.appendChild(tr);
-    });
-
-    // Update the "Last SER" dashboard card with the most recent event
-    const latest = records[0];
-    lastSerCard.textContent = latest.element || latest.description || '—';
 }
 
 // ── WebSocket Connection ────────────────────────────────────────────────
-function connectSER() {
+function connectWS() {
     if (ws && ws.readyState === WebSocket.OPEN) return;
 
     setConnecting();
 
     try {
-        ws = new WebSocket(SER_WS_URL);
+        ws = new WebSocket(WS_URL);
     } catch (e) {
         console.error('WebSocket creation failed:', e);
         setDisconnected();
@@ -877,10 +763,8 @@ function connectSER() {
     }
 
     ws.onopen = () => {
-        console.log('[SER WS] Connected');
+        console.log('[WS] Connected');
         setConnected();
-        // Request initial SER data
-        ws.send('refresh');
     };
 
     ws.onmessage = (event) => {
@@ -894,38 +778,24 @@ function connectSER() {
             return;
         }
 
-        try {
-            const records = JSON.parse(event.data);
-            if (Array.isArray(records)) {
-                updateSERTable(records);
-            }
-        } catch (e) {
-            console.warn('[SER WS] Non-JSON message:', event.data);
-        }
+        console.log('[WS] Message:', event.data);
     };
 
     ws.onclose = () => {
-        console.log('[SER WS] Disconnected');
+        console.log('[WS] Disconnected');
         setDisconnected();
         scheduleReconnect();
     };
 
     ws.onerror = (err) => {
-        console.error('[SER WS] Error:', err);
+        console.error('[WS] Error:', err);
     };
 }
 
 function scheduleReconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(connectSER, 3000);
+    reconnectTimer = setTimeout(connectWS, 3000);
 }
-
-// ── Periodic Refresh ────────────────────────────────────────────────────
-setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send('refresh');
-    }
-}, 5000);
 
 // ── Update local PC time in Time Sync section ──────────────────────────
 function updateLocalTime() {
@@ -1106,8 +976,9 @@ function filterFiles() {
 }
 
 // ── Start ───────────────────────────────────────────────────────────────
-connectSER();
+connectWS();
 updateLocalTime();
+
 </script>
 
 </body>

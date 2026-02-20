@@ -414,7 +414,7 @@
         let shmWorker = null;
         let workerConnected = false;
         let directWs = null;  // Fallback WebSocket when SharedArrayBuffer unavailable
-        const useSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
+        const useSharedArrayBuffer = false;
 
         function readLength(buffer, offset) {
             const first = buffer[offset];
@@ -670,9 +670,12 @@
                         startAutoRefresh();
                     } else if (msg.status === 'disconnected') {
                         stopAutoRefresh();
+                        // Fallback: try loading from data.json
+                        if (!dataReceived) loadFromJsonFallback();
                     }
                 } else if (msg.type === 'error') {
                     console.error('Shared ring worker error:', msg.message);
+                    if (!dataReceived) loadFromJsonFallback();
                 }
             };
 
@@ -764,7 +767,8 @@
                 initTable(data);
             }
 
-            document.getElementById('record-count').textContent = data.length;
+            const totalRows = table ? table.getDataCount() : data.length;
+            document.getElementById('record-count').textContent = totalRows;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
         }
         
@@ -796,6 +800,7 @@
             
             const wsUrl = buildWsUrl();
             directWs = new WebSocket(wsUrl);
+            directWs.binaryType = 'arraybuffer';
             
             directWs.onopen = () => {
                 workerConnected = true;
@@ -803,38 +808,124 @@
                 startAutoRefresh();
             };
             
-            directWs.onmessage = async (event) => {
-                try {
-                    let bytes;
-                    if (event.data instanceof Blob) {
-                        const arrayBuffer = await event.data.arrayBuffer();
-                        bytes = new Uint8Array(arrayBuffer);
-                    } else if (event.data instanceof ArrayBuffer) {
-                        bytes = new Uint8Array(event.data);
-                    } else {
-                        // Text message - try to parse as JSON
-                        try {
-                            const jsonData = JSON.parse(event.data);
-                            if (Array.isArray(jsonData)) {
-                                updateTable(jsonData);
-                                dataReceived = true;
-                            }
-                        } catch (e) {
-                            console.log('Text message:', event.data);
-                        }
-                        return;
-                    }
+            // directWs.onmessage = async (event) => {
+            //     console.log('[WS] Message received, type:', typeof event.data,
+            //         event.data instanceof ArrayBuffer ? 'ArrayBuffer(' + event.data.byteLength + ')' :
+            //         event.data instanceof Blob ? 'Blob(' + event.data.size + ')' :
+            //         'text(' + String(event.data).length + ')');
+            //     try {
+            //         let bytes;
+            //         if (event.data instanceof ArrayBuffer) {
+            //             bytes = new Uint8Array(event.data);
+            //         } else if (event.data instanceof Blob) {
+            //             const arrayBuffer = await event.data.arrayBuffer();
+            //             bytes = new Uint8Array(arrayBuffer);
+            //         } else {
+            //             // Text message - try to parse as JSON
+            //             try {
+            //                 const jsonData = JSON.parse(event.data);
+            //                 if (Array.isArray(jsonData)) {
+            //                     updateTable(jsonData);
+            //                     lastMessageAt = Date.now();
+            //                     dataReceived = true;
+            //                 }
+            //             } catch (e) {
+            //                 console.log('Text message:', event.data);
+            //             }
+            //             return;
+            //         }
                     
-                    // Try BER/TLV decoding
-                    const records = decodeSerRecordsFromTlv(bytes.buffer);
-                    if (records.length > 0) {
-                        updateTable(records);
-                        dataReceived = true;
-                    }
-                } catch (err) {
-                    console.error('Direct WebSocket decode error:', err);
+            //         console.log('[WS] Binary payload:', bytes.length, 'bytes, first 10:', Array.from(bytes.slice(0, 10)));
+            //         // Try BER/TLV decoding
+            //         const records = decodeSerRecordsFromTlv(bytes.buffer);
+            //         console.log('[WS] Decoded', records.length, 'records');
+            //         if (records.length > 0) {
+            //             updateTable(records);
+            //             lastMessageAt = Date.now();
+            //             dataReceived = true;
+            //         }
+            //     } catch (err) {
+            //         console.error('Direct WebSocket decode error:', err);
+            //     }
+            // };
+
+            directWs.onmessage = async (event) => {
+    try {
+        console.log('--------------------------------------------------');
+        console.log('[WS] Message received. Type:', typeof event.data);
+
+        let bytes;
+
+        // 🔹 Handle Blob
+        if (event.data instanceof Blob) {
+            console.log('[WS] Received Blob:', event.data.size, 'bytes');
+            const arrayBuffer = await event.data.arrayBuffer();
+            bytes = new Uint8Array(arrayBuffer);
+        }
+
+        // 🔹 Handle ArrayBuffer
+        else if (event.data instanceof ArrayBuffer) {
+            console.log('[WS] Received ArrayBuffer:', event.data.byteLength, 'bytes');
+            bytes = new Uint8Array(event.data);
+        }
+
+        // 🔹 Handle Text
+        else {
+            console.log('[WS] Received Text:', event.data);
+
+            try {
+                const jsonData = JSON.parse(event.data);
+                if (Array.isArray(jsonData)) {
+                    console.log('[WS] Parsed JSON records:', jsonData.length);
+                    updateTable(jsonData);
+                    dataReceived = true;
                 }
-            };
+            } catch (e) {
+                console.warn('[WS] Non-JSON text message:', event.data);
+            }
+
+            return;
+        }
+
+        if (!bytes || bytes.length === 0) {
+            console.warn('[WS] Empty binary payload');
+            return;
+        }
+
+        console.log('[WS] Binary length:', bytes.length);
+        console.log('[WS] First 20 bytes:', Array.from(bytes.slice(0, 20)));
+
+        // 🔴 CRITICAL FIX: Slice exact payload region
+        const exactBuffer = bytes.buffer.slice(
+            bytes.byteOffset,
+            bytes.byteOffset + bytes.byteLength
+        );
+
+        // 🔍 Validate TLV header
+        const firstByte = bytes[0];
+        console.log('[WS] First byte (should be 0x61):', '0x' + firstByte.toString(16));
+
+        if (firstByte !== 0x61) {
+            console.warn('[WS] Unexpected TLV tag. Not APPLICATION 1 (0x61)');
+        }
+
+        // 🔹 Decode TLV
+        const records = decodeSerRecordsFromTlv(exactBuffer);
+
+        console.log('[WS] Decoded records count:', records.length);
+        console.log('[WS] Records:', records);
+
+        if (records.length > 0) {
+            updateTable(records);
+            dataReceived = true;
+        } else {
+            console.warn('[WS] TLV decoded but returned 0 records');
+        }
+
+    } catch (err) {
+        console.error('[WS] Direct WebSocket decode error:', err);
+    }
+};
             
             directWs.onclose = () => {
                 workerConnected = false;
@@ -842,6 +933,8 @@
                     updateConnectionStatus('synced');
                 } else {
                     updateConnectionStatus('disconnected');
+                    // Fallback: try loading from data.json
+                    loadFromJsonFallback();
                 }
                 stopAutoRefresh();
                 // Attempt reconnect after delay
@@ -855,10 +948,32 @@
             directWs.onerror = (err) => {
                 console.error('Direct WebSocket error:', err);
                 updateConnectionStatus('error');
+                // Fallback: try loading from data.json
+                if (!dataReceived) loadFromJsonFallback();
             };
         }
         
         let dataReceived = false;  // Track if data was received
+        let jsonFallbackAttempted = false;  // Track if we already tried data.json
+        
+        // Fallback: load records from data.json when WebSocket is unavailable
+        async function loadFromJsonFallback() {
+            if (jsonFallbackAttempted && dataReceived) return;
+            jsonFallbackAttempted = true;
+            try {
+                const resp = await fetch('data.json?t=' + Date.now());
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const records = await resp.json();
+                if (Array.isArray(records) && records.length > 0) {
+                    updateTable(records);
+                    dataReceived = true;
+                    updateConnectionStatus('synced');
+                    console.log('[Fallback] Loaded', records.length, 'records from data.json');
+                }
+            } catch (err) {
+                console.warn('[Fallback] Could not load data.json:', err.message);
+            }
+        }
         
         function updateConnectionStatus(status) {
             const statusEl = document.getElementById('connection-status');
@@ -912,11 +1027,17 @@
                 clearInterval(autoRefreshInterval);
             }
             autoRefreshInterval = setInterval(() => {
-                if (!shmWorker || !workerConnected) {
+                const now = Date.now();
+                if (now - lastMessageAt < rate) {
                     return;
                 }
-                const now = Date.now();
-                if (now - lastMessageAt >= rate) {
+
+                if (!useSharedArrayBuffer) {
+                    // Direct WebSocket fallback path
+                    if (directWs && directWs.readyState === WebSocket.OPEN) {
+                        directWs.send('getData');
+                    }
+                } else if (shmWorker && workerConnected) {
                     shmWorker.postMessage({ type: 'send', payload: 'getData' });
                 }
             }, rate);
@@ -940,6 +1061,9 @@
             initTable([]);  // Initialize empty table
             setupSharedRing();
             connectWebSocket();
+            // Also try loading data.json immediately as a fast-path
+            // (records show instantly while WebSocket connects)
+            loadFromJsonFallback();
         });
     </script>
 </body>
