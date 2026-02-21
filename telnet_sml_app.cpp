@@ -57,11 +57,14 @@
 #include "client.hpp"
 #include "asn_tlv_codec.hpp"
 #include "raw_data_ring_buffer.hpp"
+#include "relay_service.hpp"
 #include "ser_database.hpp"
 #include "ser_json_writer.hpp"
 #include "shared_memory/shared_ring_buffer.hpp"
 #include "telnet_fsm.hpp"
 #include "thread_manager.hpp"
+#include "password_manager.hpp"
+#include "time_sync_manager.hpp"
 #include "ws_server.hpp"
 #include "ws_db_server.hpp"
 
@@ -709,6 +712,10 @@ public:
     std::unique_ptr<ReceptionWorker> receptionWorker;    ///< Thread 1: Reception worker
     std::unique_ptr<ProcessingWorker> processingWorker;  ///< Thread 2: Processing worker
 
+    RelayService relayService{client};                   ///< Thread-safe relay command service
+    TimeSyncManager timeSyncMgr{relayService};           ///< DATE synchronization orchestrator
+    PasswordManager passwordMgr{relayService};           ///< Password change orchestrator
+
     SharedSerReader shmReader{shmRing, "ui/data.json"}; ///< Thread 5: JSON file writer
 
     bool running = false;                                ///< Application running state
@@ -769,6 +776,45 @@ public:
                 receptionWorker->queueCommand(cmd);
             }
             return "";  // Response comes async via ProcessingWorker
+        });
+
+        // Set up action handler: JSON actions dispatched to the appropriate manager
+        // Handler receives the full JSON message so managers can extract extra fields
+        wsServer.setActionHandler([this](const std::string& jsonMsg) -> std::string {
+            // Extract "action" field from JSON
+            std::string action;
+            {
+                const std::string key = "\"action\"";
+                auto pos = jsonMsg.find(key);
+                if (pos != std::string::npos) {
+                    pos = jsonMsg.find(':', pos + key.size());
+                    if (pos != std::string::npos) {
+                        pos = jsonMsg.find('"', pos + 1);
+                        if (pos != std::string::npos) {
+                            auto end = jsonMsg.find('"', pos + 1);
+                            if (end != std::string::npos)
+                                action = jsonMsg.substr(pos + 1, end - pos - 1);
+                        }
+                    }
+                }
+            }
+
+            // Route to TimeSyncManager
+            if (action == "read_time" || action == "sync_time")
+            {
+                std::cout << "[WS\xe2\x86\x92Action] Routing to TimeSyncManager: " << action << "\n";
+                return timeSyncMgr.handleAction(action);
+            }
+
+            // Route to PasswordManager (password values are NOT logged)
+            if (action == "change_password")
+            {
+                std::cout << "[WS\xe2\x86\x92Action] Routing to PasswordManager\n";
+                return passwordMgr.handleAction(jsonMsg);
+            }
+
+            std::cout << "[WS\xe2\x86\x92Action] Unknown action: " << action << "\n";
+            return "{\"status\":\"failed\",\"error\":\"Unknown action\"}";
         });
 
         if (!wsServer.start())

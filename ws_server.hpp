@@ -319,6 +319,11 @@ public:
     ///   output = relay response text
     using CommandHandler = std::function<std::string(const std::string&)>;
 
+    /// Callback type for JSON action handling (time sync etc.):
+    ///   input  = action string (e.g. "read_time", "sync_time")
+    ///   output = JSON response string
+    using ActionHandler = std::function<std::string(const std::string&)>;
+
 private:
     websocket::stream<beast::tcp_stream> ws_;   ///< WebSocket stream over TCP
     beast::flat_buffer buffer_;                  ///< Buffer for incoming messages
@@ -330,6 +335,7 @@ private:
     std::vector<uint8_t> broadcast_buffer_;      ///< Buffer for broadcast data
     std::string text_write_buffer_;              ///< Buffer for text responses (FIL DIR etc.)
     CommandHandler cmdHandler_;                   ///< Optional handler for relay commands
+    ActionHandler actionHandler_;                 ///< Optional handler for JSON actions (time sync)
 
 public:
     /**
@@ -339,14 +345,17 @@ public:
      * @param db Reference to SER database for data access
      * @param sessionMgr Pointer to session manager (may be null for legacy mode)
      * @param cmdHandler Optional callback for relay command forwarding
+     * @param actionHandler Optional callback for JSON action handling (time sync)
      */
     explicit WebSocketSession(tcp::socket&& socket, SERDatabase& db,
                               SessionManager* sessionMgr = nullptr,
-                              CommandHandler cmdHandler = nullptr)
+                              CommandHandler cmdHandler = nullptr,
+                              ActionHandler actionHandler = nullptr)
         : ws_(std::move(socket))
         , db_(db)
         , sessionMgr_(sessionMgr)
         , cmdHandler_(std::move(cmdHandler))
+        , actionHandler_(std::move(actionHandler))
     {
     }
     
@@ -513,13 +522,40 @@ private:
         std::string msg = beast::buffers_to_string(buffer_.data());
         buffer_.consume(buffer_.size());
 
-        std::cout << "[WS] Received: " << msg << "\n";
+        // Mask sensitive payloads (passwords) in log output
+        if (isJsonAction(msg) && extractAction(msg) == "change_password")
+            std::cout << "[WS] Received: {\"action\":\"change_password\",...}\n";
+        else
+            std::cout << "[WS] Received: " << msg << "\n";
 
         if (msg == "refresh" || msg == "getData")
         {
             // Send data, then continue reading when write completes
             pending_read_ = true;
             sendData();
+        }
+        else if (actionHandler_ && isJsonAction(msg))
+        {
+            // JSON action (e.g. read_time, sync_time, change_password) — handle asynchronously
+            std::string action = extractAction(msg);
+            if (action == "change_password")
+                std::cout << "[WS] JSON action detected: " << action << " (payload masked)\n";
+            else
+                std::cout << "[WS] JSON action detected: " << action << "\n";
+
+            // Run handler on a detached thread to avoid blocking the strand
+            // Pass full JSON message so handlers can extract extra fields
+            auto self = shared_from_this();
+            auto handler = actionHandler_;
+            auto fullMsg = msg;
+            std::thread([self, handler, fullMsg]() {
+                std::string response = handler(fullMsg);
+                // Post text response back onto the session's strand
+                net::post(self->ws_.get_executor(), [self, response]() {
+                    self->sendTextResponse(response);
+                    self->do_read();
+                });
+            }).detach();
         }
         else if (cmdHandler_)
         {
@@ -588,6 +624,35 @@ private:
     }
 
     /**
+     * @brief Check if a message is a JSON action (contains "action" key).
+     */
+    static bool isJsonAction(const std::string& msg)
+    {
+        // Quick heuristic: starts with '{' and contains "action"
+        if (msg.empty() || msg[0] != '{') return false;
+        return msg.find("\"action\"") != std::string::npos;
+    }
+
+    /**
+     * @brief Extract the "action" value from a simple JSON object.
+     *
+     * Lightweight parser — no dependency on a JSON library.
+     */
+    static std::string extractAction(const std::string& json)
+    {
+        const std::string key = "\"action\"";
+        auto pos = json.find(key);
+        if (pos == std::string::npos) return {};
+        pos = json.find(':', pos + key.size());
+        if (pos == std::string::npos) return {};
+        pos = json.find('"', pos + 1);
+        if (pos == std::string::npos) return {};
+        auto end = json.find('"', pos + 1);
+        if (end == std::string::npos) return {};
+        return json.substr(pos + 1, end - pos - 1);
+    }
+
+    /**
      * @brief Send a plain text response to this client (for FIL DIR etc.)
      * 
      * @param text The text response string to send
@@ -643,6 +708,7 @@ class TELNET_SML_API WebSocketListener : public std::enable_shared_from_this<Web
     SERDatabase& db_;             ///< Reference to database for sessions
     SessionManager* sessionMgr_;  ///< Session manager for broadcast support
     WebSocketSession::CommandHandler cmdHandler_;  ///< Command handler for relay forwarding
+    WebSocketSession::ActionHandler actionHandler_;  ///< Action handler for JSON actions (time sync)
 
 public:
     /**
@@ -653,15 +719,18 @@ public:
      * @param db Database reference to pass to sessions
      * @param sessionMgr Session manager for broadcast (may be null)
      * @param cmdHandler Command handler for relay forwarding (may be null)
+     * @param actionHandler Action handler for JSON actions like time sync (may be null)
      */
     WebSocketListener(net::io_context& ioc, tcp::endpoint endpoint, SERDatabase& db,
                       SessionManager* sessionMgr = nullptr,
-                      WebSocketSession::CommandHandler cmdHandler = nullptr)
+                      WebSocketSession::CommandHandler cmdHandler = nullptr,
+                      WebSocketSession::ActionHandler actionHandler = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , db_(db)
         , sessionMgr_(sessionMgr)
         , cmdHandler_(std::move(cmdHandler))
+        , actionHandler_(std::move(actionHandler))
     {
         beast::error_code ec;
 
@@ -733,8 +802,8 @@ private:
         }
         else
         {
-            // Create the session and run it (with session manager + command handler)
-            std::make_shared<WebSocketSession>(std::move(socket), db_, sessionMgr_, cmdHandler_)->run();
+            // Create the session and run it (with session manager + command handler + action handler)
+            std::make_shared<WebSocketSession>(std::move(socket), db_, sessionMgr_, cmdHandler_, actionHandler_)->run();
         }
 
         // Accept another connection
@@ -794,6 +863,7 @@ class TELNET_SML_API SERWebSocketServer
     bool running_ = false;                         ///< Server running state flag
     SessionManager sessionMgr_;                    ///< Session manager for broadcast
     WebSocketSession::CommandHandler cmdHandler_;  ///< Command handler for relay forwarding
+    WebSocketSession::ActionHandler actionHandler_;  ///< Action handler for JSON actions (time sync)
 
 public:
     /**
@@ -832,6 +902,19 @@ public:
     }
 
     /**
+     * @brief Set action handler for JSON actions (e.g. read_time, sync_time)
+     * 
+     * @details Must be called before start(). The handler receives an action
+     * string and returns a JSON response string.
+     * 
+     * @param handler Callback: string action → string JSON response
+     */
+    void setActionHandler(WebSocketSession::ActionHandler handler)
+    {
+        actionHandler_ = std::move(handler);
+    }
+
+    /**
      * @brief Start the WebSocket server
      * 
      * @details Creates listener and starts I/O thread. Safe to call if already running.
@@ -849,7 +932,7 @@ public:
         try
         {
             auto const address = net::ip::make_address("0.0.0.0");
-            listener_ = std::make_shared<WebSocketListener>(ioc_, tcp::endpoint{address, port_}, db_, &sessionMgr_, cmdHandler_);
+            listener_ = std::make_shared<WebSocketListener>(ioc_, tcp::endpoint{address, port_}, db_, &sessionMgr_, cmdHandler_, actionHandler_);
             listener_->run();
 
             server_thread_ = std::thread([this]() {

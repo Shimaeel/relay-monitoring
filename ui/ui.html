@@ -532,6 +532,28 @@
         .perm-w { background: #fef9c3; color: #854d0e; }
         .perm-d { background: #fee2e2; color: #991b1b; }
 
+        .btn-read {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 12px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #6366f1;
+            color: #fff;
+            transition: background 0.15s;
+        }
+        .btn-read:hover { background: #4f46e5; }
+        .btn-read:disabled {
+            background: #cbd5e1;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+        .btn-read .material-icons-round { font-size: 15px; }
+
         .spinner {
             display: inline-block;
             width: 18px;
@@ -661,11 +683,12 @@
                         <th>File Name</th>
                         <th>Type</th>
                         <th>Permissions</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="file-tbody">
                     <tr id="file-empty">
-                        <td colspan="4">
+                        <td colspan="5">
                             <div class="empty-state">
                                 <span class="material-icons-round">folder_off</span>
                                 <div>Click <strong>FIL DIR</strong> to load file directory from relay</div>
@@ -685,14 +708,30 @@
             </div>
             <div class="info-row">
                 <span class="material-icons-round">devices</span>
-                <span><strong>Device Time:</strong> 16-02-2026 10:30:00</span>
+                <span><strong>Device Time:</strong> <span id="device-date-time">—</span></span>
             </div>
             <div class="info-row">
                 <span class="material-icons-round">computer</span>
                 <span><strong>Local PC Time:</strong> <span id="local-pc-time">—</span></span>
             </div>
-            <div style="margin-top: 16px;">
-                <button class="btn">Sync with Local PC</button>
+            <div class="info-row">
+                <span class="material-icons-round">sync_alt</span>
+                <span><strong>Sync Status:</strong> <span id="sync-status-badge" class="badge badge-gray">Unknown</span></span>
+                <span id="sync-diff" style="margin-left:8px;font-size:0.85rem;color:#64748b;"></span>
+            </div>
+            <div id="sync-banner" class="conn-banner connecting" style="display:none;">
+                <span class="material-icons-round" style="font-size:18px;">sync</span>
+                <span id="sync-banner-text">Syncing...</span>
+            </div>
+            <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn" onclick="readRelayTime()">
+                    <span class="material-icons-round" style="font-size:16px;vertical-align:middle;">update</span>
+                    Read Relay Time
+                </button>
+                <button class="btn" onclick="syncWithLocalPC()">
+                    <span class="material-icons-round" style="font-size:16px;vertical-align:middle;">sync</span>
+                    Sync with Local PC
+                </button>
             </div>
         </div>
 
@@ -701,13 +740,21 @@
             <div class="section-title">
                 <span class="material-icons-round">lock</span> Password Settings
             </div>
+            <div id="pwd-banner" class="conn-banner" style="display:none;">
+                <span class="material-icons-round">info</span>
+                <span id="pwd-banner-text"></span>
+            </div>
             <p>Allowed passwords: <strong>TAIL1</strong> / <strong>OTTER1</strong></p>
             <div style="margin-top: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
-                <select>
-                    <option>TAIL1</option>
-                    <option>OTTER1</option>
+                <select id="pwd-level">
+                    <option value="LEVEL1">LEVEL1</option>
+                    <option value="LEVEL2">LEVEL2</option>
                 </select>
-                <button class="btn" style="margin: 0;">Change Password</button>
+                <select id="pwd-value">
+                    <option value="TAIL1">TAIL1</option>
+                    <option value="OTTER1">OTTER1</option>
+                </select>
+                <button class="btn" style="margin: 0;" onclick="changePassword()">Change Password</button>
             </div>
         </div>
 
@@ -768,6 +815,14 @@ function connectWS() {
     };
 
     ws.onmessage = (event) => {
+        // ── If we're waiting for a FIL READ response ──
+        if (filReadPending) {
+            filReadPending = false;
+            saveFileContent(filReadTarget, event.data);
+            filReadTarget = '';
+            return;
+        }
+
         // ── If we're waiting for a FIL DIR response ──
         if (filDirPending) {
             filDirPending = false;
@@ -809,10 +864,224 @@ function updateLocalTime() {
 setInterval(updateLocalTime, 1000);
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  DATE SYNCHRONIZATION
+//  Sends JSON actions to TimeSyncManager via WebSocket
+// ═══════════════════════════════════════════════════════════════════════════
+
+const deviceDateTimeEl = document.getElementById('device-date-time');
+const syncStatusBadge  = document.getElementById('sync-status-badge');
+const syncDiffEl       = document.getElementById('sync-diff');
+const syncBanner       = document.getElementById('sync-banner');
+const syncBannerText   = document.getElementById('sync-banner-text');
+
+/**
+ * Show/hide the sync operation banner.
+ * @param {'loading'|'success'|'error'} type
+ * @param {string} msg
+ */
+function showSyncBanner(type, msg) {
+    syncBanner.style.display = 'flex';
+    syncBannerText.textContent = msg;
+    const icon = syncBanner.querySelector('.material-icons-round');
+    if (type === 'loading') {
+        syncBanner.className = 'conn-banner connecting';
+        icon.textContent = 'sync';
+    } else if (type === 'success') {
+        syncBanner.className = 'conn-banner connected';
+        icon.textContent = 'check_circle';
+        setTimeout(() => { syncBanner.style.display = 'none'; }, 3000);
+    } else {
+        syncBanner.className = 'conn-banner disconnected';
+        icon.textContent = 'error';
+        setTimeout(() => { syncBanner.style.display = 'none'; }, 5000);
+    }
+}
+
+/**
+ * Update the sync status badge UI.
+ * @param {'in_sync'|'out_of_sync'|'unknown'|'error'} status
+ * @param {number} [diffSeconds]
+ */
+function updateSyncBadge(status, diffSeconds) {
+    if (status === 'in_sync') {
+        syncStatusBadge.className = 'badge badge-green';
+        syncStatusBadge.textContent = 'In Sync';
+    } else if (status === 'out_of_sync') {
+        syncStatusBadge.className = 'badge badge-red';
+        syncStatusBadge.textContent = 'Out of Sync';
+    } else if (status === 'error') {
+        syncStatusBadge.className = 'badge badge-amber';
+        syncStatusBadge.textContent = 'Error';
+    } else {
+        syncStatusBadge.className = 'badge badge-gray';
+        syncStatusBadge.textContent = 'Unknown';
+    }
+
+    if (typeof diffSeconds === 'number') {
+        syncDiffEl.textContent = `(Δ ${diffSeconds}s)`;
+    } else {
+        syncDiffEl.textContent = '';
+    }
+}
+
+/**
+ * Send a JSON action via the WebSocket and return a Promise with the response.
+ * Generic version: accepts a full payload object and expected action for matching.
+ * @param {object} payload   JSON object to send
+ * @param {string} expectedAction  The "action" value to match in the response
+ * @returns {Promise<object>}
+ */
+function sendJsonAction(payload, expectedAction) {
+    return new Promise((resolve, reject) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            reject(new Error('WebSocket not connected'));
+            return;
+        }
+
+        // Temporarily override onmessage to catch the JSON response
+        const originalOnMessage = ws.onmessage;
+        const timeout = setTimeout(() => {
+            ws.onmessage = originalOnMessage;
+            reject(new Error('Timeout waiting for response'));
+        }, 10000);
+
+        ws.onmessage = (event) => {
+            // Check if this is a JSON response for our action
+            if (typeof event.data === 'string' && event.data.startsWith('{')) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.action === expectedAction) {
+                        clearTimeout(timeout);
+                        ws.onmessage = originalOnMessage;
+                        resolve(data);
+                        return;
+                    }
+                } catch (e) {
+                    // Not our response, pass through
+                }
+            }
+            // Not our response — forward to the original handler
+            if (originalOnMessage) originalOnMessage(event);
+        };
+
+        ws.send(JSON.stringify(payload));
+    });
+}
+
+/**
+ * Send a simple action-only JSON via WebSocket (convenience wrapper).
+ * @param {string} action
+ * @returns {Promise<object>}
+ */
+function sendTimeSyncAction(action) {
+    return sendJsonAction({ action }, action);
+}
+
+/**
+ * Read relay time via WebSocket → read_time action.
+ */
+async function readRelayTime() {
+    showSyncBanner('loading', 'Reading relay time...');
+    try {
+        const resp = await sendTimeSyncAction('read_time');
+        if (resp.status === 'success') {
+            deviceDateTimeEl.textContent = resp.relay_time;
+            updateSyncBadge(resp.sync_status, resp.diff_seconds);
+            showSyncBanner('success', `Relay time: ${resp.relay_time}`);
+        } else {
+            deviceDateTimeEl.textContent = '—';
+            updateSyncBadge('error');
+            showSyncBanner('error', resp.error || 'Failed to read relay time');
+        }
+    } catch (err) {
+        showSyncBanner('error', err.message);
+        updateSyncBadge('error');
+    }
+}
+
+/**
+ * Sync relay clock with local PC time via WebSocket → sync_time action.
+ */
+async function syncWithLocalPC() {
+    showSyncBanner('loading', 'Synchronizing relay with local PC time...');
+    try {
+        const resp = await sendTimeSyncAction('sync_time');
+        if (resp.status === 'success') {
+            deviceDateTimeEl.textContent = resp.new_time;
+            updateSyncBadge('in_sync', 0);
+            showSyncBanner('success', `Time synced: ${resp.new_time}`);
+        } else {
+            showSyncBanner('error', resp.error || 'Sync failed');
+            updateSyncBadge('error');
+        }
+    } catch (err) {
+        showSyncBanner('error', err.message);
+        updateSyncBadge('error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PASSWORD CHANGE
+//  Sends JSON actions to PasswordManager via WebSocket
+// ═══════════════════════════════════════════════════════════════════════════
+
+const pwdBanner     = document.getElementById('pwd-banner');
+const pwdBannerText = document.getElementById('pwd-banner-text');
+
+/**
+ * Show/hide the password operation banner.
+ * @param {'loading'|'success'|'error'} type
+ * @param {string} msg
+ */
+function showPwdBanner(type, msg) {
+    pwdBanner.style.display = 'flex';
+    pwdBannerText.textContent = msg;
+    const icon = pwdBanner.querySelector('.material-icons-round');
+    if (type === 'loading') {
+        pwdBanner.className = 'conn-banner connecting';
+        icon.textContent = 'sync';
+    } else if (type === 'success') {
+        pwdBanner.className = 'conn-banner connected';
+        icon.textContent = 'check_circle';
+        setTimeout(() => { pwdBanner.style.display = 'none'; }, 3000);
+    } else {
+        pwdBanner.className = 'conn-banner disconnected';
+        icon.textContent = 'error';
+        setTimeout(() => { pwdBanner.style.display = 'none'; }, 5000);
+    }
+}
+
+/**
+ * Change relay password via WebSocket → change_password action.
+ */
+async function changePassword() {
+    const level = document.getElementById('pwd-level').value;
+    const value = document.getElementById('pwd-value').value;
+
+    showPwdBanner('loading', 'Changing password...');
+    try {
+        const resp = await sendJsonAction(
+            { action: 'change_password', level, value },
+            'change_password'
+        );
+
+        if (resp.status === 'success') {
+            showPwdBanner('success', 'Password changed successfully');
+        } else {
+            showPwdBanner('error', resp.error || 'Password change failed');
+        }
+    } catch (err) {
+        showPwdBanner('error', err.message);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  FIL DIR  –  File Directory from Relay
 // ═══════════════════════════════════════════════════════════════════════════
 
 let filDirPending   = false;   // true while waiting for FIL DIR response
+let filReadPending  = false;   // true while waiting for FIL READ response
+let filReadTarget   = '';      // filename currently being read
 let allFiles        = [];      // parsed file list for filtering
 
 const fileTbody     = document.getElementById('file-tbody');
@@ -938,7 +1207,7 @@ function renderFileTable(files) {
     if (files.length === 0) {
         fileTbody.innerHTML = `
             <tr>
-                <td colspan="4">
+                <td colspan="5">
                     <div class="empty-state">
                         <span class="material-icons-round">folder_off</span>
                         <div>No files found</div>
@@ -952,6 +1221,12 @@ function renderFileTable(files) {
         const tr = document.createElement('tr');
         const ext = getExtension(f.name);
         const icon = fileIcon(f.name);
+        const canRead = f.perms.includes('R');
+        const readBtn = canRead
+            ? `<button class="btn-read" id="btn-read-${f.idx}" onclick="readAndSaveFile('${f.name}', ${f.idx})">
+                   <span class="material-icons-round">download</span> Read &amp; Save
+               </button>`
+            : `<span style="color:#94a3b8;font-size:0.8rem;">No read access</span>`;
         tr.innerHTML = `
             <td>${f.idx}</td>
             <td><span class="file-name">
@@ -959,7 +1234,8 @@ function renderFileTable(files) {
                     ${f.name}
                 </span></td>
             <td><span class="file-ext ${extBadgeClass(f.name)}">${ext}</span></td>
-            <td>${permBadgesHtml(f.perms)}</td>`;
+            <td>${permBadgesHtml(f.perms)}</td>
+            <td>${readBtn}</td>`;
         fileTbody.appendChild(tr);
     });
 }
@@ -973,6 +1249,103 @@ function filterFiles() {
     }
     const filtered = allFiles.filter(f => f.name.toLowerCase().includes(q));
     renderFileTable(filtered);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  FIL READ  –  Read a file from Relay and save as .txt
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Send FIL READ command for a specific file, capture the response,
+ * and trigger a browser download as .txt.
+ * @param {string} filename  Relay filename (e.g. "SET_PF.TXT")
+ * @param {number} idx       Row index (used for button state)
+ */
+function readAndSaveFile(filename, idx) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showFilDirBanner('error', 'WebSocket not connected');
+        return;
+    }
+
+    // Disable button while reading
+    const btn = document.getElementById(`btn-read-${idx}`);
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-icons-round">hourglass_top</span> Reading...';
+    }
+
+    filReadPending = true;
+    filReadTarget  = filename;
+    showFilDirBanner('loading', `Reading ${filename} from relay...`);
+
+    // Set a timeout in case relay never responds
+    setTimeout(() => {
+        if (filReadPending) {
+            filReadPending = false;
+            filReadTarget  = '';
+            showFilDirBanner('error', `Timeout reading ${filename}`);
+            resetReadButton(idx);
+        }
+    }, 15000);
+
+    ws.send('FIL READ ' + filename);
+}
+
+/**
+ * Called when the relay response for FIL READ arrives.
+ * Cleans the raw response and triggers a .txt download.
+ * @param {string} filename  Original relay filename
+ * @param {string} rawData   Raw response text from relay
+ */
+function saveFileContent(filename, rawData) {
+    // Strip leading FIL READ echo / prompt lines from relay output
+    let content = rawData;
+    const lines = rawData.split(/\r?\n/);
+    const cleaned = [];
+    let headerSkipped = false;
+    for (const line of lines) {
+        const t = line.trim();
+        // Skip the echo of the command itself
+        if (!headerSkipped && /^FIL\s+READ/i.test(t)) { headerSkipped = true; continue; }
+        // Skip prompt lines like "=>"
+        if (t === '=>' || t === '>') continue;
+        cleaned.push(line);
+    }
+    content = cleaned.join('\n').trim();
+
+    // Build safe download filename:  ORIGINAL_NAME  →  ORIGINAL_NAME.txt
+    let saveName = filename;
+    if (!/\.txt$/i.test(saveName)) {
+        saveName += '.txt';
+    }
+
+    // Trigger browser download
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = saveName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showFilDirBanner('success', `Saved ${saveName} (${content.length} bytes)`);
+
+    // Reset all read buttons back to normal
+    allFiles.forEach(f => resetReadButton(f.idx));
+}
+
+/**
+ * Reset a read button back to its default state.
+ * @param {number} idx  Row index for the button
+ */
+function resetReadButton(idx) {
+    const btn = document.getElementById(`btn-read-${idx}`);
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round">download</span> Read &amp; Save';
+    }
 }
 
 // ── Start ───────────────────────────────────────────────────────────────
