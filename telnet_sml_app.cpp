@@ -171,14 +171,27 @@ class ReceptionWorker
         return true;
     }
 
+    static constexpr int MAX_RETRIES = 3;           ///< Max retry attempts per command
+    static constexpr int RETRY_DELAY_SEC = 5;        ///< Delay between retries (seconds)
+
     /**
-     * @brief Executes a command and pushes response to ring buffer.
+     * @brief Executes a command with automatic retry on failure.
      *
      * @details This method:
-     * 1. Ensures connection is established
+     * 1. Attempts to connect + login (with retries)
      * 2. Sends command to relay device
-     * 3. Receives response from relay
+     * 3. On failure: resets connection, waits, retries (up to MAX_RETRIES)
      * 4. Pushes command/response pair to RawDataRingBuffer (non-blocking)
+     *
+     * ## Retry Flow
+     * ```
+     * Attempt 1 -> connect -> login -> send cmd
+     *   fail? -> reset connection -> wait 5s
+     * Attempt 2 -> connect -> login -> send cmd
+     *   fail? -> reset connection -> wait 5s
+     * Attempt 3 -> connect -> login -> send cmd
+     *   fail? -> give up (next poller cycle will retry)
+     * ```
      *
      * @param cmd The command string to execute (e.g., "SER")
      *
@@ -188,34 +201,65 @@ class ReceptionWorker
     void executeCommand(const std::string& cmd)
     {
         std::cout << "[Reception] executeCommand called for: " << cmd << "\n";
-        
-        if (!ensureConnected())
+
+        for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt)
         {
-            std::cout << "[Reception] Not connected, cannot execute command\n";
-            return;
-        }
-        
-        std::string response;
-        std::cout << "[Reception] Sending command to relay...\n";
-        bool ok = client_.SendCmdReceiveData(cmd, response);
-        
-        std::cout << "[Reception] SendCmdReceiveData returned: " << (ok ? "OK" : "FAIL") 
-                  << ", response size: " << response.size() << "\n";
-        
-        if (ok && !response.empty())
-        {
-            // Non-blocking push to ring buffer - processing happens in separate thread
-            bool pushed = rawBuffer_.push({cmd, response});
-            std::cout << "[Reception] Pushed to ring buffer: " << (pushed ? "OK" : "OVERWRITE") 
-                      << ", " << response.size() << " bytes for '" << cmd << "'\n";
-            std::cout << "[Reception] Ring buffer size now: " << rawBuffer_.size() << "\n";
-        }
-        else
-        {
-            std::cout << "[Reception] Command '" << cmd << "' failed or empty response\n";
+            if (stop_flag_.load())
+                return;
+
+            // --- Connection + Login ---
+            if (!ensureConnected())
+            {
+                std::cout << "[Reception] Connection failed (attempt " << attempt
+                          << "/" << MAX_RETRIES << ")\n";
+                connected_ = false;
+                logged_in_ = false;
+
+                if (attempt < MAX_RETRIES)
+                {
+                    std::cout << "[Reception] Retrying in " << RETRY_DELAY_SEC << "s...\n";
+                    // Interruptible sleep — wake up early if app is stopping
+                    for (int s = 0; s < RETRY_DELAY_SEC && !stop_flag_.load(); ++s)
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
+                continue;
+            }
+
+            // --- Send Command ---
+            std::string response;
+            std::cout << "[Reception] Sending command to relay (attempt " << attempt
+                      << "/" << MAX_RETRIES << ")...\n";
+            bool ok = client_.SendCmdReceiveData(cmd, response);
+
+            std::cout << "[Reception] SendCmdReceiveData returned: " << (ok ? "OK" : "FAIL")
+                      << ", response size: " << response.size() << "\n";
+
+            if (ok && !response.empty())
+            {
+                // Success — push to ring buffer
+                bool pushed = rawBuffer_.push({cmd, response});
+                std::cout << "[Reception] Pushed to ring buffer: " << (pushed ? "OK" : "OVERWRITE")
+                          << ", " << response.size() << " bytes for '" << cmd << "'\n";
+                std::cout << "[Reception] Ring buffer size now: " << rawBuffer_.size() << "\n";
+                return;  // Done — exit retry loop
+            }
+
+            // --- Command failed ---
+            std::cout << "[Reception] Command '" << cmd << "' failed or empty response (attempt "
+                      << attempt << "/" << MAX_RETRIES << ")\n";
             connected_ = false;
             logged_in_ = false;
+
+            if (attempt < MAX_RETRIES)
+            {
+                std::cout << "[Reception] Retrying in " << RETRY_DELAY_SEC << "s...\n";
+                for (int s = 0; s < RETRY_DELAY_SEC && !stop_flag_.load(); ++s)
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
         }
+
+        std::cout << "[Reception] All " << MAX_RETRIES << " attempts failed for '" << cmd
+                  << "', will retry on next poll cycle\n";
     }
 
     /**
