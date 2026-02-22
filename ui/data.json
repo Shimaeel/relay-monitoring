@@ -1,1 +1,142 @@
-[]
+[
+  {
+    "sno": 18,
+    "date": "11/15/24",
+    "time": "22:11:00.000",
+    "element": "Earth Fault Relay 2",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 17,
+    "date": "11/15/24",
+    "time": "22:10:44.600",
+    "element": "Earth Fault Relay 2",
+    "state": "Asserted"
+  },
+  {
+    "sno": 16,
+    "date": "08/01/23",
+    "time": "08:00:15.450",
+    "element": "Undervoltage Phase-B",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 15,
+    "date": "08/01/23",
+    "time": "08:00:15.300",
+    "element": "Undervoltage Phase-A",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 14,
+    "date": "08/01/23",
+    "time": "08:00:00.100",
+    "element": "Undervoltage Phase-B",
+    "state": "Asserted"
+  },
+  {
+    "sno": 13,
+    "date": "08/01/23",
+    "time": "08:00:00.000",
+    "element": "Undervoltage Phase-A",
+    "state": "Asserted"
+  },
+  {
+    "sno": 12,
+    "date": "05/22/23",
+    "time": "14:35:12.200",
+    "element": "Communication Failure",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 11,
+    "date": "05/22/23",
+    "time": "14:30:00.500",
+    "element": "Communication Failure",
+    "state": "Asserted"
+  },
+  {
+    "sno": 10,
+    "date": "03/10/22",
+    "time": "09:16:02.000",
+    "element": "Breaker Failure",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 9,
+    "date": "03/10/22",
+    "time": "09:16:01.800",
+    "element": "Overcurrent Trip Relay 1",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 8,
+    "date": "03/10/22",
+    "time": "09:15:32.150",
+    "element": "Breaker Failure",
+    "state": "Asserted"
+  },
+  {
+    "sno": 7,
+    "date": "03/10/22",
+    "time": "09:15:32.000",
+    "element": "Overcurrent Trip Relay 1",
+    "state": "Asserted"
+  },
+  {
+    "sno": 6,
+    "date": "02/14/22",
+    "time": "12:48:05.710",
+    "element": "Power loss Phase-C",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 5,
+    "date": "02/14/22",
+    "time": "12:48:05.580",
+    "element": "Power loss Phase-B",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 4,
+    "date": "02/14/22",
+    "time": "12:48:05.430",
+    "element": "Power loss Phase-A",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 3,
+    "date": "02/14/22",
+    "time": "12:47:20.250",
+    "element": "Power loss Phase-C",
+    "state": "AssertedD"
+  },
+  {
+    "sno": 2,
+    "date": "02/14/22",
+    "time": "12:47:20.100",
+    "element": "Power loss Phase-B",
+    "state": "AssertedD"
+  },
+  {
+    "sno": 1,
+    "date": "02/14/22",
+    "time": "12:47:19.970",
+    "element": "Power loss Phase-A",
+    "state": "AssertedD"
+  },
+  {
+    "sno": 20,
+    "date": "01/05/25",
+    "time": "06:45:30.200",
+    "element": "Over Temperature Alarm",
+    "state": "Deasserted"
+  },
+  {
+    "sno": 19,
+    "date": "01/05/25",
+    "time": "06:30:10.800",
+    "element": "Over Temperature Alarm",
+    "state": "Asserted"
+  }
+]

@@ -358,6 +358,32 @@
                 transform: translateY(0);
             }
         }
+
+        .live-empty {
+            margin-top: 16px;
+            padding: 16px 18px;
+            border-radius: 14px;
+            border: 1px dashed var(--border);
+            background: rgba(14, 165, 164, 0.08);
+            color: var(--ink);
+            display: grid;
+            gap: 6px;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+        }
+
+        .live-empty-title {
+            font-size: 0.98rem;
+            font-weight: 600;
+        }
+
+        .live-empty-hint {
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .is-hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -397,7 +423,12 @@
                 <span class="config-suffix">ms</span>
             </div>
         </div>
-        
+
+        <div id="live-empty" class="live-empty is-hidden" role="status" aria-live="polite">
+            <div id="live-empty-title" class="live-empty-title">No live data yet</div>
+            <div id="live-empty-hint" class="live-empty-hint">Waiting for WebSocket data from SQLite.</div>
+        </div>
+
         <div id="ser-table"></div>
     </div>
     
@@ -409,6 +440,9 @@
         const WS_URL = 'ws://localhost:8765';
         const textDecoder = new TextDecoder();
         const pollRateInput = document.getElementById('poll-rate');
+        const liveEmpty = document.getElementById('live-empty');
+        const liveEmptyTitle = document.getElementById('live-empty-title');
+        const liveEmptyHint = document.getElementById('live-empty-hint');
         let lastMessageAt = 0;
         let shmRing = null;
         let shmWorker = null;
@@ -670,12 +704,11 @@
                         startAutoRefresh();
                     } else if (msg.status === 'disconnected') {
                         stopAutoRefresh();
-                        // Fallback: try loading from data.json
-                        if (!dataReceived) loadFromJsonFallback();
+                        // No fallback: UI shows only live data
                     }
                 } else if (msg.type === 'error') {
                     console.error('Shared ring worker error:', msg.message);
-                    if (!dataReceived) loadFromJsonFallback();
+                    // No fallback: UI shows only live data
                 }
             };
 
@@ -770,6 +803,11 @@
             const totalRows = table ? table.getDataCount() : data.length;
             document.getElementById('record-count').textContent = totalRows;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+            if (totalRows > 0) {
+                dataReceived = true;
+                hideEmptyState();
+            }
         }
         
         // WebSocket connection (handled by worker or direct fallback)
@@ -892,8 +930,7 @@
                     updateConnectionStatus('synced');
                 } else {
                     updateConnectionStatus('disconnected');
-                    // Fallback: try loading from data.json
-                    loadFromJsonFallback();
+                    // No fallback: UI shows only live data
                 }
                 stopAutoRefresh();
                 // Attempt reconnect after delay
@@ -907,31 +944,54 @@
             directWs.onerror = (err) => {
                 console.error('Direct WebSocket error:', err);
                 updateConnectionStatus('error');
-                // Fallback: try loading from data.json
-                if (!dataReceived) loadFromJsonFallback();
+                // No fallback: UI shows only live data
             };
         }
         
         let dataReceived = false;  // Track if data was received
-        let jsonFallbackAttempted = false;  // Track if we already tried data.json
-        
-        // Fallback: load records from data.json when WebSocket is unavailable
-        async function loadFromJsonFallback() {
-            if (jsonFallbackAttempted && dataReceived) return;
-            jsonFallbackAttempted = true;
-            try {
-                const resp = await fetch('data.json?t=' + Date.now());
-                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                const records = await resp.json();
-                if (Array.isArray(records) && records.length > 0) {
-                    updateTable(records);
-                    dataReceived = true;
-                    updateConnectionStatus('synced');
-                    console.log('[Fallback] Loaded', records.length, 'records from data.json');
-                }
-            } catch (err) {
-                console.warn('[Fallback] Could not load data.json:', err.message);
+        // data.json fallback removed: UI shows only live SQLite data
+
+        function showEmptyState(title, hint) {
+            liveEmptyTitle.textContent = title;
+            liveEmptyHint.textContent = hint;
+            liveEmpty.classList.remove('is-hidden');
+        }
+
+        function hideEmptyState() {
+            liveEmpty.classList.add('is-hidden');
+        }
+
+        function updateLiveEmptyState(status) {
+            if (dataReceived) {
+                hideEmptyState();
+                return;
             }
+
+            const emptyMap = {
+                'connecting': {
+                    title: 'Connecting to live data source',
+                    hint: 'Waiting for the WebSocket server to accept the connection.'
+                },
+                'connected': {
+                    title: 'Connected, waiting for data',
+                    hint: 'No records have been received from SQLite yet.'
+                },
+                'synced': {
+                    title: 'Connected, waiting for data',
+                    hint: 'No records have been received from SQLite yet.'
+                },
+                'disconnected': {
+                    title: 'No live data (disconnected)',
+                    hint: 'Start the app or check the WebSocket host and port.'
+                },
+                'error': {
+                    title: 'No live data (error)',
+                    hint: 'Check the server logs and WebSocket availability.'
+                }
+            };
+
+            const info = emptyMap[status] || emptyMap['disconnected'];
+            showEmptyState(info.title, info.hint);
         }
         
         function updateConnectionStatus(status) {
@@ -947,6 +1007,7 @@
             const info = statusMap[status] || statusMap['disconnected'];
             statusEl.textContent = info.text;
             statusEl.style.color = info.color;
+            updateLiveEmptyState(status);
         }
         
         // Refresh data via WebSocket
@@ -1022,9 +1083,7 @@
             initTable([]);  // Initialize empty table
             setupSharedRing();
             connectWebSocket();
-            // Also try loading data.json immediately as a fast-path
-            // (records show instantly while WebSocket connects)
-            loadFromJsonFallback();
+            // No local JSON fast-path
         });
     </script>
 </body>
