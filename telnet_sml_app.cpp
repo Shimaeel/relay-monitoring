@@ -744,7 +744,7 @@ public:
     };
 
     RetryState retry{3, 0, std::chrono::seconds(30)};    ///< Retry configuration
-    SERDatabase serDb{"ser_records.db"};                 ///< SQLite database (persistent storage)
+    SERDatabase serDb{"C:/Users/admin/Desktop/telnet/ser_records.db"};                 ///< SQLite database (persistent storage)
     SERWebSocketServer wsServer{serDb, 8765};            ///< WebSocket server (port 8765)
     std::unique_ptr<WSDBServer> dbApiServer;                ///< Generic DB WebSocket API (port 8766)
     ThreadManager threadMgr{serDb, std::chrono::seconds(120)}; ///< Poller (2 min interval)
@@ -842,21 +842,17 @@ public:
         }
         std::cout << "[DB] Database opened. Existing records: " << serDb.getRecordCount() << "\n";
 
-        // Seed test data if database is empty (relay unavailable)
-        seedTestData();
+        // Seed test data disabled: live relay data only
 
-        // Seed data.json from existing DB records so the UI is never stale
+        // Export data.json from existing DB records
         {
             auto existing = serDb.getAllRecords();
-            if (!existing.empty())
-            {
-                std::string json = recordsToJsonTable(existing);
-                std::string err;
-                if (writeJsonToFile("ui/data.json", json, &err))
-                    std::cout << "[Init] Exported " << existing.size() << " records to ui/data.json\n";
-                else
-                    std::cerr << "[Init] data.json export failed: " << err << "\n";
-            }
+            std::string json = recordsToJsonTable(existing);
+            std::string err;
+            if (writeJsonToFile("ui/data.json", json, &err))
+                std::cout << "[Init] Exported " << existing.size() << " records to ui/data.json\n";
+            else
+                std::cerr << "[Init] data.json export failed: " << err << "\n";
         }
 
         // Set up command handler: queue UI commands (FIL DIR etc.) to ReceptionWorker
