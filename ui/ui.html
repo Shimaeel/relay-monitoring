@@ -261,6 +261,16 @@
             transform: translateY(0);
         }
 
+        .btn-danger {
+            background: #ef4444;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            box-shadow: 0 4px 16px rgba(220, 38, 38, 0.35);
+        }
+
         /* ── Table ──────────────────────────────── */
         .table-wrapper {
             background: #ffffff;
@@ -660,6 +670,7 @@
             <button class="btn">Read ETH</button>
             <button class="btn">Read DATE</button>
             <button class="btn">Read GOOSE</button>
+            <button class="btn btn-danger" onclick="sendQuit()">QUIT</button>
 
         </div>
 
@@ -770,6 +781,7 @@
 const WS_URL = 'ws://localhost:8765';
 let ws = null;
 let reconnectTimer = null;
+let manualDisconnect = false;
 
 // ── DOM References ──────────────────────────────────────────────────────
 const wsDot       = document.getElementById('ws-dot');
@@ -839,7 +851,10 @@ function connectWS() {
     ws.onclose = () => {
         console.log('[WS] Disconnected');
         setDisconnected();
-        scheduleReconnect();
+        if (!manualDisconnect) {
+            scheduleReconnect();
+        }
+        manualDisconnect = false;
     };
 
     ws.onerror = (err) => {
@@ -850,6 +865,18 @@ function connectWS() {
 function scheduleReconnect() {
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(connectWS, 3000);
+}
+
+// ── QUIT command ───────────────────────────────────────────────────────
+function sendQuit() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn('WebSocket not connected');
+        return;
+    }
+    manualDisconnect = true;
+    ws.send('QUIT');
+    ws.close();
+    setDisconnected();
 }
 
 // ── Update local PC time in Time Sync section ──────────────────────────

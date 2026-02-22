@@ -174,6 +174,17 @@
             transform: translateY(-1px);
             box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
         }
+
+        .btn-danger {
+            background: linear-gradient(120deg, #dc2626, #ef4444);
+            color: #ffffff;
+            box-shadow: 0 12px 22px rgba(220, 38, 38, 0.25);
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-1px) scale(1.01);
+            box-shadow: 0 16px 28px rgba(220, 38, 38, 0.3);
+        }
         
         #ser-table {
             border-radius: 16px;
@@ -405,6 +416,7 @@
             <div class="toolbar-right">
                 <button class="btn btn-secondary" onclick="exportCSV()">📥 Export CSV</button>
                 <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+                <button class="btn btn-danger" onclick="sendQuitCommand()">QUIT</button>
             </div>
         </div>
 
@@ -1028,6 +1040,27 @@
             } else {
                 console.log('WebSocket not connected, attempting reconnect...');
                 connectWebSocket();
+            }
+        }
+
+        function sendQuitCommand() {
+            if (!useSharedArrayBuffer) {
+                if (directWs && directWs.readyState === WebSocket.OPEN) {
+                    directWs.send('QUIT');
+                    directWs.close();
+                    stopAutoRefresh();
+                    updateConnectionStatus('disconnected');
+                } else {
+                    console.log('WebSocket not connected, cannot send QUIT.');
+                }
+                return;
+            }
+
+            if (shmWorker && workerConnected) {
+                shmWorker.postMessage({ type: 'send', payload: 'QUIT' });
+                stopAutoRefresh();
+            } else {
+                console.log('WebSocket not connected, cannot send QUIT.');
             }
         }
         
