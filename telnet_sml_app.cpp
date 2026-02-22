@@ -773,40 +773,40 @@ public:
      *
      * @return Number of test records inserted (0 if DB already had data)
      */
-    int seedTestData()
-    {
-        if (serDb.getRecordCount() > 0)
-            return 0;  // DB already has data, skip seeding
+    // int seedTestData()
+    // {
+    //     if (serDb.getRecordCount() > 0)
+    //         return 0;  // DB already has data, skip seeding
 
-        std::cout << "[Seed] Database empty — injecting test SER records...\n";
+    //     std::cout << "[Seed] Database empty — injecting test SER records...\n";
 
-        std::vector<SERRecord> testRecords = {
-            {"1",  "02/14/22 12:47:19.970", "AssertedD",   "Power loss Phase-A"},
-            {"2",  "02/14/22 12:47:20.100", "AssertedD",   "Power loss Phase-B"},
-            {"3",  "02/14/22 12:47:20.250", "AssertedD",   "Power loss Phase-C"},
-            {"4",  "02/14/22 12:48:05.430", "Deasserted", "Power loss Phase-A"},
-            {"5",  "02/14/22 12:48:05.580", "Deasserted", "Power loss Phase-B"},
-            {"6",  "02/14/22 12:48:05.710", "Deasserted", "Power loss Phase-C"},
-            {"7",  "03/10/22 09:15:32.000", "Asserted",   "Overcurrent Trip Relay 1"},
-            {"8",  "03/10/22 09:15:32.150", "Asserted",   "Breaker Failure"},
-            {"9",  "03/10/22 09:16:01.800", "Deasserted", "Overcurrent Trip Relay 1"},
-            {"10", "03/10/22 09:16:02.000", "Deasserted", "Breaker Failure"},
-            {"11", "05/22/23 14:30:00.500", "Asserted",   "Communication Failure"},
-            {"12", "05/22/23 14:35:12.200", "Deasserted", "Communication Failure"},
-            {"13", "08/01/23 08:00:00.000", "Asserted",   "Undervoltage Phase-A"},
-            {"14", "08/01/23 08:00:00.100", "Asserted",   "Undervoltage Phase-B"},
-            {"15", "08/01/23 08:00:15.300", "Deasserted", "Undervoltage Phase-A"},
-            {"16", "08/01/23 08:00:15.450", "Deasserted", "Undervoltage Phase-B"},
-            {"17", "11/15/24 22:10:44.600", "Asserted",   "Earth Fault Relay 2"},
-            {"18", "11/15/24 22:11:00.000", "Deasserted", "Earth Fault Relay 2"},
-            {"19", "01/05/25 06:30:10.800", "Asserted",   "Over Temperature Alarm"},
-            {"20", "01/05/25 06:45:30.200", "Deasserted", "Over Temperature Alarm"}
-        };
+    //     std::vector<SERRecord> testRecords = {
+    //         {"1",  "02/14/22 12:47:19.970", "AssertedD",   "Power loss Phase-A"},
+    //         {"2",  "02/14/22 12:47:20.100", "AssertedD",   "Power loss Phase-B"},
+    //         {"3",  "02/14/22 12:47:20.250", "AssertedD",   "Power loss Phase-C"},
+    //         {"4",  "02/14/22 12:48:05.430", "Deasserted", "Power loss Phase-A"},
+    //         {"5",  "02/14/22 12:48:05.580", "Deasserted", "Power loss Phase-B"},
+    //         {"6",  "02/14/22 12:48:05.710", "Deasserted", "Power loss Phase-C"},
+    //         {"7",  "03/10/22 09:15:32.000", "Asserted",   "Overcurrent Trip Relay 1"},
+    //         {"8",  "03/10/22 09:15:32.150", "Asserted",   "Breaker Failure"},
+    //         {"9",  "03/10/22 09:16:01.800", "Deasserted", "Overcurrent Trip Relay 1"},
+    //         {"10", "03/10/22 09:16:02.000", "Deasserted", "Breaker Failure"},
+    //         {"11", "05/22/23 14:30:00.500", "Asserted",   "Communication Failure"},
+    //         {"12", "05/22/23 14:35:12.200", "Deasserted", "Communication Failure"},
+    //         {"13", "08/01/23 08:00:00.000", "Asserted",   "Undervoltage Phase-A"},
+    //         {"14", "08/01/23 08:00:00.100", "Asserted",   "Undervoltage Phase-B"},
+    //         {"15", "08/01/23 08:00:15.300", "Deasserted", "Undervoltage Phase-A"},
+    //         {"16", "08/01/23 08:00:15.450", "Deasserted", "Undervoltage Phase-B"},
+    //         {"17", "11/15/24 22:10:44.600", "Asserted",   "Earth Fault Relay 2"},
+    //         {"18", "11/15/24 22:11:00.000", "Deasserted", "Earth Fault Relay 2"},
+    //         {"19", "01/05/25 06:30:10.800", "Asserted",   "Over Temperature Alarm"},
+    //         {"20", "01/05/25 06:45:30.200", "Deasserted", "Over Temperature Alarm"}
+    //     };
 
-        int inserted = serDb.insertRecords(testRecords);
-        std::cout << "[Seed] Inserted " << inserted << " test records into database\n";
-        return inserted;
-    }
+    //     int inserted = serDb.insertRecords(testRecords);
+    //     std::cout << "[Seed] Inserted " << inserted << " test records into database\n";
+    //     return inserted;
+    // }
 
     /**
      * @brief Starts all application components.
