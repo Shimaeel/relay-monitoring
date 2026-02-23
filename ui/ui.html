@@ -458,6 +458,33 @@
             flex-wrap: wrap;
         }
 
+        .eve-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .eve-input {
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+            font-family: inherit;
+            font-size: 0.9rem;
+            min-width: 160px;
+            max-width: 220px;
+            transition: border-color 0.2s ease;
+        }
+
+        .eve-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+
         .file-toolbar .btn {
             margin: 0;
         }
@@ -667,10 +694,25 @@
                 <span class="material-icons-round">terminal</span> Commands
             </div>
             <button class="btn" onclick="sendFilDir()">FIL DIR</button>
-            <button class="btn">Read ETH</button>
-            <button class="btn">Read DATE</button>
-            <button class="btn">Read GOOSE</button>
             <button class="btn btn-danger" onclick="sendQuit()">QUIT</button>
+
+            <div class="eve-toolbar">
+                <input
+                    type="text"
+                    class="eve-input"
+                    id="eve-number"
+                    placeholder="EVE number"
+                    inputmode="numeric"
+                >
+                <button class="btn" onclick="sendEveRead()">
+                    <span class="material-icons-round" style="font-size:16px;vertical-align:middle;">download</span>
+                    Read &amp; Save EVE
+                </button>
+            </div>
+            <div id="eve-banner" class="conn-banner connecting" style="display:none;margin-top:10px;">
+                <span class="material-icons-round" style="font-size:18px;">sync</span>
+                <span id="eve-banner-text">Reading event...</span>
+            </div>
 
         </div>
 
@@ -685,6 +727,10 @@
         </div>
         <div class="file-toolbar">
             <input type="text" class="file-search" id="file-search" placeholder="Search files..." oninput="filterFiles()">
+            <button class="btn" onclick="exportFilDirList()">
+                <span class="material-icons-round" style="font-size:16px;vertical-align:middle;">list_alt</span>
+                Export List
+            </button>
         </div>
         <div class="table-wrapper" style="margin-bottom: 24px;">
             <table id="file-table">
@@ -827,6 +873,14 @@ function connectWS() {
     };
 
     ws.onmessage = (event) => {
+        // ── If we're waiting for an EVE response ──
+        if (eveReadPending) {
+            eveReadPending = false;
+            saveEveContent(eveReadNumber, event.data);
+            eveReadNumber = '';
+            return;
+        }
+
         // ── If we're waiting for a FIL READ response ──
         if (filReadPending) {
             filReadPending = false;
@@ -1103,6 +1157,88 @@ async function changePassword() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  EVE READ  –  Read single event by number
+// ═══════════════════════════════════════════════════════════════════════════
+
+let eveReadPending = false;
+let eveReadNumber = '';
+
+const eveInput = document.getElementById('eve-number');
+const eveBanner = document.getElementById('eve-banner');
+const eveBannerText = document.getElementById('eve-banner-text');
+
+function showEveBanner(type, msg) {
+    eveBanner.style.display = 'flex';
+    eveBannerText.textContent = msg;
+    if (type === 'loading') {
+        eveBanner.className = 'conn-banner connecting';
+        eveBanner.querySelector('.material-icons-round').textContent = 'sync';
+    } else if (type === 'success') {
+        eveBanner.className = 'conn-banner connected';
+        eveBanner.querySelector('.material-icons-round').textContent = 'check_circle';
+        setTimeout(() => { eveBanner.style.display = 'none'; }, 3000);
+    } else {
+        eveBanner.className = 'conn-banner disconnected';
+        eveBanner.querySelector('.material-icons-round').textContent = 'error';
+        setTimeout(() => { eveBanner.style.display = 'none'; }, 5000);
+    }
+}
+
+function sendEveRead() {
+    const rawValue = (eveInput?.value || '').trim();
+    if (!rawValue || !/^[0-9]+$/.test(rawValue)) {
+        showEveBanner('error', 'Enter a valid event number');
+        return;
+    }
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showEveBanner('error', 'WebSocket not connected');
+        return;
+    }
+
+    eveReadPending = true;
+    eveReadNumber = rawValue;
+    showEveBanner('loading', `Reading EVE ${rawValue}...`);
+
+    setTimeout(() => {
+        if (eveReadPending) {
+            eveReadPending = false;
+            eveReadNumber = '';
+            showEveBanner('error', `Timeout reading EVE ${rawValue}`);
+        }
+    }, 15000);
+
+    ws.send(`EVE ${rawValue} R`);
+}
+
+function saveEveContent(eventNumber, rawData) {
+    let content = rawData;
+    const lines = rawData.split(/\r?\n/);
+    const cleaned = [];
+    let headerSkipped = false;
+    for (const line of lines) {
+        const t = line.trim();
+        if (!headerSkipped && /^EVE\s+\d+\s+R/i.test(t)) { headerSkipped = true; continue; }
+        if (t === '=>' || t === '>') continue;
+        cleaned.push(line);
+    }
+    content = cleaned.join('\n').trim();
+
+    const saveName = `Event_${eventNumber}.eve`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = saveName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showEveBanner('success', `Saved ${saveName} (${content.length} bytes)`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  FIL DIR  –  File Directory from Relay
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1189,6 +1325,39 @@ function parseFilDirResponse(raw) {
     }
 
     return files;
+}
+
+// ── Export FIL DIR list as .txt ────────────────────────────────────────
+function exportFilDirList() {
+    if (!allFiles || allFiles.length === 0) {
+        showFilDirBanner('error', 'No file list to export. Click FIL DIR first.');
+        return;
+    }
+
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+    const lines = [];
+    lines.push(`FIL DIR Export - ${now.toLocaleString()}`);
+    lines.push('Index\tName\tPermissions');
+    for (const f of allFiles) {
+        const perms = f.perms ? f.perms : '-';
+        lines.push(`${f.idx}\t${f.name}\t${perms}`);
+    }
+
+    const content = lines.join('\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `FIL_DIR_${stamp}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showFilDirBanner('success', `Exported file list (${allFiles.length} items)`);
 }
 
 // ── Extension badge class ───────────────────────────────────────────────
