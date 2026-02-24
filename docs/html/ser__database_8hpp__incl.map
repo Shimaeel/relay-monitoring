@@ -1,0 +1,24 @@
+<map id="ser_database.hpp" name="ser_database.hpp">
+<area shape="rect" id="Node000001" title="SQLite database handler for SER records." alt="" coords="192,5,316,32"/>
+<area shape="rect" id="Node000002" href="$dll__export_8hpp.html" title="DLL Export/Import Macros for Windows." alt="" coords="5,155,108,181"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="239,34,87,147,84,143,235,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="131,155,184,181"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="248,32,176,144,172,140,243,33"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="209,155,266,181"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="250,31,236,80,235,111,236,141,231,138,229,111,231,80,246,34"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="377,80,442,107"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="281,30,371,73,366,74,281,35"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="467,80,537,107"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="297,30,454,77,449,78,297,35"/>
+<area shape="rect" id="Node000007" href="$ser__record_8hpp.html" title="System Event Record (SER) data structure and parser." alt="" coords="246,80,353,107"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="263,30,286,67,281,66,261,35"/>
+<area shape="poly" id="edge7_Node000007_Node000002" title=" " alt="" coords="258,110,114,152,113,147,256,105"/>
+<area shape="poly" id="edge8_Node000007_Node000003" title=" " alt="" coords="277,107,197,150,195,145,272,108"/>
+<area shape="poly" id="edge9_Node000007_Node000004" title=" " alt="" coords="291,106,260,145,257,141,286,108"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="290,155,359,181"/>
+<area shape="poly" id="edge10_Node000007_Node000008" title=" " alt="" coords="305,105,317,141,313,139,302,109"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="383,155,458,181"/>
+<area shape="poly" id="edge11_Node000007_Node000009" title=" " alt="" coords="321,105,389,146,384,146,320,110"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="482,155,543,181"/>
+<area shape="poly" id="edge12_Node000007_Node000010" title=" " alt="" coords="337,105,471,151,465,152,336,110"/>
+</map>

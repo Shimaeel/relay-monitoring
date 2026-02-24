@@ -107,7 +107,7 @@ $(function(){initNavTree('class_s_e_r_web_socket_server.html','','class_s_e_r_we
 <div class="dynheader">
 Collaboration diagram for SERWebSocketServer:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_web_socket_server__coll__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 id="header-pub-methods" class="groupheader"><a id="pub-methods" name="pub-methods"></a>
@@ -116,6 +116,10 @@ Public Member Functions</h2></td></tr>
 <tr class="memdesc:acc7f76f878ed233351bfd7174d359169"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct WebSocket server for given database.  <br /></td></tr>
 <tr class="memitem:ad4f4a969a5cdc573cdf96c401feeda6c" id="r_ad4f4a969a5cdc573cdf96c401feeda6c"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad4f4a969a5cdc573cdf96c401feeda6c">~SERWebSocketServer</a> ()</td></tr>
 <tr class="memdesc:ad4f4a969a5cdc573cdf96c401feeda6c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Destructor - stops server if running.  <br /></td></tr>
+<tr class="memitem:aa5e6bf378b7fef9d3030c6678bfa0cfb" id="r_aa5e6bf378b7fef9d3030c6678bfa0cfb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa5e6bf378b7fef9d3030c6678bfa0cfb">setCommandHandler</a> (<a class="el" href="class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a">WebSocketSession::CommandHandler</a> handler)</td></tr>
+<tr class="memdesc:aa5e6bf378b7fef9d3030c6678bfa0cfb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set command handler for forwarding relay commands (e.g. FIL DIR)  <br /></td></tr>
+<tr class="memitem:aceda0c2001d408536c4e7402200ced41" id="r_aceda0c2001d408536c4e7402200ced41"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aceda0c2001d408536c4e7402200ced41">setActionHandler</a> (<a class="el" href="class_web_socket_session.html#a05e70a546700ee2c558457009a956b13">WebSocketSession::ActionHandler</a> handler)</td></tr>
+<tr class="memdesc:aceda0c2001d408536c4e7402200ced41"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set action handler for JSON actions (e.g. read_time, sync_time)  <br /></td></tr>
 <tr class="memitem:a4dc37355e67affcb34a10f7e1236e524" id="r_a4dc37355e67affcb34a10f7e1236e524"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a4dc37355e67affcb34a10f7e1236e524">start</a> ()</td></tr>
 <tr class="memdesc:a4dc37355e67affcb34a10f7e1236e524"><td class="mdescLeft">&#160;</td><td class="mdescRight">Start the WebSocket server.  <br /></td></tr>
 <tr class="memitem:a2be0dc7d49fd9a743c00e9452d8e0f91" id="r_a2be0dc7d49fd9a743c00e9452d8e0f91"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2be0dc7d49fd9a743c00e9452d8e0f91">stop</a> ()</td></tr>
@@ -128,6 +132,8 @@ Public Member Functions</h2></td></tr>
 <tr class="memdesc:af1bd724ee29134482bf3383ccb0c8a27"><td class="mdescLeft">&#160;</td><td class="mdescRight">Broadcast raw binary payload to all connected clients.  <br /></td></tr>
 <tr class="memitem:a36333b8c6c851ac3f5882afa5dbeedf3" id="r_a36333b8c6c851ac3f5882afa5dbeedf3"><td class="memItemLeft" align="right" valign="top">std::size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a36333b8c6c851ac3f5882afa5dbeedf3">clientCount</a> () const</td></tr>
 <tr class="memdesc:a36333b8c6c851ac3f5882afa5dbeedf3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get number of connected clients.  <br /></td></tr>
+<tr class="memitem:af616d30885ae2920f9e9d51906d18cce" id="r_af616d30885ae2920f9e9d51906d18cce"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#af616d30885ae2920f9e9d51906d18cce">broadcastText</a> (const std::string &amp;text)</td></tr>
+<tr class="memdesc:af616d30885ae2920f9e9d51906d18cce"><td class="mdescLeft">&#160;</td><td class="mdescRight">Broadcast text response to all connected clients.  <br /></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 id="header-pri-attribs" class="groupheader"><a id="pri-attribs" name="pri-attribs"></a>
 Private Attributes</h2></td></tr>
@@ -145,21 +151,25 @@ Private Attributes</h2></td></tr>
 <tr class="memdesc:a43b8feb2f94b95e3a889cb128324b72b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Server running state flag.  <br /></td></tr>
 <tr class="memitem:a9e20685d530dcc0fa5e4834e053c3772" id="r_a9e20685d530dcc0fa5e4834e053c3772"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_session_manager.html">SessionManager</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a9e20685d530dcc0fa5e4834e053c3772">sessionMgr_</a></td></tr>
 <tr class="memdesc:a9e20685d530dcc0fa5e4834e053c3772"><td class="mdescLeft">&#160;</td><td class="mdescRight">Session manager for broadcast.  <br /></td></tr>
+<tr class="memitem:aeee633148029e7a5bc2fb7686be65684" id="r_aeee633148029e7a5bc2fb7686be65684"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a">WebSocketSession::CommandHandler</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aeee633148029e7a5bc2fb7686be65684">cmdHandler_</a></td></tr>
+<tr class="memdesc:aeee633148029e7a5bc2fb7686be65684"><td class="mdescLeft">&#160;</td><td class="mdescRight">Command handler for relay forwarding.  <br /></td></tr>
+<tr class="memitem:aa7b2471e91ae828554625336175b1bcd" id="r_aa7b2471e91ae828554625336175b1bcd"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_web_socket_session.html#a05e70a546700ee2c558457009a956b13">WebSocketSession::ActionHandler</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aa7b2471e91ae828554625336175b1bcd">actionHandler_</a></td></tr>
+<tr class="memdesc:aa7b2471e91ae828554625336175b1bcd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Action handler for JSON actions (time sync)  <br /></td></tr>
 </table>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>High-level WebSocket server wrapper for SER data access. </p>
 <p>Provides simple start/stop interface for the WebSocket server. Manages I/O context, listener, and server thread. Used by main application to expose SER data to the web UI.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md98"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md106"></a>
 Server Lifecycle</h2>
 <div class="dotgraph">
-</div>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md99"></a>
+<iframe scrolling="no" loading="lazy" frameborder="0" src="dot_inline_dotgraph_18.svg" width="355" height="96"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md107"></a>
 Thread Model</h2>
 <p>The server runs I/O context in a separate thread from the main application:</p>
 <div class="dotgraph">
-</div>
+<iframe scrolling="no" loading="lazy" frameborder="0" src="dot_inline_dotgraph_19.svg" width="304" height="211"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
  
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00724">724</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00856">856</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 </div><a name="doc-constructors" id="doc-constructors"></a><h2 id="header-doc-constructors" class="groupheader">Constructor &amp; Destructor Documentation</h2>
 <a id="acc7f76f878ed233351bfd7174d359169" name="acc7f76f878ed233351bfd7174d359169"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#acc7f76f878ed233351bfd7174d359169">&#9670;&#160;</a></span>SERWebSocketServer()</h2>
@@ -198,9 +208,9 @@ Thread Model</h2>
 </dl>
 <dl class="section post"><dt>Postcondition</dt><dd>running_ == false (call <a class="el" href="#a4dc37355e67affcb34a10f7e1236e524" title="Start the WebSocket server.">start()</a> to begin) </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00743">743</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00877">877</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00729">db_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00730">port_</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00861">db_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00862">port_</a>.</p>
 
 </div>
 </div>
@@ -229,13 +239,13 @@ Thread Model</h2>
 
 <p>Destructor - stops server if running. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00752">752</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00886">886</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00800">stop()</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00960">stop()</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 1 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_web_socket_server_ad4f4a969a5cdc573cdf96c401feeda6c_cgraph.svg" width="382" height="54"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -273,13 +283,13 @@ Here is the call graph for this function:</div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00829">829</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00989">989</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="asn__tlv__codec_8hpp_source.html#l00297">asn_tlv::encodeSerRecordsToTlv()</a>, <a class="el" href="ws__server_8hpp_source.html#l00731">running_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00732">sessionMgr_</a>.</p>
+<p class="reference">References <a class="el" href="asn__tlv__codec_8hpp_source.html#l00297">asn_tlv::encodeSerRecordsToTlv()</a>, <a class="el" href="ws__server_8hpp_source.html#l00863">running_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00864">sessionMgr_</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 2 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_web_socket_server_a969d54fda0937b5a1a3036cdefc4fed3_cgraph.svg" width="100%" height="300"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 
 </div>
@@ -315,9 +325,47 @@ Here is the call graph for this function:</div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00853">853</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l01013">1013</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00731">running_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00732">sessionMgr_</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00863">running_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00864">sessionMgr_</a>.</p>
+
+</div>
+</div>
+<a id="af616d30885ae2920f9e9d51906d18cce" name="af616d30885ae2920f9e9d51906d18cce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af616d30885ae2920f9e9d51906d18cce">&#9670;&#160;</a></span>broadcastText()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void SERWebSocketServer::broadcastText </td>
+          <td>(</td>
+          <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>text</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Broadcast text response to all connected clients. </p>
+<p>Used for non-SER relay command responses (e.g. FIL DIR). Sends as text WebSocket frame so JS can read directly.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">text</td><td>Raw relay response text </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l01042">1042</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00863">running_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00864">sessionMgr_</a>.</p>
 
 </div>
 </div>
@@ -346,9 +394,9 @@ Here is the call graph for this function:</div>
 
 <p>Get number of connected clients. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00869">869</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l01029">1029</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00732">sessionMgr_</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00864">sessionMgr_</a>.</p>
 
 </div>
 </div>
@@ -380,9 +428,85 @@ Here is the call graph for this function:</div>
 <dd>
 false Server is stopped </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00819">819</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00979">979</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00731">running_</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00863">running_</a>.</p>
+
+</div>
+</div>
+<a id="aceda0c2001d408536c4e7402200ced41" name="aceda0c2001d408536c4e7402200ced41"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aceda0c2001d408536c4e7402200ced41">&#9670;&#160;</a></span>setActionHandler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void SERWebSocketServer::setActionHandler </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="class_web_socket_session.html#a05e70a546700ee2c558457009a956b13">WebSocketSession::ActionHandler</a></td>          <td class="paramname"><span class="paramname"><em>handler</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Set action handler for JSON actions (e.g. read_time, sync_time) </p>
+<p>Must be called before <a class="el" href="#a4dc37355e67affcb34a10f7e1236e524" title="Start the WebSocket server.">start()</a>. The handler receives an action string and returns a JSON response string.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handler</td><td>Callback: string action → string JSON response </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00912">912</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00866">actionHandler_</a>.</p>
+
+</div>
+</div>
+<a id="aa5e6bf378b7fef9d3030c6678bfa0cfb" name="aa5e6bf378b7fef9d3030c6678bfa0cfb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa5e6bf378b7fef9d3030c6678bfa0cfb">&#9670;&#160;</a></span>setCommandHandler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void SERWebSocketServer::setCommandHandler </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a">WebSocketSession::CommandHandler</a></td>          <td class="paramname"><span class="paramname"><em>handler</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Set command handler for forwarding relay commands (e.g. FIL DIR) </p>
+<p>Must be called before <a class="el" href="#a4dc37355e67affcb34a10f7e1236e524" title="Start the WebSocket server.">start()</a>. The handler receives a command string and returns the relay's text response.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handler</td><td>Callback: string command → string response </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00899">899</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00865">cmdHandler_</a>.</p>
 
 </div>
 </div>
@@ -416,9 +540,9 @@ false Server is stopped </dd></dl>
 false Failed to start (port in use, etc.)</dd></dl>
 <dl class="section post"><dt>Postcondition</dt><dd>On success: <a class="el" href="#a5b9713860598127ab27b80f229685eb1" title="Check if server is currently running.">isRunning()</a> == true </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00767">767</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00927">927</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00729">db_</a>, <a class="el" href="ws__server_8hpp_source.html#l00726">ioc_</a>, <a class="el" href="ws__server_8hpp_source.html#l00727">listener_</a>, <a class="el" href="ws__server_8hpp_source.html#l00730">port_</a>, <a class="el" href="ws__server_8hpp_source.html#l00731">running_</a>, <a class="el" href="ws__server_8hpp_source.html#l00728">server_thread_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00732">sessionMgr_</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00866">actionHandler_</a>, <a class="el" href="ws__server_8hpp_source.html#l00865">cmdHandler_</a>, <a class="el" href="ws__server_8hpp_source.html#l00861">db_</a>, <a class="el" href="ws__server_8hpp_source.html#l00858">ioc_</a>, <a class="el" href="ws__server_8hpp_source.html#l00859">listener_</a>, <a class="el" href="ws__server_8hpp_source.html#l00862">port_</a>, <a class="el" href="ws__server_8hpp_source.html#l00863">running_</a>, <a class="el" href="ws__server_8hpp_source.html#l00860">server_thread_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00864">sessionMgr_</a>.</p>
 
 </div>
 </div>
@@ -449,20 +573,76 @@ false Failed to start (port in use, etc.)</dd></dl>
 <p>Stops I/O context and joins server thread. Safe to call if not running.</p>
 <dl class="section post"><dt>Postcondition</dt><dd><a class="el" href="#a5b9713860598127ab27b80f229685eb1" title="Check if server is currently running.">isRunning()</a> == false </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00800">800</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00960">960</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00726">ioc_</a>, <a class="el" href="ws__server_8hpp_source.html#l00731">running_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00728">server_thread_</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00858">ioc_</a>, <a class="el" href="ws__server_8hpp_source.html#l00863">running_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00860">server_thread_</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00752">~SERWebSocketServer()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00886">~SERWebSocketServer()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 3 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_web_socket_server_a2be0dc7d49fd9a743c00e9452d8e0f91_icgraph.svg" width="382" height="54"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
 </div>
 <a name="doc-variable-members" id="doc-variable-members"></a><h2 id="header-doc-variable-members" class="groupheader">Member Data Documentation</h2>
+<a id="aa7b2471e91ae828554625336175b1bcd" name="aa7b2471e91ae828554625336175b1bcd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa7b2471e91ae828554625336175b1bcd">&#9670;&#160;</a></span>actionHandler_</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="class_web_socket_session.html#a05e70a546700ee2c558457009a956b13">WebSocketSession::ActionHandler</a> SERWebSocketServer::actionHandler_</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel private">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Action handler for JSON actions (time sync) </p>
+
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00866">866</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00912">setActionHandler()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>.</p>
+
+</div>
+</div>
+<a id="aeee633148029e7a5bc2fb7686be65684" name="aeee633148029e7a5bc2fb7686be65684"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeee633148029e7a5bc2fb7686be65684">&#9670;&#160;</a></span>cmdHandler_</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a">WebSocketSession::CommandHandler</a> SERWebSocketServer::cmdHandler_</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel private">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Command handler for relay forwarding. </p>
+
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00865">865</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00899">setCommandHandler()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>.</p>
+
+</div>
+</div>
 <a id="ad06aac0a0e7bd21370931fe67427803c" name="ad06aac0a0e7bd21370931fe67427803c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad06aac0a0e7bd21370931fe67427803c">&#9670;&#160;</a></span>db_</h2>
 
@@ -485,9 +665,9 @@ Here is the caller graph for this function:</div>
 
 <p>Reference to SER database. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00729">729</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00861">861</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00743">SERWebSocketServer()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00767">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00877">SERWebSocketServer()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>.</p>
 
 </div>
 </div>
@@ -513,9 +693,9 @@ Here is the caller graph for this function:</div>
 
 <p>I/O context for async operations. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00726">726</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00858">858</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00767">start()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00800">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00960">stop()</a>.</p>
 
 </div>
 </div>
@@ -541,9 +721,9 @@ Here is the caller graph for this function:</div>
 
 <p>Connection listener. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00727">727</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00859">859</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00767">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>.</p>
 
 </div>
 </div>
@@ -569,9 +749,9 @@ Here is the caller graph for this function:</div>
 
 <p>Port number to listen on. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00730">730</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00862">862</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00743">SERWebSocketServer()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00767">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00877">SERWebSocketServer()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>.</p>
 
 </div>
 </div>
@@ -597,9 +777,9 @@ Here is the caller graph for this function:</div>
 
 <p>Server running state flag. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00731">731</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00863">863</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00829">broadcast()</a>, <a class="el" href="ws__server_8hpp_source.html#l00853">broadcastRaw()</a>, <a class="el" href="ws__server_8hpp_source.html#l00819">isRunning()</a>, <a class="el" href="ws__server_8hpp_source.html#l00767">start()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00800">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00989">broadcast()</a>, <a class="el" href="ws__server_8hpp_source.html#l01013">broadcastRaw()</a>, <a class="el" href="ws__server_8hpp_source.html#l01042">broadcastText()</a>, <a class="el" href="ws__server_8hpp_source.html#l00979">isRunning()</a>, <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00960">stop()</a>.</p>
 
 </div>
 </div>
@@ -625,9 +805,9 @@ Here is the caller graph for this function:</div>
 
 <p>Thread running I/O context. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00728">728</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00860">860</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00767">start()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00800">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00960">stop()</a>.</p>
 
 </div>
 </div>
@@ -653,9 +833,9 @@ Here is the caller graph for this function:</div>
 
 <p>Session manager for broadcast. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00732">732</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00864">864</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00829">broadcast()</a>, <a class="el" href="ws__server_8hpp_source.html#l00853">broadcastRaw()</a>, <a class="el" href="ws__server_8hpp_source.html#l00869">clientCount()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00767">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00989">broadcast()</a>, <a class="el" href="ws__server_8hpp_source.html#l01013">broadcastRaw()</a>, <a class="el" href="ws__server_8hpp_source.html#l01042">broadcastText()</a>, <a class="el" href="ws__server_8hpp_source.html#l01029">clientCount()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00927">start()</a>.</p>
 
 </div>
 </div>

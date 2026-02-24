@@ -1,14 +1,19 @@
 var searchData=
 [
   ['empty_0',['empty',['../class_raw_data_ring_buffer.html#a1bd4ea1300a7f04cfe4a737426928003',1,'RawDataRingBuffer::empty()'],['../class_thread_safe_queue.html#a58b5532baa6110071f697ad1f9bfbf58',1,'ThreadSafeQueue::empty()']]],
-  ['encodeserrecordstotlv_1',['encodeSerRecordsToTlv',['../namespaceasn__tlv.html#a03c61eaf7c30d4bb4e8f50d6cd2f5f03',1,'asn_tlv']]],
-  ['endswithprompt_2',['endsWithPrompt',['../class_telnet_client.html#a9406bd467aec4aed263851fc076c360b',1,'TelnetClient']]],
-  ['entry_20point_3',['1. main.cpp - Application Entry Point',['../md_work.html#autotoc_md78',1,'']]],
-  ['error_20handling_4',['Error Handling',['../ser__database_8cpp.html#autotoc_md30',1,'']]],
-  ['escapejson_5',['escapeJson',['../ser__json__writer_8hpp.html#a5c077d95f29d39a73aa9b32b93ceddda',1,'ser_json_writer.hpp']]],
-  ['example_6',['Example',['../dll__example_8cpp.html#autotoc_md14',1,'Building This Example'],['../asn__tlv__codec_8hpp.html#autotoc_md3',1,'Usage Example'],['../client_8hpp.html#autotoc_md11',1,'Usage Example'],['../class_raw_data_ring_buffer.html#autotoc_md27',1,'Usage Example'],['../ser__database_8hpp.html#autotoc_md34',1,'Usage Example'],['../ser__record_8hpp.html#autotoc_md40',1,'Usage Example'],['../telnet__fsm_8hpp.html#autotoc_md47',1,'Usage Example'],['../telnet__sml__app_8hpp.html#autotoc_md67',1,'Usage Example'],['../ws__server_8hpp.html#autotoc_md94',1,'Usage Example']]],
-  ['executable_20default_7',['Static Executable (Default)',['../index.html#autotoc_md100',1,'']]],
-  ['execution_20flow_8',['4. Execution Flow',['../md_work.html#autotoc_md84',1,'']]],
-  ['explanation_9',['Telnet FSM Implementation - Detailed Explanation',['../md_work.html',1,'']]],
-  ['exporttojson_10',['exportToJSON',['../class_s_e_r_database.html#a798696a9c47ba55f7a3473afff3efe9f',1,'SERDatabase']]]
+  ['encodeasn1date_1',['encodeASN1Date',['../namespaceasn__date.html#a27b4dc67aa0799ad11cb2d32d2183ded',1,'asn_date']]],
+  ['encodeasn1password_2',['encodeASN1Password',['../namespaceasn__password.html#aeb64a1d95d10374e93a21d05ba30acfd',1,'asn_password']]],
+  ['encodeserrecordstotlv_3',['encodeSerRecordsToTlv',['../namespaceasn__tlv.html#a03c61eaf7c30d4bb4e8f50d6cd2f5f03',1,'asn_tlv']]],
+  ['endswithprompt_4',['endsWithPrompt',['../class_telnet_client.html#a9406bd467aec4aed263851fc076c360b',1,'TelnetClient']]],
+  ['entry_20point_5',['1. main.cpp - Application Entry Point',['../md_work.html#autotoc_md86',1,'']]],
+  ['error_6',['error',['../struct_password_manager_1_1_password_result.html#a80fda55e121d429bcfcf37f5f790ee06',1,'PasswordManager::PasswordResult::error'],['../struct_relay_service_1_1_date_result.html#a79dd65895bae1cd2e16400f003f346ea',1,'RelayService::DateResult::error'],['../struct_relay_service_1_1_command_result.html#a4232e829644e3d72fdd88d8860f45ae4',1,'RelayService::CommandResult::error']]],
+  ['error_20handling_7',['Error Handling',['../ser__database_8cpp.html#autotoc_md35',1,'']]],
+  ['escapejson_8',['escapeJson',['../class_password_manager.html#afcc1829790aa282f68c4683b8ab68478',1,'PasswordManager::escapeJson()'],['../class_time_sync_manager.html#aa4f77a9d5604ee4161344be99a68e7dd',1,'TimeSyncManager::escapeJson()'],['../ser__json__writer_8hpp.html#a5c077d95f29d39a73aa9b32b93ceddda',1,'escapeJson():&#160;ser_json_writer.hpp']]],
+  ['example_9',['Example',['../dll__example_8cpp.html#autotoc_md14',1,'Building This Example'],['../asn__tlv__codec_8hpp.html#autotoc_md3',1,'Usage Example'],['../client_8hpp.html#autotoc_md11',1,'Usage Example'],['../class_raw_data_ring_buffer.html#autotoc_md30',1,'Usage Example'],['../ser__database_8hpp.html#autotoc_md39',1,'Usage Example'],['../ser__record_8hpp.html#autotoc_md45',1,'Usage Example'],['../telnet__fsm_8hpp.html#autotoc_md52',1,'Usage Example'],['../telnet__sml__app_8hpp.html#autotoc_md73',1,'Usage Example'],['../ws__server_8hpp.html#autotoc_md102',1,'Usage Example']]],
+  ['executable_20default_10',['Static Executable (Default)',['../index.html#autotoc_md108',1,'']]],
+  ['execution_20flow_11',['4. Execution Flow',['../md_work.html#autotoc_md92',1,'']]],
+  ['explanation_12',['Telnet FSM Implementation - Detailed Explanation',['../md_work.html',1,'']]],
+  ['exporttojson_13',['exportToJSON',['../class_s_e_r_database.html#a798696a9c47ba55f7a3473afff3efe9f',1,'SERDatabase']]],
+  ['extractaction_14',['extractAction',['../class_web_socket_session.html#a43bf9b3aa8c9ed23d031c7ae8059da22',1,'WebSocketSession']]],
+  ['extractjsonfield_15',['extractJsonField',['../class_password_manager.html#a2501f44e3f7096743204d866bb3c5872',1,'PasswordManager']]]
 ];

@@ -1,0 +1,5 @@
+<map id="WebSocketSession::on_broadcast_write" name="WebSocketSession::on_broadcast_write">
+<area shape="rect" id="Node000001" title="Handle broadcast write completion." alt="" coords="211,5,368,48"/>
+<area shape="rect" id="Node000002" href="$class_web_socket_session.html#a24aad98befc1c2d007af7a64bee4864f" title="Perform broadcast write operation (called on strand)" alt="" coords="5,5,163,48"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="193,27,163,29,163,24,198,26"/>
+</map>

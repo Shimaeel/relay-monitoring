@@ -1,0 +1,16 @@
+<map id="ser_database.hpp" name="ser_database.hpp">
+<area shape="rect" id="Node000001" title="SQLite database handler for SER records." alt="" coords="236,5,360,32"/>
+<area shape="rect" id="Node000002" href="$ser__database_8cpp.html" title="Implementation of SERDatabase class for SQLite storage." alt="" coords="5,80,130,107"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="242,40,109,82,107,77,244,35"/>
+<area shape="rect" id="Node000003" href="$telnet__fsm_8hpp.html" title="Boost.SML Finite State Machine for Telnet Communication." alt="" coords="154,80,261,107"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="273,40,225,82,222,77,268,43"/>
+<area shape="rect" id="Node000004" href="$telnet__sml__app_8cpp.html" title="Telnet SML Application &#45; Main orchestrator implementation." alt="" coords="284,155,419,181"/>
+<area shape="poly" id="edge4_Node000001_Node000004" title=" " alt="" coords="306,45,326,106,347,155,342,153,321,108,303,49"/>
+<area shape="rect" id="Node000005" href="$thread__manager_8hpp.html" title="Thread management utilities for the Telnet&#45;SML application." alt="" coords="335,80,474,107"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="330,38,389,79,383,79,329,44"/>
+<area shape="rect" id="Node000006" href="$ws__server_8hpp.html" title="WebSocket Server for Real&#45;time SER Data Access." alt="" coords="498,80,605,107"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="357,34,510,79,504,80,356,39"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="247,111,329,154,324,154,246,117"/>
+<area shape="poly" id="edge6_Node000005_Node000004" title=" " alt="" coords="389,118,362,156,359,152,384,121"/>
+<area shape="poly" id="edge8_Node000006_Node000004" title=" " alt="" coords="505,112,387,157,386,151,500,113"/>
+</map>

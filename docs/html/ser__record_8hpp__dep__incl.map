@@ -1,0 +1,38 @@
+<map id="ser_record.hpp" name="ser_record.hpp">
+<area shape="rect" id="Node000001" title="System Event Record (SER) data structure and parser." alt="" coords="533,5,640,32"/>
+<area shape="rect" id="Node000002" href="$asn__tlv__codec_8hpp.html" title="ASN.1 BER/TLV codec for SER record payloads." alt="" coords="181,80,312,107"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="515,36,307,82,305,77,520,33"/>
+<area shape="rect" id="Node000007" href="$telnet__fsm_8hpp.html" title="Boost.SML Finite State Machine for Telnet Communication." alt="" coords="393,155,500,181"/>
+<area shape="poly" id="edge23_Node000001_Node000007" title=" " alt="" coords="559,40,514,82,481,121,456,156,453,152,477,118,510,78,554,43"/>
+<area shape="rect" id="Node000009" href="$ser__database_8hpp.html" title="SQLite database handler for SER records." alt="" coords="524,80,649,107"/>
+<area shape="poly" id="edge14_Node000001_Node000009" title=" " alt="" coords="588,46,589,81,584,78,585,50"/>
+<area shape="rect" id="Node000011" href="$thread__manager_8hpp.html" title="Thread management utilities for the Telnet&#45;SML application." alt="" coords="724,155,863,181"/>
+<area shape="poly" id="edge24_Node000001_Node000011" title=" " alt="" coords="617,39,778,154,773,154,616,44"/>
+<area shape="rect" id="Node000012" href="$ser__json__writer_8hpp.html" title="JSON serialization and file output for SER records." alt="" coords="817,229,951,256"/>
+<area shape="poly" id="edge21_Node000001_Node000012" title=" " alt="" coords="655,30,712,45,772,70,830,105,855,128,877,153,886,172,890,193,888,231,884,227,885,193,881,174,872,156,851,131,827,110,770,75,710,50,656,35"/>
+<area shape="rect" id="Node000003" href="$password__manager_8hpp.html" title="Password management for relay LEVEL1 / LEVEL2 password changes." alt="" coords="32,229,192,256"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="165,112,133,130,118,142,106,156,99,174,99,193,109,229,104,229,94,194,94,173,102,153,115,138,130,125,169,108"/>
+<area shape="rect" id="Node000004" href="$telnet__sml__app_8cpp.html" title="Telnet SML Application &#45; Main orchestrator implementation." alt="" coords="399,304,534,331"/>
+<area shape="poly" id="edge11_Node000002_Node000004" title=" " alt="" coords="182,113,115,138,50,171,26,190,12,210,10,231,22,254,47,272,84,286,132,297,186,305,299,313,402,317,396,317,299,318,185,310,131,302,83,292,44,277,18,258,4,233,7,208,22,186,47,166,113,133,186,109"/>
+<area shape="rect" id="Node000005" href="$relay__service_8hpp.html" title="Thread&#45;safe relay communication service for DATE operations." alt="" coords="116,155,239,181"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="226,116,191,156,187,152,222,120"/>
+<area shape="poly" id="edge9_Node000002_Node000007" title=" " alt="" coords="296,110,414,153,409,155,295,115"/>
+<area shape="rect" id="Node000008" href="$ws__server_8hpp.html" title="WebSocket Server for Real&#45;time SER Data Access." alt="" coords="263,155,369,181"/>
+<area shape="poly" id="edge12_Node000002_Node000008" title=" " alt="" coords="269,115,307,154,301,154,268,121"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="189,257,406,301,403,305,189,262"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="158,191,125,231,121,227,154,195"/>
+<area shape="poly" id="edge6_Node000005_Node000004" title=" " alt="" coords="251,183,332,204,392,227,415,245,434,265,462,305,457,303,430,269,411,249,389,232,331,209,251,188"/>
+<area shape="rect" id="Node000006" href="$time__sync__manager_8hpp.html" title="DATE synchronization manager for relay ↔ local&#45;PC time operations." alt="" coords="216,229,379,256"/>
+<area shape="poly" id="edge7_Node000005_Node000006" title=" " alt="" coords="211,187,279,228,274,229,210,192"/>
+<area shape="poly" id="edge8_Node000006_Node000004" title=" " alt="" coords="341,260,439,303,434,303,340,265"/>
+<area shape="poly" id="edge10_Node000007_Node000004" title=" " alt="" coords="468,191,488,229,490,250,488,270,475,306,471,301,482,269,485,249,483,230,466,196"/>
+<area shape="poly" id="edge13_Node000008_Node000004" title=" " alt="" coords="372,185,407,203,437,228,449,246,458,267,467,305,463,303,453,269,445,249,433,231,404,207,372,190"/>
+<area shape="poly" id="edge17_Node000009_Node000004" title=" " alt="" coords="625,113,644,127,659,144,667,162,664,182,649,206,631,227,588,262,543,288,503,306,502,301,541,283,585,257,627,223,645,203,659,180,662,163,655,146,641,131,624,118"/>
+<area shape="poly" id="edge16_Node000009_Node000007" title=" " alt="" coords="551,113,472,156,470,152,546,115"/>
+<area shape="poly" id="edge20_Node000009_Node000008" title=" " alt="" coords="522,112,364,157,363,151,527,110"/>
+<area shape="rect" id="Node000010" href="$ser__database_8cpp.html" title="Implementation of SERDatabase class for SQLite storage." alt="" coords="524,155,649,181"/>
+<area shape="poly" id="edge15_Node000009_Node000010" title=" " alt="" coords="588,120,589,156,584,153,585,125"/>
+<area shape="poly" id="edge18_Node000009_Node000011" title=" " alt="" coords="637,109,760,154,754,154,636,115"/>
+<area shape="poly" id="edge19_Node000011_Node000004" title=" " alt="" coords="778,192,746,228,707,258,664,278,619,293,534,311,533,306,618,288,662,273,704,254,743,224,773,194"/>
+<area shape="poly" id="edge22_Node000012_Node000004" title=" " alt="" coords="804,258,535,307,534,302,799,258"/>
+</map>

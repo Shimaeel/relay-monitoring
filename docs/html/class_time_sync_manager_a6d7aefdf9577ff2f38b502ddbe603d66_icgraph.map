@@ -1,0 +1,5 @@
+<map id="TimeSyncManager::handleReadTime" name="TimeSyncManager::handleReadTime">
+<area shape="rect" id="Node000001" title=" " alt="" coords="267,5,503,32"/>
+<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#ab7e1061ae8a4a1bae60ed0411ff4b825" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="5,5,219,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="248,19,219,21,219,16,254,19"/>
+</map>

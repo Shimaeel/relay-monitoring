@@ -113,17 +113,20 @@ $(function(){initNavTree('telnet__sml__app_8cpp.html','',''); });
 <code>#include &quot;<a class="el" href="client_8hpp_source.html">client.hpp</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="asn__tlv__codec_8hpp_source.html">asn_tlv_codec.hpp</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="raw__data__ring__buffer_8hpp_source.html">raw_data_ring_buffer.hpp</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="relay__service_8hpp_source.html">relay_service.hpp</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="ser__database_8hpp_source.html">ser_database.hpp</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="ser__json__writer_8hpp_source.html">ser_json_writer.hpp</a>&quot;</code><br />
 <code>#include &quot;shared_memory/shared_ring_buffer.hpp&quot;</code><br />
 <code>#include &quot;<a class="el" href="telnet__fsm_8hpp_source.html">telnet_fsm.hpp</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="thread__manager_8hpp_source.html">thread_manager.hpp</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="password__manager_8hpp_source.html">password_manager.hpp</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="time__sync__manager_8hpp_source.html">time_sync_manager.hpp</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>&quot;</code><br />
 <code>#include &quot;ws_db_server.hpp&quot;</code><br />
 </div><div class="textblock"><div class="dynheader">
 Include dependency graph for telnet_sml_app.cpp:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="telnet__sml__app_8cpp__incl.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="telnet__sml__app_8cpp_source.html">Go to the source code of this file.</a></p>
@@ -138,7 +141,7 @@ Classes</h2></td></tr>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Telnet SML Application - Main orchestrator implementation. </p>
 <p>This file implements the <a class="el" href="class_telnet_sml_app.html" title="Main application facade for the Telnet-SML system.">TelnetSmlApp</a> class, which orchestrates the multi-threaded Telnet-SML system for substation relay communication.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md53"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md58"></a>
 Architecture Overview</h2>
 <p>The application follows a sequential pipeline architecture: </p><div class="fragment"><div class="line">Relay Device (TCP:23)</div>
 <div class="line">      │</div>
@@ -158,7 +161,7 @@ Architecture Overview</h2>
 <div class="line">WebSocket Server (Push to Browser)</div>
 <div class="ttc" id="aclass_raw_data_ring_buffer_html"><div class="ttname"><a href="class_raw_data_ring_buffer.html">RawDataRingBuffer</a></div><div class="ttdoc">SPSC ring buffer for decoupling Telnet reception from FSM processing.</div><div class="ttdef"><b>Definition</b> <a href="raw__data__ring__buffer_8hpp_source.html#l00089">raw_data_ring_buffer.hpp:90</a></div></div>
 <div class="ttc" id="aclass_telnet_client_html"><div class="ttname"><a href="class_telnet_client.html">TelnetClient</a></div><div class="ttdoc">TCP/Telnet client for substation relay communication.</div><div class="ttdef"><b>Definition</b> <a href="client_8hpp_source.html#l00131">client.hpp:132</a></div></div>
-</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md54"></a>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md59"></a>
 Thread Model</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">

@@ -1,0 +1,3 @@
+<map id="CanRetryGuard" name="CanRetryGuard">
+<area shape="rect" id="Node000001" title="FSM Guard: Check if retry is possible after invalid login." alt="" coords="5,5,107,75"/>
+</map>

@@ -107,30 +107,30 @@ $(function(){initNavTree('ser__database_8cpp.html','',''); });
 </div><div class="textblock"><div class="dynheader">
 Include dependency graph for ser_database.cpp:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="ser__database_8cpp__incl.svg" width="548" height="262"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div>
 <p><a href="ser__database_8cpp_source.html">Go to the source code of this file.</a></p>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Implementation of <a class="el" href="class_s_e_r_database.html" title="SQLite database handler for storing and retrieving SER records.">SERDatabase</a> class for SQLite storage. </p>
 <p>Provides SQLite-based persistent storage for System Event Records. Implements all CRUD operations, duplicate detection, and JSON export.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md28"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md33"></a>
 Implementation Notes</h2>
-<h3 class="doxsection"><a class="anchor" id="autotoc_md29"></a>
+<h3 class="doxsection"><a class="anchor" id="autotoc_md34"></a>
 Transaction Strategy</h3>
 <ul>
 <li>Single inserts: Direct INSERT with duplicate check</li>
 <li>Bulk inserts: Wrapped in BEGIN/COMMIT for performance</li>
 <li>Duplicate detection before INSERT (not via ON CONFLICT)</li>
 </ul>
-<h3 class="doxsection"><a class="anchor" id="autotoc_md30"></a>
+<h3 class="doxsection"><a class="anchor" id="autotoc_md35"></a>
 Error Handling</h3>
 <ul>
 <li>All SQLite errors captured in last_error_</li>
 <li>Operations return false/0 on error</li>
 <li>Database state remains consistent after errors</li>
 </ul>
-<h3 class="doxsection"><a class="anchor" id="autotoc_md31"></a>
+<h3 class="doxsection"><a class="anchor" id="autotoc_md36"></a>
 Query Performance</h3>
 <ul>
 <li>Indexes on record_id, status, timestamp</li>

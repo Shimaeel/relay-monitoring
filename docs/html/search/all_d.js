@@ -6,10 +6,11 @@ var searchData=
   ['getlasterror_3',['getLastError',['../class_s_e_r_database.html#ae42bb6aa2a4723f2696e2f5c67605765',1,'SERDatabase']]],
   ['getlastioresult_4',['getLastIoResult',['../class_telnet_client.html#a6555ca7753fe6733a191cb2f9ce941d4',1,'TelnetClient']]],
   ['getlastresponse_5',['getLastResponse',['../class_telnet_client.html#acc16b6263ed9b2ffca7ae9927f5ed1f3',1,'TelnetClient']]],
-  ['getpoller_6',['getPoller',['../class_thread_manager.html#aae40097178e0b77e6444991321baa557',1,'ThreadManager']]],
-  ['getrecordcount_7',['getRecordCount',['../class_s_e_r_database.html#af9f462113ba171ab65d126a4689c02be',1,'SERDatabase']]],
-  ['getrecordsbystatus_8',['getRecordsByStatus',['../class_s_e_r_database.html#adbe68cbe0623ec047941da1c63528328',1,'SERDatabase']]],
-  ['getsessions_9',['getSessions',['../class_session_manager.html#a1a04188c1928b629e9903740b9656600',1,'SessionManager']]],
-  ['getwriter_10',['getWriter',['../class_thread_manager.html#a42778d7106bbf25b8d2b95505929b076',1,'ThreadManager']]],
-  ['goals_11',['Design Goals',['../raw__data__ring__buffer_8hpp.html#autotoc_md25',1,'']]]
+  ['getlocalpctime_6',['getLocalPCTime',['../class_time_sync_manager.html#aed76e580fcce7cd534a760a3daf56af7',1,'TimeSyncManager']]],
+  ['getpoller_7',['getPoller',['../class_thread_manager.html#aae40097178e0b77e6444991321baa557',1,'ThreadManager']]],
+  ['getrecordcount_8',['getRecordCount',['../class_s_e_r_database.html#af9f462113ba171ab65d126a4689c02be',1,'SERDatabase']]],
+  ['getrecordsbystatus_9',['getRecordsByStatus',['../class_s_e_r_database.html#adbe68cbe0623ec047941da1c63528328',1,'SERDatabase']]],
+  ['getsessions_10',['getSessions',['../class_session_manager.html#a1a04188c1928b629e9903740b9656600',1,'SessionManager']]],
+  ['getwriter_11',['getWriter',['../class_thread_manager.html#a42778d7106bbf25b8d2b95505929b076',1,'ThreadManager']]],
+  ['goals_12',['Design Goals',['../raw__data__ring__buffer_8hpp.html#autotoc_md28',1,'']]]
 ];

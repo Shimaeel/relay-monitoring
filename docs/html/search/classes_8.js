@@ -7,5 +7,6 @@ var searchData=
   ['threadmanager_4',['ThreadManager',['../class_thread_manager.html',1,'']]],
   ['threadsafequeue_5',['ThreadSafeQueue',['../class_thread_safe_queue.html',1,'']]],
   ['threadsafequeue_3c_20serrecord_20_3e_6',['ThreadSafeQueue&lt; SERRecord &gt;',['../class_thread_safe_queue.html',1,'']]],
-  ['tlvinfo_7',['TlvInfo',['../structasn__tlv_1_1_tlv_info.html',1,'asn_tlv']]]
+  ['timesyncmanager_7',['TimeSyncManager',['../class_time_sync_manager.html',1,'']]],
+  ['tlvinfo_8',['TlvInfo',['../structasn__tlv_1_1_tlv_info.html',1,'asn_tlv']]]
 ];

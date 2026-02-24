@@ -1,0 +1,5 @@
+<map id="SERWebSocketServer::~SERWebSocketServer" name="SERWebSocketServer::~SERWebSocketServer">
+<area shape="rect" id="Node000001" title="Destructor &#45; stops server if running." alt="" coords="5,5,175,48"/>
+<area shape="rect" id="Node000002" href="$class_s_e_r_web_socket_server.html#a2be0dc7d49fd9a743c00e9452d8e0f91" title="Stop the WebSocket server." alt="" coords="223,5,376,48"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="175,24,210,26,205,27,175,29"/>
+</map>

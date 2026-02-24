@@ -111,12 +111,12 @@ $(function(){initNavTree('ser__record_8hpp.html','',''); });
 </div><div class="textblock"><div class="dynheader">
 Include dependency graph for ser_record.hpp:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="ser__record_8hpp__incl.svg" width="548" height="112"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div><div class="textblock"><div class="dynheader">
 This graph shows which files directly or indirectly include this file:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 1 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="ser__record_8hpp__dep__incl.svg" width="100%" height="552"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div>
 <p><a href="ser__record_8hpp_source.html">Go to the source code of this file.</a></p>
@@ -128,23 +128,24 @@ Classes</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 id="header-func-members" class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a3b567ed0529e21ab4536d1df5192a033" id="r_a3b567ed0529e21ab4536d1df5192a033"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a3b567ed0529e21ab4536d1df5192a033">sanitizeSerLine</a> (const std::string &amp;line)</td></tr>
+<tr class="memdesc:a3b567ed0529e21ab4536d1df5192a033"><td class="mdescLeft">&#160;</td><td class="mdescRight">Parse SER response string into a vector of <a class="el" href="struct_s_e_r_record.html" title="Structure representing a System Event Record (SER).">SERRecord</a>.  <br /></td></tr>
 <tr class="memitem:a74e4cd9a0d2e7f7483669c3f91e27f84" id="r_a74e4cd9a0d2e7f7483669c3f91e27f84"><td class="memItemLeft" align="right" valign="top">std::vector&lt; <a class="el" href="struct_s_e_r_record.html">SERRecord</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a74e4cd9a0d2e7f7483669c3f91e27f84">parseSERResponse</a> (const std::string &amp;response)</td></tr>
-<tr class="memdesc:a74e4cd9a0d2e7f7483669c3f91e27f84"><td class="mdescLeft">&#160;</td><td class="mdescRight">Parse SER response string into a vector of <a class="el" href="struct_s_e_r_record.html" title="Structure representing a System Event Record (SER).">SERRecord</a>.  <br /></td></tr>
 </table>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>System Event Record (SER) data structure and parser. </p>
 <p>Defines the <a class="el" href="struct_s_e_r_record.html" title="Structure representing a System Event Record (SER).">SERRecord</a> structure and a parser that converts raw Telnet SER responses into structured records.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md38"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md43"></a>
 SER Record Format</h2>
 <p>Substation relays output SER data in the following format: </p><div class="fragment"><div class="line"><span class="preprocessor">#      Date      Time           Element           State</span></div>
 <div class="line">    45 02/14/22  12:47:19.970   Power loss</div>
 <div class="line">    43 12/30/25  15:49:30.860   SALARM            Asserted</div>
 <div class="line">    42 12/30/25  15:49:30.850   VMIN              Deasserted</div>
-</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md39"></a>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md44"></a>
 Data Flow</h2>
 <div class="dotgraph">
-</div>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md40"></a>
+<iframe scrolling="no" loading="lazy" frameborder="0" src="dot_inline_dotgraph_8.svg" width="892" height="66"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md45"></a>
 Usage Example</h2>
 <div class="fragment"><div class="line">std::string response = <span class="stringliteral">&quot;45 02/14/22 12:47:19.970 Power loss\n&quot;</span>;</div>
 <div class="line"><span class="keyword">auto</span> records = <a class="code hl_function" href="#a74e4cd9a0d2e7f7483669c3f91e27f84">parseSERResponse</a>(response);</div>
@@ -152,7 +153,7 @@ Usage Example</h2>
 <div class="line"><span class="keywordflow">for</span> (<span class="keyword">const</span> <span class="keyword">auto</span>&amp; rec : records) {</div>
 <div class="line">    std::cout &lt;&lt; rec.record_id &lt;&lt; <span class="stringliteral">&quot;: &quot;</span> &lt;&lt; rec.description &lt;&lt; <span class="stringliteral">&quot;\n&quot;</span>;</div>
 <div class="line">}</div>
-<div class="ttc" id="aser__record_8hpp_html_a74e4cd9a0d2e7f7483669c3f91e27f84"><div class="ttname"><a href="#a74e4cd9a0d2e7f7483669c3f91e27f84">parseSERResponse</a></div><div class="ttdeci">std::vector&lt; SERRecord &gt; parseSERResponse(const std::string &amp;response)</div><div class="ttdoc">Parse SER response string into a vector of SERRecord.</div><div class="ttdef"><b>Definition</b> <a href="ser__record_8hpp_source.html#l00174">ser_record.hpp:174</a></div></div>
+<div class="ttc" id="aser__record_8hpp_html_a74e4cd9a0d2e7f7483669c3f91e27f84"><div class="ttname"><a href="#a74e4cd9a0d2e7f7483669c3f91e27f84">parseSERResponse</a></div><div class="ttdeci">std::vector&lt; SERRecord &gt; parseSERResponse(const std::string &amp;response)</div><div class="ttdef"><b>Definition</b> <a href="ser__record_8hpp_source.html#l00225">ser_record.hpp:225</a></div></div>
 </div><!-- fragment --><dl class="section see"><dt>See also</dt><dd><a class="el" href="class_s_e_r_database.html" title="SQLite database handler for storing and retrieving SER records.">SERDatabase</a> Database storage for SER records </dd>
 <dd>
 <a class="el" href="struct_poll_ser_action.html" title="FSM Action: Poll for System Event Records.">PollSerAction</a> FSM action that uses the parser</dd></dl>
@@ -185,18 +186,59 @@ Usage Example</h2>
 </table>
 </div><div class="memdoc">
 
+<p class="definition">Definition at line <a class="el" href="ser__record_8hpp_source.html#l00225">225</a> of file <a class="el" href="ser__record_8hpp_source.html">ser_record.hpp</a>.</p>
+
+<p class="reference">References <a class="el" href="ser__record_8hpp_source.html#l00091">SERRecord::description</a>, <a class="el" href="ser__record_8hpp_source.html#l00088">SERRecord::record_id</a>, <a class="el" href="ser__record_8hpp_source.html#l00174">sanitizeSerLine()</a>, <a class="el" href="ser__record_8hpp_source.html#l00090">SERRecord::status</a>, and <a class="el" href="ser__record_8hpp_source.html#l00089">SERRecord::timestamp</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="telnet__fsm_8hpp_source.html#l00310">PollSerAction::operator()()</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="ser__record_8hpp_a74e4cd9a0d2e7f7483669c3f91e27f84_cgraph.svg" width="310" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="ser__record_8hpp_a74e4cd9a0d2e7f7483669c3f91e27f84_icgraph.svg" width="363" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+
+</div>
+</div>
+<a id="a3b567ed0529e21ab4536d1df5192a033" name="a3b567ed0529e21ab4536d1df5192a033"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3b567ed0529e21ab4536d1df5192a033">&#9670;&#160;</a></span>sanitizeSerLine()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::string sanitizeSerLine </td>
+          <td>(</td>
+          <td class="paramtype">const std::string &amp;</td>          <td class="paramname"><span class="paramname"><em>line</em></span></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
 <p>Parse SER response string into a vector of <a class="el" href="struct_s_e_r_record.html" title="Structure representing a System Event Record (SER).">SERRecord</a>. </p>
 <p>Parses raw text response from the SER command into structured records. Handles the specific format output by substation relay devices.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md42"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md47"></a>
 Input Format</h2>
 <div class="fragment"><div class="line"><span class="preprocessor">#      Date      Time           Element           State</span></div>
 <div class="line">    45 02/14/22  12:47:19.970   Power loss</div>
 <div class="line">    43 12/30/25  15:49:30.860   SALARM            Asserted</div>
-</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md43"></a>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md48"></a>
 Parsing Algorithm</h2>
 <div class="dotgraph">
-</div>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md44"></a>
+<iframe scrolling="no" loading="lazy" frameborder="0" src="dot_inline_dotgraph_9.svg" width="443" height="844"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md49"></a>
 Parsing Rules</h2>
 <ol type="1">
 <li>Lines starting with '#' are skipped (header)</li>
@@ -221,13 +263,11 @@ Empty lines and non-record lines are silently skipped</dd></dl>
 
 <p class="definition">Definition at line <a class="el" href="ser__record_8hpp_source.html#l00174">174</a> of file <a class="el" href="ser__record_8hpp_source.html">ser_record.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ser__record_8hpp_source.html#l00091">SERRecord::description</a>, <a class="el" href="ser__record_8hpp_source.html#l00088">SERRecord::record_id</a>, <a class="el" href="ser__record_8hpp_source.html#l00090">SERRecord::status</a>, and <a class="el" href="ser__record_8hpp_source.html#l00089">SERRecord::timestamp</a>.</p>
-
-<p class="reference">Referenced by <a class="el" href="telnet__fsm_8hpp_source.html#l00310">PollSerAction::operator()()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ser__record_8hpp_source.html#l00225">parseSERResponse()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 2 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="ser__record_8hpp_a3b567ed0529e21ab4536d1df5192a033_icgraph.svg" width="522" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>

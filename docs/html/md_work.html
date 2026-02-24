@@ -99,14 +99,14 @@ $(function(){initNavTree('md_work.html','',''); });
   <div class="headertitle"><div class="title">Telnet FSM Implementation - Detailed Explanation </div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md72"></a></p>
-<h1 class="doxsection"><a class="anchor" id="autotoc_md73"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md80"></a></p>
+<h1 class="doxsection"><a class="anchor" id="autotoc_md81"></a>
 Architecture Overview</h1>
 <p>The process starts when the <b>Relay device</b> sends live data over the network, which is received by the <b><a class="el" href="class_telnet_client.html" title="TCP/Telnet client for substation relay communication.">TelnetClient</a></b> written in C++. As soon as data is received, it is immediately pushed into a <b>C++ SPSC ring buffer</b> (struct-based) to ensure the reception path remains non-blocking and lightweight.</p>
 <p>A separate <b>processing thread</b> continuously reads from this ring buffer and forwards the data to the <b>FSM (Finite State Machine)</b> for validation and business logic handling. After processing, the validated data is written to <b>SQLite</b> for persistence and <b>then</b> emitted through the <b>WebSocket server</b> for real-time browser updates (only after successful DB write).</p>
 <p>On the browser side, the <b>WebSocket Client</b> receives the live messages. If additional parsing or heavy computation is required, a <b>JavaScript Worker</b> can handle that workload to avoid blocking the UI thread. The worker writes processed data into a <b>Shared Ring Buffer</b> (using SharedArrayBuffer), and the <b>main JavaScript thread</b> reads from this buffer to update the DOM (since only the main thread has DOM access).</p>
 <p>Finally, the main thread updates the <b>Tabulator table</b> to reflect real-time changes.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md74"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md82"></a>
 C++ Process Architecture</h2>
 <div class="fragment"><div class="line">Relay Device</div>
 <div class="line">     ↓</div>
@@ -119,7 +119,7 @@ C++ Process Architecture</h2>
 <div class="line">SQLite (Persistent Storage)</div>
 <div class="line">     ↓</div>
 <div class="line">WebSocket Server (After DB Write)</div>
-</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md75"></a>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md83"></a>
 Browser Architecture</h2>
 <div class="fragment"><div class="line">WebSocket Client</div>
 <div class="line">     ↓</div>
@@ -128,7 +128,7 @@ Browser Architecture</h2>
 <div class="line">Main JS Thread (DOM Access)</div>
 <div class="line">     ↓</div>
 <div class="line">Tabulator / JSON Export</div>
-</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md76"></a>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md84"></a>
 Architecture Diagram (Mermaid)</h2>
 <div class="fragment"><div class="line">flowchart TB</div>
 <div class="line">    subgraph CPP[&quot;C++ Process - Sequential Pipeline&quot;]</div>
@@ -196,7 +196,7 @@ Architecture Diagram (Mermaid)</h2>
 <div class="line">│ (After DB Write)│        ASN.1 BER/TLV</div>
 <div class="line">└─────────────────┘</div>
 </div><!-- fragment --><hr  />
-<h1 class="doxsection"><a class="anchor" id="autotoc_md78"></a>
+<h1 class="doxsection"><a class="anchor" id="autotoc_md86"></a>
 1. main.cpp - Application Entry Point</h1>
 <div class="fragment"><div class="line"><a class="code hl_class" href="class_telnet_client.html">TelnetClient</a> client;                    <span class="comment">// Network communication object</span></div>
 <div class="line"> </div>
@@ -220,7 +220,7 @@ Architecture Diagram (Mermaid)</h2>
 <li>Sleep 200ms between steps</li>
 </ol>
 <hr  />
-<h1 class="doxsection"><a class="anchor" id="autotoc_md80"></a>
+<h1 class="doxsection"><a class="anchor" id="autotoc_md88"></a>
 2. TelnetClient (client.hpp/cpp) - Network Layer</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -243,7 +243,7 @@ Architecture Diagram (Mermaid)</h2>
 <div class="line">   - No → continue reading</div>
 <div class="line">4. Timeout after 5 seconds → return false</div>
 </div><!-- fragment --><hr  />
-<h1 class="doxsection"><a class="anchor" id="autotoc_md82"></a>
+<h1 class="doxsection"><a class="anchor" id="autotoc_md90"></a>
 3. TelnetFSM (telnet_fsm.hpp) - State Machine</h1>
 <p><b>States:</b> </p><div class="fragment"><div class="line">Idle → Connecting → Login_L1 → Operational ⟷ Polling</div>
 <div class="line">                        │              │</div>
@@ -280,7 +280,7 @@ Architecture Diagram (Mermaid)</h2>
 <li><span class="tt"><a class="el" href="struct_ser_complete_guard.html" title="FSM Guard: Check if SER polling completed successfully.">SerCompleteGuard</a></span> → IO success + response has prompt or "SER Response Complete"</li>
 </ul>
 <hr  />
-<h1 class="doxsection"><a class="anchor" id="autotoc_md84"></a>
+<h1 class="doxsection"><a class="anchor" id="autotoc_md92"></a>
 4. Execution Flow</h1>
 <div class="fragment"><div class="line">Step 0: start_event → Idle→Connecting (connects to relay)</div>
 <div class="line">Step 1: step_event  → Connecting→Login_L1 (sends acc/OTTER)</div>
@@ -290,7 +290,7 @@ Architecture Diagram (Mermaid)</h2>
 <div class="line">Step 5: step_event  → Operational→Polling (sends SER again)</div>
 <div class="line">...repeats Operational⟷Polling...</div>
 </div><!-- fragment --><hr  />
-<h1 class="doxsection"><a class="anchor" id="autotoc_md86"></a>
+<h1 class="doxsection"><a class="anchor" id="autotoc_md94"></a>
 5. Key Design Patterns</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -305,10 +305,10 @@ Architecture Diagram (Mermaid)</h2>
 <td class="markdownTableBodyNone"><b>DRY</b>  </td><td class="markdownTableBodyNone"><span class="tt">SendCmdReceiveData</span> reused by all commands  </td></tr>
 </table>
 <hr  />
-<h1 class="doxsection"><a class="anchor" id="autotoc_md88"></a>
+<h1 class="doxsection"><a class="anchor" id="autotoc_md96"></a>
 6. Build Command</h1>
 <div class="fragment"><div class="line">g++ -std=c++17 -I third_party/sml/include -I C:\Development\Libraries\boost_1_90_0 main.cpp client.cpp -o telnet_fsm_test.exe -lws2_32</div>
-</div><!-- fragment --><h1 class="doxsection"><a class="anchor" id="autotoc_md89"></a>
+</div><!-- fragment --><h1 class="doxsection"><a class="anchor" id="autotoc_md97"></a>
 7. Run Command</h1>
 <div class="fragment"><div class="line">.\telnet_fsm_test.exe</div>
 </div><!-- fragment --> </div></div><!-- contents -->

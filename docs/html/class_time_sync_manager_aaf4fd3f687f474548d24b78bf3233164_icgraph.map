@@ -1,0 +1,9 @@
+<map id="TimeSyncManager::parseToTimePoint" name="TimeSyncManager::parseToTimePoint">
+<area shape="rect" id="Node000001" title="Parse &quot;YYYY&#45;MM&#45;DD HH:MM:SS&quot; to system_clock::time_point." alt="" coords="816,5,1001,48"/>
+<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#a2b382a0cca1fcf4d52890ccaac8c2a0f" title="Compare relay time and PC time." alt="" coords="551,13,768,40"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="798,27,769,29,769,24,803,27"/>
+<area shape="rect" id="Node000003" href="$class_time_sync_manager.html#a6d7aefdf9577ff2f38b502ddbe603d66" title=" " alt="" coords="267,13,503,40"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="532,27,503,29,503,24,538,27"/>
+<area shape="rect" id="Node000004" href="$class_time_sync_manager.html#ab7e1061ae8a4a1bae60ed0411ff4b825" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="5,13,219,40"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="248,27,219,29,219,24,254,27"/>
+</map>

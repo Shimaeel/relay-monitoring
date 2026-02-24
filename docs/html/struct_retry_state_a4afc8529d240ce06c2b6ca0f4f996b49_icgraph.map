@@ -1,0 +1,7 @@
+<map id="RetryState::canRetry" name="RetryState::canRetry">
+<area shape="rect" id="Node000001" title="Check if more retry attempts are available." alt="" coords="229,35,374,61"/>
+<area shape="rect" id="Node000002" href="$struct_can_retry_guard.html#a668a09c4192824c888208643b6e12b4d" title="Evaluate if retry should be attempted." alt="" coords="5,5,181,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="211,36,181,34,181,28,216,35"/>
+<area shape="rect" id="Node000003" href="$struct_max_retries_reached_guard.html#a2f4f94ac1625dcee38d1e6c99758f031" title="Evaluate if max retries exceeded." alt="" coords="5,56,181,99"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="211,61,181,68,181,62,216,60"/>
+</map>

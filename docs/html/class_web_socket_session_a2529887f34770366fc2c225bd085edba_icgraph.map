@@ -1,0 +1,17 @@
+<map id="WebSocketSession::sendData" name="WebSocketSession::sendData">
+<area shape="rect" id="Node000001" title="Send current database records to client as JSON." alt="" coords="930,72,1129,99"/>
+<area shape="rect" id="Node000002" href="$class_web_socket_session.html#a7b82f2e9c71f6822c2d2f6dcc1a251c5" title="Handle WebSocket handshake completion." alt="" coords="708,5,866,48"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="954,68,866,48,866,43,959,68"/>
+<area shape="rect" id="Node000004" href="$class_web_socket_session.html#a6c0557f87f9f6050a8848237ace942bb" title="Handle received client message." alt="" coords="692,72,882,99"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="911,85,882,88,882,83,917,85"/>
+<area shape="rect" id="Node000003" href="$class_web_socket_session.html#aa60a520432526e90b74fd97713469a56" title="Start the session by accepting WebSocket handshake." alt="" coords="469,13,630,40"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="691,27,631,29,631,24,696,26"/>
+<area shape="rect" id="Node000005" href="$class_web_socket_session.html#a2bc079950c2e39e8ff745f0da57646ba" title="Initiate async read for next client message." alt="" coords="455,72,644,99"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="674,94,645,97,645,92,679,94"/>
+<area shape="poly" id="edge5_Node000005_Node000004" title=" " alt="" coords="660,74,695,76,689,77,660,79"/>
+<area shape="rect" id="Node000006" href="$class_web_socket_session.html#a0fed81151d5dcbe23dbee79f1bf12c66" title="Handle write completion." alt="" coords="250,89,407,132"/>
+<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="443,98,408,104,407,99,437,98"/>
+<area shape="poly" id="edge7_Node000006_Node000001" title=" " alt="" coords="423,113,633,117,758,115,881,108,959,99,964,99,882,113,758,121,633,123,423,118"/>
+<area shape="rect" id="Node000007" href="$class_web_socket_session.html#a6c789e228fc7a6101f1e586dc67ad8da" title="Send a plain text response to this client (for FIL DIR etc.)" alt="" coords="5,89,202,132"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="231,111,202,113,202,108,237,110"/>
+</map>

@@ -1,0 +1,11 @@
+<map id="SharedSerReader" name="SharedSerReader">
+<area shape="rect" id="Node000001" title="Thread 5 &#45; Reads from SharedRingBuffer and writes JSON to file." alt="" coords="115,281,250,436"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="28,140,97,209"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="71,206,93,256,108,279,102,279,88,259,70,212"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,5,120,91"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="63,103,65,140,60,140,62,108"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="121,140,244,209"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="184,207,185,265,180,263,181,212"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="269,140,342,209"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="290,207,262,259,255,269,251,266,258,256,286,211"/>
+</map>

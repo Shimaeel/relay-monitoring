@@ -1,0 +1,26 @@
+<map id="escapeJson" name="escapeJson">
+<area shape="rect" id="Node000001" title="Escape special characters for JSON string values." alt="" coords="834,107,926,133"/>
+<area shape="rect" id="Node000002" href="$class_password_manager.html#ab3a9f620e1060286541f535dbad52d58" title=" " alt="" coords="558,5,778,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="853,95,823,70,785,46,756,35,756,30,788,42,826,66,858,96"/>
+<area shape="rect" id="Node000004" href="$class_time_sync_manager.html#a729b318dd4e664a91323c6096211fa82" title=" " alt="" coords="558,56,779,83"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="817,106,727,86,727,81,822,105"/>
+<area shape="rect" id="Node000006" href="$class_time_sync_manager.html#ab03b40ab388284d44f5a30a63fa0f432" title=" " alt="" coords="267,107,502,133"/>
+<area shape="poly" id="edge9_Node000001_Node000006" title=" " alt="" coords="816,121,503,123,502,117,821,119"/>
+<area shape="rect" id="Node000007" href="$class_time_sync_manager.html#a6d7aefdf9577ff2f38b502ddbe603d66" title=" " alt="" coords="550,157,786,184"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="822,134,728,159,726,154,817,135"/>
+<area shape="rect" id="Node000008" href="$ser__json__writer_8hpp.html#a0201bcca7300a0ca2317b4b737232aa0" title="Convert SER records to a JSON array string." alt="" coords="600,208,737,235"/>
+<area shape="poly" id="edge10_Node000001_Node000008" title=" " alt="" coords="858,143,826,174,787,198,738,215,737,210,785,194,823,170,853,145"/>
+<area shape="rect" id="Node000003" href="$class_password_manager.html#aa1f1fd21060064488e7ed8bc8b41f61e" title="Process a full JSON message for the &quot;change_password&quot; action." alt="" coords="278,5,490,32"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="540,19,492,21,490,16,545,18"/>
+<area shape="rect" id="Node000005" href="$class_time_sync_manager.html#ab7e1061ae8a4a1bae60ed0411ff4b825" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="5,107,219,133"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="540,75,409,84,267,97,189,109,187,104,266,92,409,79,545,73"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="572,87,464,109,462,103,577,85"/>
+<area shape="poly" id="edge6_Node000006_Node000005" title=" " alt="" coords="249,121,220,123,218,117,254,119"/>
+<area shape="poly" id="edge8_Node000007_Node000005" title=" " alt="" coords="532,166,404,161,266,148,189,137,188,131,267,143,405,155,537,165"/>
+<area shape="rect" id="Node000009" href="$class_shared_ser_reader.html#a9ca0e190a57fd3c195a860076ac729c7" title="Main worker thread loop." alt="" coords="295,208,474,235"/>
+<area shape="poly" id="edge11_Node000008_Node000009" title=" " alt="" coords="582,222,474,224,474,219,587,221"/>
+<area shape="rect" id="Node000011" href="$class_telnet_sml_app_1_1_impl.html#a64957945d93500acea2140ec59b07802" title="Seed database with test SER records when empty (relay unavailable)." alt="" coords="317,259,452,301"/>
+<area shape="poly" id="edge13_Node000008_Node000011" title=" " alt="" coords="588,238,453,269,452,263,583,239"/>
+<area shape="rect" id="Node000010" href="$class_shared_ser_reader.html#aabd6c5c15122509fe63d3eef072ff6df" title="Starts the worker thread." alt="" coords="33,208,191,235"/>
+<area shape="poly" id="edge12_Node000009_Node000010" title=" " alt="" coords="277,222,192,224,192,219,282,220"/>
+</map>

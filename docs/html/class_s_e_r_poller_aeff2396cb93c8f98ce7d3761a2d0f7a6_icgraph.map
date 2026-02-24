@@ -1,0 +1,5 @@
+<map id="SERPoller::stop" name="SERPoller::stop">
+<area shape="rect" id="Node000001" title="Stop the polling thread." alt="" coords="213,5,328,32"/>
+<area shape="rect" id="Node000002" href="$class_s_e_r_poller.html#a2e6fa8f2ea24c25fc6d8db5a3deabfad" title="Destructor that stops the polling thread." alt="" coords="5,5,165,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,19,165,21,165,16,200,19"/>
+</map>

@@ -33,11 +33,29 @@
 
 // ================= CONSTRUCTOR / DESTRUCTOR =================
 
+/**
+ * @brief Construct a new SERDatabase with the specified file path.
+ *
+ * @details Stores the database path for later use by open(). Does not
+ * open or create the SQLite file until open() is called.
+ *
+ * @param dbPath  Filesystem path to the SQLite database file
+ *                (e.g. "ser_records.db"). Created automatically by
+ *                open() if it does not already exist.
+ *
+ * @post db_ == nullptr (not yet connected)
+ */
 SERDatabase::SERDatabase(const std::string& dbPath)
     : db_path_(dbPath), db_(nullptr)
 {
 }
 
+/**
+ * @brief Destroy the SERDatabase and release all resources.
+ *
+ * @details Calls close() to finalize the SQLite handle if still open.
+ *          Safe to call even if the database was never opened.
+ */
 SERDatabase::~SERDatabase()
 {
     close();
@@ -45,6 +63,25 @@ SERDatabase::~SERDatabase()
 
 // ================= OPEN / CLOSE =================
 
+/**
+ * @brief Open the SQLite database and create the schema if needed.
+ *
+ * @details Performs the following steps:
+ * 1. If already open, returns true immediately (idempotent).
+ * 2. Calls sqlite3_open() to create/open the database file.
+ * 3. Invokes createTable() to ensure the `ser_records` table and
+ *    its indexes exist.
+ *
+ * @return true   Database opened (or was already open) and schema ready.
+ * @return false  sqlite3_open() or createTable() failed.
+ *                Check getLastError() for details.
+ *
+ * @post  On success: db_ != nullptr, isOpen() == true.
+ * @post  On failure: db_ == nullptr, last_error_ set.
+ *
+ * @see close() Release the connection when done.
+ * @see createTable() Internal schema initialisation.
+ */
 bool SERDatabase::open()
 {
     if (db_)
@@ -72,6 +109,14 @@ bool SERDatabase::open()
     return true;
 }
 
+/**
+ * @brief Close the SQLite database connection.
+ *
+ * @details Finalizes the internal sqlite3 handle and sets db_ to nullptr.
+ *          Safe to call multiple times; subsequent calls are no-ops.
+ *
+ * @post db_ == nullptr, isOpen() == false.
+ */
 void SERDatabase::close()
 {
     if (db_)
@@ -81,6 +126,12 @@ void SERDatabase::close()
     }
 }
 
+/**
+ * @brief Check whether the database connection is currently open.
+ *
+ * @return true  Database is open and ready for queries.
+ * @return false Database is closed.
+ */
 bool SERDatabase::isOpen() const
 {
     return db_ != nullptr;
@@ -88,6 +139,20 @@ bool SERDatabase::isOpen() const
 
 // ================= TABLE CREATION =================
 
+/**
+ * @brief Create the `ser_records` table and indexes if they do not exist.
+ *
+ * @details Executes a multi-statement SQL that creates:
+ * - **Table** `ser_records` with columns:
+ *   `id`, `record_id`, `timestamp`, `status`, `description`, `created_at`.
+ *   A UNIQUE constraint on `(record_id, timestamp)` prevents duplicates.
+ * - **Indexes** on `record_id`, `status`, and `timestamp` for fast lookups.
+ *
+ * @return true   Schema created or already existed.
+ * @return false  SQL execution failed; last_error_ set.
+ *
+ * @pre db_ != nullptr (called internally by open()).
+ */
 bool SERDatabase::createTable()
 {
     const char* sql = R"(
@@ -120,6 +185,26 @@ bool SERDatabase::createTable()
 
 // ================= INSERT OPERATIONS =================
 
+/**
+ * @brief Insert a single SER record into the database.
+ *
+ * @details First calls recordExists() to check for duplicates on
+ *          `(record_id, timestamp)`. If the record already exists it
+ *          returns true (skip, not an error). Otherwise it prepares an
+ *          INSERT statement with parameter binding for safety.
+ *
+ * @param record  The SERRecord to insert. All four fields
+ *                (record_id, timestamp, status, description) are stored.
+ *
+ * @return true   Record inserted or already existed (duplicate skip).
+ * @return false  Database not open, prepare failed, or step failed.
+ *                Check getLastError() for details.
+ *
+ * @pre isOpen() == true
+ *
+ * @see insertRecords() Bulk insert with transaction wrapping.
+ * @see recordExists()  Duplicate detection helper.
+ */
 bool SERDatabase::insertRecord(const SERRecord& record)
 {
     if (!db_)
@@ -163,6 +248,24 @@ bool SERDatabase::insertRecord(const SERRecord& record)
     return true;
 }
 
+/**
+ * @brief Bulk-insert a vector of SER records inside a single transaction.
+ *
+ * @details Wraps all inserts in `BEGIN TRANSACTION / COMMIT` for
+ *          significantly better performance on large batches. Each
+ *          record is inserted via insertRecord(), so duplicates are
+ *          silently skipped.
+ *
+ * @param records  Vector of SERRecord objects to insert.
+ *
+ * @return int  Number of records successfully inserted (excludes duplicates).
+ *              Returns 0 if the database is not open.
+ *
+ * @pre isOpen() == true
+ *
+ * @note The entire batch is committed even if some individual inserts
+ *       are skipped as duplicates.
+ */
 int SERDatabase::insertRecords(const std::vector<SERRecord>& records)
 {
     if (!db_)
@@ -191,6 +294,20 @@ int SERDatabase::insertRecords(const std::vector<SERRecord>& records)
 
 // ================= QUERY OPERATIONS =================
 
+/**
+ * @brief Retrieve all SER records ordered by timestamp (most recent first).
+ *
+ * @details Executes `SELECT ... ORDER BY timestamp DESC` and maps each
+ *          row into a SERRecord struct. Returns an empty vector if the
+ *          database is not open or the query fails.
+ *
+ * @return std::vector<SERRecord>  All stored records, newest first.
+ *         Empty if database is closed or an error occurs.
+ *
+ * @pre isOpen() == true
+ *
+ * @see getRecordsByStatus() Filtered version of this query.
+ */
 std::vector<SERRecord> SERDatabase::getAllRecords()
 {
     std::vector<SERRecord> records;
@@ -230,6 +347,19 @@ std::vector<SERRecord> SERDatabase::getAllRecords()
     return records;
 }
 
+/**
+ * @brief Retrieve SER records filtered by status value.
+ *
+ * @details Executes a parameterised query with `WHERE status = ?`
+ *          and returns results in descending timestamp order.
+ *
+ * @param status  Status string to match (e.g. "ASSERTED", "DEASSERTED").
+ *
+ * @return std::vector<SERRecord>  Matching records, newest first.
+ *         Empty if none match, database is closed, or query fails.
+ *
+ * @pre isOpen() == true
+ */
 std::vector<SERRecord> SERDatabase::getRecordsByStatus(const std::string& status)
 {
     std::vector<SERRecord> records;
@@ -271,6 +401,16 @@ std::vector<SERRecord> SERDatabase::getRecordsByStatus(const std::string& status
     return records;
 }
 
+/**
+ * @brief Get the total number of SER records in the database.
+ *
+ * @details Executes `SELECT COUNT(*) FROM ser_records`.
+ *
+ * @return int  Number of rows, or 0 if the database is closed or
+ *              the query fails.
+ *
+ * @pre isOpen() == true
+ */
 int SERDatabase::getRecordCount()
 {
     if (!db_)
@@ -297,6 +437,20 @@ int SERDatabase::getRecordCount()
 
 // ================= DELETE OPERATIONS =================
 
+/**
+ * @brief Delete all SER records from the database.
+ *
+ * @details Executes `DELETE FROM ser_records`. The table structure
+ *          and indexes remain intact; only data rows are removed.
+ *
+ * @return true   All records deleted successfully.
+ * @return false  Database not open or SQL error. Check getLastError().
+ *
+ * @pre isOpen() == true
+ *
+ * @warning This operation cannot be undone. All historical SER data
+ *          will be permanently lost.
+ */
 bool SERDatabase::clearAllRecords()
 {
     if (!db_)
@@ -321,6 +475,18 @@ bool SERDatabase::clearAllRecords()
 
 // ================= HELPER FUNCTIONS =================
 
+/**
+ * @brief Check whether a record with the given ID and timestamp already exists.
+ *
+ * @details Uses a `SELECT 1 ... LIMIT 1` query for minimal overhead.
+ *          Called internally by insertRecord() to prevent duplicates.
+ *
+ * @param recordId   The record identifier to look up.
+ * @param timestamp  The timestamp to match against.
+ *
+ * @return true   A matching row exists.
+ * @return false  No match found, or the query failed.
+ */
 bool SERDatabase::recordExists(const std::string& recordId, const std::string& timestamp)
 {
     const char* sql = "SELECT 1 FROM ser_records WHERE record_id = ? AND timestamp = ? LIMIT 1;";
@@ -344,6 +510,27 @@ bool SERDatabase::recordExists(const std::string& recordId, const std::string& t
 
 // ================= EXPORT TO JSON =================
 
+/**
+ * @brief Export all SER records to a JSON file.
+ *
+ * @details Retrieves all records via getAllRecords() and writes them as
+ *          a JSON array to the specified file. Each record object contains:
+ *          `sno`, `date`, `time`, `element`, and `state` fields.
+ *
+ *          Special characters in the `description` field are escaped
+ *          to produce valid JSON output.
+ *
+ * @param filePath  Destination file path (e.g. "data.json"). Created or
+ *                  overwritten if it already exists.
+ *
+ * @return true   File written successfully.
+ * @return false  Database not open or file cannot be opened for writing.
+ *                Check getLastError() for details.
+ *
+ * @pre isOpen() == true
+ *
+ * @see SERJsonWriter Alternative streaming JSON writer.
+ */
 bool SERDatabase::exportToJSON(const std::string& filePath)
 {
     if (!db_)
@@ -410,6 +597,15 @@ bool SERDatabase::exportToJSON(const std::string& filePath)
     return true;
 }
 
+/**
+ * @brief Get the error message from the last failed operation.
+ *
+ * @details Set by any operation that fails (open, insert, query, export).
+ *          Contains the SQLite error message or a custom description.
+ *          Empty if no error has occurred.
+ *
+ * @return const std::string&  Reference to the last error message.
+ */
 const std::string& SERDatabase::getLastError() const
 {
     return last_error_;

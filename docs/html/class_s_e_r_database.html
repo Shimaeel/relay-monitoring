@@ -107,7 +107,7 @@ $(function(){initNavTree('class_s_e_r_database.html','','class_s_e_r_database-me
 <div class="dynheader">
 Collaboration diagram for SERDatabase:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database__coll__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 id="header-pub-methods" class="groupheader"><a id="pub-methods" name="pub-methods"></a>
@@ -169,7 +169,7 @@ Private Attributes</h2></td></tr>
 <li>Multiple query options (all, by status)</li>
 <li>JSON export for web UI</li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md35"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md40"></a>
 Lifecycle</h2>
 <div class="mscgraph">
 <img src="msc_inline_mscgraph_5.svg" alt="msc_inline_mscgraph_5" border="0"/>
@@ -204,6 +204,7 @@ Table exists after successful <a class="el" href="#a4526bdbd509f3fc64952fa3a7f33
 </div><div class="memdoc">
 
 <p>Construct database handler with specified file path. </p>
+<p>Construct a new <a class="el" href="class_s_e_r_database.html" title="SQLite database handler for storing and retrieving SER records.">SERDatabase</a> with the specified file path.</p>
 <p>Creates handler but does not open database. Call <a class="el" href="#a4526bdbd509f3fc64952fa3a7f33bd5f" title="Open database connection and initialize schema.">open()</a> to establish connection. File will be created if it doesn't exist.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -213,9 +214,17 @@ Table exists after successful <a class="el" href="#a4526bdbd509f3fc64952fa3a7f33
 </dl>
 <dl class="section post"><dt>Postcondition</dt><dd>db_ == nullptr (not yet connected) </dd>
 <dd>
-db_path_ == dbPath </dd></dl>
+db_path_ == dbPath</dd></dl>
+<p>Stores the database path for later use by <a class="el" href="#a4526bdbd509f3fc64952fa3a7f33bd5f" title="Open database connection and initialize schema.">open()</a>. Does not open or create the SQLite file until <a class="el" href="#a4526bdbd509f3fc64952fa3a7f33bd5f" title="Open database connection and initialize schema.">open()</a> is called.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">dbPath</td><td>Filesystem path to the SQLite database file (e.g. "ser_records.db"). Created automatically by <a class="el" href="#a4526bdbd509f3fc64952fa3a7f33bd5f" title="Open database connection and initialize schema.">open()</a> if it does not already exist.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section post"><dt>Postcondition</dt><dd>db_ == nullptr (not yet connected) </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00036">36</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00048">48</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
 <p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, and <a class="el" href="ser__database_8hpp_source.html#l00347">db_path_</a>.</p>
 
@@ -223,7 +232,7 @@ db_path_ == dbPath </dd></dl>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 1 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a304f1c512c577562c4d63b6bbdb9b05a_icgraph.svg" width="454" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -244,15 +253,17 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Destructor that closes the database connection. </p>
-<p>Calls <a class="el" href="#a6800d7f803456544a3915465fd092df9" title="Close database connection.">close()</a> to release SQLite resources. </p>
+<p>Destroy the <a class="el" href="class_s_e_r_database.html" title="SQLite database handler for storing and retrieving SER records.">SERDatabase</a> and release all resources.</p>
+<p>Calls <a class="el" href="#a6800d7f803456544a3915465fd092df9" title="Close database connection.">close()</a> to release SQLite resources.</p>
+<p>Calls <a class="el" href="#a6800d7f803456544a3915465fd092df9" title="Close database connection.">close()</a> to finalize the SQLite handle if still open. Safe to call even if the database was never opened. </p>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00041">41</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00059">59</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ser__database_8cpp_source.html#l00075">close()</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8cpp_source.html#l00120">close()</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 2 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a7ae66f851404b0d3c2c0ee6d807f6087_cgraph.svg" width="408" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -280,11 +291,11 @@ Here is the call graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="reference">References <a class="el" href="ser__database_8cpp_source.html#l00036">SERDatabase()</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8cpp_source.html#l00048">SERDatabase()</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 3 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a3f3626b07dcea411716923b1abe8e2cb_cgraph.svg" width="454" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -306,19 +317,28 @@ Here is the call graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Delete all records from the database. </p>
+<p>Delete all SER records from the database.</p>
 <dl class="section return"><dt>Returns</dt><dd>true if records were cleared successfully </dd>
 <dd>
 false if clear failed (check <a class="el" href="#ae42bb6aa2a4723f2696e2f5c67605765" title="Get last error message.">getLastError()</a>)</dd></dl>
 <dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true </dd></dl>
-<dl class="section post"><dt>Postcondition</dt><dd><a class="el" href="#af9f462113ba171ab65d126a4689c02be" title="Get total count of records in the database.">getRecordCount()</a> == 0 </dd></dl>
+<dl class="section post"><dt>Postcondition</dt><dd><a class="el" href="#af9f462113ba171ab65d126a4689c02be" title="Get total count of records in the database.">getRecordCount()</a> == 0</dd></dl>
+<p>Executes <span class="tt">DELETE FROM ser_records</span>. The table structure and indexes remain intact; only data rows are removed.</p>
+<dl class="section return"><dt>Returns</dt><dd>true All records deleted successfully. </dd>
+<dd>
+false Database not open or SQL error. Check <a class="el" href="#ae42bb6aa2a4723f2696e2f5c67605765" title="Get last error message.">getLastError()</a>.</dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<dl class="section warning"><dt>Warning</dt><dd>This operation cannot be undone. All historical SER data will be permanently lost. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00287">287</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00441">441</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+
+<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, and <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 4 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_acda974d3e6c636baafcc488aa9814de3_icgraph.svg" width="432" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -339,20 +359,23 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Close database connection. </p>
+<p>Close the SQLite database connection.</p>
 <p>Releases SQLite handle. Safe to call multiple times.</p>
 <dl class="section post"><dt>Postcondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == false </dd>
 <dd>
-db_ == nullptr </dd></dl>
+db_ == nullptr</dd></dl>
+<p>Finalizes the internal sqlite3 handle and sets db_ to nullptr. Safe to call multiple times; subsequent calls are no-ops.</p>
+<dl class="section post"><dt>Postcondition</dt><dd>db_ == nullptr, <a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == false. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00075">75</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00120">120</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
 <p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00041">~SERDatabase()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00059">~SERDatabase()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 5 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a6800d7f803456544a3915465fd092df9_icgraph.svg" width="408" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -381,6 +404,7 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Create SER records table and indexes. </p>
+<p>Create the <span class="tt">ser_records</span> table and indexes if they do not exist.</p>
 <p>Creates table with schema:</p><ul>
 <li>id: Auto-increment primary key</li>
 <li>record_id: Event number from relay</li>
@@ -392,17 +416,25 @@ Here is the caller graph for this function:</div>
 <p>Also creates indexes on record_id, status, and timestamp.</p>
 <dl class="section return"><dt>Returns</dt><dd>true if table was created or already exists </dd>
 <dd>
-false if creation failed </dd></dl>
+false if creation failed</dd></dl>
+<p>Executes a multi-statement SQL that creates:</p><ul>
+<li><b>Table</b> <span class="tt">ser_records</span> with columns: <span class="tt">id</span>, <span class="tt">record_id</span>, <span class="tt">timestamp</span>, <span class="tt">status</span>, <span class="tt">description</span>, <span class="tt">created_at</span>. A UNIQUE constraint on <span class="tt">(record_id, timestamp)</span> prevents duplicates.</li>
+<li><b>Indexes</b> on <span class="tt">record_id</span>, <span class="tt">status</span>, and <span class="tt">timestamp</span> for fast lookups.</li>
+</ul>
+<dl class="section return"><dt>Returns</dt><dd>true Schema created or already existed. </dd>
+<dd>
+false SQL execution failed; last_error_ set.</dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd>db_ != nullptr (called internally by <a class="el" href="#a4526bdbd509f3fc64952fa3a7f33bd5f" title="Open database connection and initialize schema.">open()</a>). </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00091">91</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00156">156</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, and <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00048">open()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00085">open()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 6 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_ad55583b39ff6c9cc9d2d44f20f34ad47_icgraph.svg" width="598" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -423,6 +455,7 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Export all records to a JSON file for UI consumption. </p>
+<p>Export all SER records to a JSON file.</p>
 <p>Generates a JSON array compatible with web UI format.</p>
 <p>Output Format: </p><div class="fragment"><div class="line">[</div>
 <div class="line">  {</div>
@@ -443,15 +476,35 @@ Here is the caller graph for this function:</div>
 <dl class="section return"><dt>Returns</dt><dd>true if export succeeded </dd>
 <dd>
 false if export failed (check <a class="el" href="#ae42bb6aa2a4723f2696e2f5c67605765" title="Get last error message.">getLastError()</a>)</dd></dl>
-<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true </dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<p>Retrieves all records via <a class="el" href="#a1a997738e16c0b0153823c259b33b071" title="Retrieve all SER records ordered by timestamp (newest first).">getAllRecords()</a> and writes them as a JSON array to the specified file. Each record object contains: <span class="tt">sno</span>, <span class="tt">date</span>, <span class="tt">time</span>, <span class="tt">element</span>, and <span class="tt">state</span> fields.</p>
+<p>Special characters in the <span class="tt">description</span> field are escaped to produce valid JSON output.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">filePath</td><td>Destination file path (e.g. "data.json"). Created or overwritten if it already exists.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true File written successfully. </dd>
+<dd>
+false Database not open or file cannot be opened for writing. Check <a class="el" href="#ae42bb6aa2a4723f2696e2f5c67605765" title="Get last error message.">getLastError()</a> for details.</dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<dl class="section see"><dt>See also</dt><dd>SERJsonWriter Alternative streaming JSON writer. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00334">334</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00521">521</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+
+<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, <a class="el" href="ser__database_8cpp_source.html#l00298">getAllRecords()</a>, and <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
 <div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a798696a9c47ba55f7a3473afff3efe9f_cgraph.svg" width="454" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 7 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a798696a9c47ba55f7a3473afff3efe9f_icgraph.svg" width="427" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -472,16 +525,23 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Retrieve all SER records ordered by timestamp (newest first). </p>
+<p>Retrieve all SER records ordered by timestamp (most recent first).</p>
 <dl class="section return"><dt>Returns</dt><dd>std::vector&lt;SERRecord&gt; All stored records, or empty if error/none</dd></dl>
-<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true </dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<p>Executes <span class="tt">SELECT ... ORDER BY timestamp DESC</span> and maps each row into a <a class="el" href="struct_s_e_r_record.html" title="Structure representing a System Event Record (SER).">SERRecord</a> struct. Returns an empty vector if the database is not open or the query fails.</p>
+<dl class="section return"><dt>Returns</dt><dd>std::vector&lt;SERRecord&gt; All stored records, newest first. Empty if database is closed or an error occurs.</dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="#adbe68cbe0623ec047941da1c63528328" title="Retrieve records filtered by status.">getRecordsByStatus()</a> Filtered version of this query. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00181">181</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00298">298</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, <a class="el" href="ser__record_8hpp_source.html#l00091">SERRecord::description</a>, <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>, <a class="el" href="ser__record_8hpp_source.html#l00088">SERRecord::record_id</a>, <a class="el" href="ser__record_8hpp_source.html#l00090">SERRecord::status</a>, and <a class="el" href="ser__record_8hpp_source.html#l00089">SERRecord::timestamp</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00521">exportToJSON()</a>, and <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 8 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a1a997738e16c0b0153823c259b33b071_icgraph.svg" width="100%" height="300"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 
 </div>
@@ -537,15 +597,18 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Get last error message. </p>
-<dl class="section return"><dt>Returns</dt><dd>const std::string&amp; Error message from last failed operation </dd></dl>
+<p>Get the error message from the last failed operation.</p>
+<dl class="section return"><dt>Returns</dt><dd>const std::string&amp; Error message from last failed operation</dd></dl>
+<p>Set by any operation that fails (open, insert, query, export). Contains the SQLite error message or a custom description. Empty if no error has occurred.</p>
+<dl class="section return"><dt>Returns</dt><dd>const std::string&amp; Reference to the last error message. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00400">400</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00596">596</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 9 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_ae42bb6aa2a4723f2696e2f5c67605765_icgraph.svg" width="412" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -566,16 +629,20 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Get total count of records in the database. </p>
+<p>Get the total number of SER records in the database.</p>
 <dl class="section return"><dt>Returns</dt><dd>int Number of records, or 0 if error</dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<p>Executes <span class="tt">SELECT COUNT(*) FROM ser_records</span>.</p>
+<dl class="section return"><dt>Returns</dt><dd>int Number of rows, or 0 if the database is closed or the query fails.</dd></dl>
 <dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00261">261</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00401">401</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 10 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_af9f462113ba171ab65d126a4689c02be_icgraph.svg" width="436" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -596,6 +663,7 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Retrieve records filtered by status. </p>
+<p>Retrieve SER records filtered by status value.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">status</td><td>Status to filter by (e.g., "Asserted", "Deasserted")</td></tr>
@@ -603,15 +671,26 @@ Here is the caller graph for this function:</div>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>std::vector&lt;SERRecord&gt; Matching records ordered by timestamp</dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<p>Executes a parameterised query with <span class="tt">WHERE status = ?</span> and returns results in descending timestamp order.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">status</td><td>Status string to match (e.g. "ASSERTED", "DEASSERTED").</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>std::vector&lt;SERRecord&gt; Matching records, newest first. Empty if none match, database is closed, or query fails.</dd></dl>
 <dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00220">220</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00350">350</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+
+<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, <a class="el" href="ser__record_8hpp_source.html#l00091">SERRecord::description</a>, <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>, <a class="el" href="ser__record_8hpp_source.html#l00088">SERRecord::record_id</a>, <a class="el" href="ser__record_8hpp_source.html#l00090">SERRecord::status</a>, and <a class="el" href="ser__record_8hpp_source.html#l00089">SERRecord::timestamp</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 11 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_adbe68cbe0623ec047941da1c63528328_icgraph.svg" width="424" height="54"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -642,17 +721,36 @@ Here is the caller graph for this function:</div>
 <dl class="section return"><dt>Returns</dt><dd>true if record was inserted or already exists </dd>
 <dd>
 false if insert failed (check <a class="el" href="#ae42bb6aa2a4723f2696e2f5c67605765" title="Get last error message.">getLastError()</a>)</dd></dl>
-<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true </dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<p>First calls <a class="el" href="#a844eb9c372acb5fa192d5e5b08fdf826" title="Check if a record already exists in the database.">recordExists()</a> to check for duplicates on <span class="tt">(record_id, timestamp)</span>. If the record already exists it returns true (skip, not an error). Otherwise it prepares an INSERT statement with parameter binding for safety.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">record</td><td>The <a class="el" href="struct_s_e_r_record.html" title="Structure representing a System Event Record (SER).">SERRecord</a> to insert. All four fields (record_id, timestamp, status, description) are stored.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true Record inserted or already existed (duplicate skip). </dd>
+<dd>
+false Database not open, prepare failed, or step failed. Check <a class="el" href="#ae42bb6aa2a4723f2696e2f5c67605765" title="Get last error message.">getLastError()</a> for details.</dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="#ac4611fbd8ff79ee0d8ec51cb04a171fc" title="Insert multiple SER records with transaction support.">insertRecords()</a> Bulk insert with transaction wrapping. </dd>
+<dd>
+<a class="el" href="#a844eb9c372acb5fa192d5e5b08fdf826" title="Check if a record already exists in the database.">recordExists()</a> Duplicate detection helper. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00110">110</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00195">195</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, <a class="el" href="ser__record_8hpp_source.html#l00091">SERRecord::description</a>, <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>, <a class="el" href="ser__record_8hpp_source.html#l00088">SERRecord::record_id</a>, <a class="el" href="ser__database_8cpp_source.html#l00477">recordExists()</a>, <a class="el" href="ser__record_8hpp_source.html#l00090">SERRecord::status</a>, and <a class="el" href="ser__record_8hpp_source.html#l00089">SERRecord::timestamp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00256">insertRecords()</a>, and <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a7af7d201eef0336f5c599c3d05671f18_cgraph.svg" width="432" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 12 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a7af7d201eef0336f5c599c3d05671f18_icgraph.svg" width="658" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -673,6 +771,7 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Insert multiple SER records with transaction support. </p>
+<p>Bulk-insert a vector of SER records inside a single transaction.</p>
 <p>Inserts all records within a transaction for better performance. Skips duplicates and continues with remaining records.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -684,17 +783,32 @@ Here is the caller graph for this function:</div>
 <dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
 <dl class="section note"><dt>Note</dt><dd>Uses BEGIN/COMMIT transaction for performance </dd>
 <dd>
-Duplicates are counted as "success" (not errors) </dd></dl>
+Duplicates are counted as "success" (not errors)</dd></dl>
+<p>Wraps all inserts in <span class="tt">BEGIN TRANSACTION / COMMIT</span> for significantly better performance on large batches. Each record is inserted via <a class="el" href="#a7af7d201eef0336f5c599c3d05671f18" title="Insert a single SER record into the database.">insertRecord()</a>, so duplicates are silently skipped.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">records</td><td>Vector of <a class="el" href="struct_s_e_r_record.html" title="Structure representing a System Event Record (SER).">SERRecord</a> objects to insert.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int Number of records successfully inserted (excludes duplicates). Returns 0 if the database is not open.</dd></dl>
+<dl class="section pre"><dt>Precondition</dt><dd><a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>The entire batch is committed even if some individual inserts are skipped as duplicates. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00153">153</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00256">256</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, and <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, <a class="el" href="ser__database_8cpp_source.html#l00195">insertRecord()</a>, and <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="telnet__fsm_8hpp_source.html#l00310">PollSerAction::operator()()</a>, and <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
 <div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_ac4611fbd8ff79ee0d8ec51cb04a171fc_cgraph.svg" width="100%" height="300"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+</div>
+<div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 13 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_ac4611fbd8ff79ee0d8ec51cb04a171fc_icgraph.svg" width="422" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -715,11 +829,16 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Check if database is currently open. </p>
+<p>Check whether the database connection is currently open.</p>
 <dl class="section return"><dt>Returns</dt><dd>true if database connection is active </dd>
 <dd>
-false if database is closed </dd></dl>
+false if database is closed</dd>
+<dd>
+true Database is open and ready for queries. </dd>
+<dd>
+false Database is closed. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00084">84</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00135">135</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
 <p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>.</p>
 
@@ -727,7 +846,7 @@ false if database is closed </dd></dl>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 14 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_adc5c3b4c9ed3d82e560fd9be47406d80_icgraph.svg" width="382" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -748,6 +867,7 @@ Here is the caller graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Open database connection and initialize schema. </p>
+<p>Open the SQLite database and create the schema if needed.</p>
 <p>Opens SQLite database file and creates table if not exists. Also creates indexes for efficient querying.</p>
 <dl class="section return"><dt>Returns</dt><dd>true if database opened and table created successfully </dd>
 <dd>
@@ -755,22 +875,36 @@ false if open or create failed (check <a class="el" href="#ae42bb6aa2a4723f2696e
 <dl class="section post"><dt>Postcondition</dt><dd>On success: <a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true, table exists </dd>
 <dd>
 On failure: <a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == false, last_error_ contains message</dd></dl>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="#ad55583b39ff6c9cc9d2d44f20f34ad47" title="Create SER records table and indexes.">createTable()</a> Internal table creation </dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="#ad55583b39ff6c9cc9d2d44f20f34ad47" title="Create SER records table and indexes.">createTable()</a> Internal table creation</dd></dl>
+<p>Performs the following steps:</p><ol type="1">
+<li>If already open, returns true immediately (idempotent).</li>
+<li>Calls sqlite3_open() to create/open the database file.</li>
+<li>Invokes <a class="el" href="#ad55583b39ff6c9cc9d2d44f20f34ad47" title="Create SER records table and indexes.">createTable()</a> to ensure the <span class="tt">ser_records</span> table and its indexes exist.</li>
+</ol>
+<dl class="section return"><dt>Returns</dt><dd>true Database opened (or was already open) and schema ready. </dd>
+<dd>
+false sqlite3_open() or <a class="el" href="#ad55583b39ff6c9cc9d2d44f20f34ad47" title="Create SER records table and indexes.">createTable()</a> failed. Check <a class="el" href="#ae42bb6aa2a4723f2696e2f5c67605765" title="Get last error message.">getLastError()</a> for details.</dd></dl>
+<dl class="section post"><dt>Postcondition</dt><dd>On success: db_ != nullptr, <a class="el" href="#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open.">isOpen()</a> == true. </dd>
+<dd>
+On failure: db_ == nullptr, last_error_ set.</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="#a6800d7f803456544a3915465fd092df9" title="Close database connection.">close()</a> Release the connection when done. </dd>
+<dd>
+<a class="el" href="#ad55583b39ff6c9cc9d2d44f20f34ad47" title="Create SER records table and indexes.">createTable()</a> Internal schema initialisation. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00048">48</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00085">85</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ser__database_8cpp_source.html#l00091">createTable()</a>, <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, <a class="el" href="ser__database_8hpp_source.html#l00347">db_path_</a>, and <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8cpp_source.html#l00156">createTable()</a>, <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>, <a class="el" href="ser__database_8hpp_source.html#l00347">db_path_</a>, and <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="#ab9a60e734536bd80a75f9e8bacf86882">operator=()</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 15 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a4526bdbd509f3fc64952fa3a7f33bd5f_cgraph.svg" width="380" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 16 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a4526bdbd509f3fc64952fa3a7f33bd5f_icgraph.svg" width="368" height="38"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -798,11 +932,11 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="reference">References <a class="el" href="ser__database_8cpp_source.html#l00287">clearAllRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00075">close()</a>, <a class="el" href="ser__database_8cpp_source.html#l00334">exportToJSON()</a>, <a class="el" href="ser__database_8cpp_source.html#l00181">getAllRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00400">getLastError()</a>, <a class="el" href="ser__database_8cpp_source.html#l00261">getRecordCount()</a>, <a class="el" href="ser__database_8cpp_source.html#l00220">getRecordsByStatus()</a>, <a class="el" href="ser__database_8cpp_source.html#l00110">insertRecord()</a>, <a class="el" href="ser__database_8cpp_source.html#l00153">insertRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00084">isOpen()</a>, <a class="el" href="ser__database_8cpp_source.html#l00048">open()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00036">SERDatabase()</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8cpp_source.html#l00441">clearAllRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00120">close()</a>, <a class="el" href="ser__database_8cpp_source.html#l00521">exportToJSON()</a>, <a class="el" href="ser__database_8cpp_source.html#l00298">getAllRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00596">getLastError()</a>, <a class="el" href="ser__database_8cpp_source.html#l00401">getRecordCount()</a>, <a class="el" href="ser__database_8cpp_source.html#l00350">getRecordsByStatus()</a>, <a class="el" href="ser__database_8cpp_source.html#l00195">insertRecord()</a>, <a class="el" href="ser__database_8cpp_source.html#l00256">insertRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00135">isOpen()</a>, <a class="el" href="ser__database_8cpp_source.html#l00085">open()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00048">SERDatabase()</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 17 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_ab9a60e734536bd80a75f9e8bacf86882_cgraph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 
 </div>
@@ -835,6 +969,7 @@ Here is the call graph for this function:</div>
 </div><div class="memdoc">
 
 <p>Check if a record already exists in the database. </p>
+<p>Check whether a record with the given ID and timestamp already exists.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">recordId</td><td>Record ID to check </td></tr>
@@ -844,11 +979,29 @@ Here is the call graph for this function:</div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>true if record with same ID and timestamp exists </dd>
 <dd>
-false if record not found </dd></dl>
+false if record not found</dd></dl>
+<p>Uses a <span class="tt">SELECT 1 ... LIMIT 1</span> query for minimal overhead. Called internally by <a class="el" href="#a7af7d201eef0336f5c599c3d05671f18" title="Insert a single SER record into the database.">insertRecord()</a> to prevent duplicates.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">recordId</td><td>The record identifier to look up. </td></tr>
+    <tr><td class="paramname">timestamp</td><td>The timestamp to match against.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true A matching row exists. </dd>
+<dd>
+false No match found, or the query failed. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00311">311</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ser__database_8cpp_source.html#l00477">477</a> of file <a class="el" href="ser__database_8cpp_source.html">ser_database.cpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00349">last_error_</a>.</p>
+<p class="reference">References <a class="el" href="ser__database_8hpp_source.html#l00348">db_</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00195">insertRecord()</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_s_e_r_database_a844eb9c372acb5fa192d5e5b08fdf826_icgraph.svg" width="100%" height="366"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+</div>
 
 </div>
 </div>
@@ -877,7 +1030,7 @@ false if record not found </dd></dl>
 
 <p class="definition">Definition at line <a class="el" href="ser__database_8hpp_source.html#l00348">348</a> of file <a class="el" href="ser__database_8hpp_source.html">ser_database.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00075">close()</a>, <a class="el" href="ser__database_8cpp_source.html#l00091">createTable()</a>, <a class="el" href="ser__database_8hpp_source.html#l00314">getDbHandle()</a>, <a class="el" href="ser__database_8cpp_source.html#l00153">insertRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00084">isOpen()</a>, <a class="el" href="ser__database_8cpp_source.html#l00048">open()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00036">SERDatabase()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00441">clearAllRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00120">close()</a>, <a class="el" href="ser__database_8cpp_source.html#l00156">createTable()</a>, <a class="el" href="ser__database_8cpp_source.html#l00521">exportToJSON()</a>, <a class="el" href="ser__database_8cpp_source.html#l00298">getAllRecords()</a>, <a class="el" href="ser__database_8hpp_source.html#l00314">getDbHandle()</a>, <a class="el" href="ser__database_8cpp_source.html#l00350">getRecordsByStatus()</a>, <a class="el" href="ser__database_8cpp_source.html#l00195">insertRecord()</a>, <a class="el" href="ser__database_8cpp_source.html#l00256">insertRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00135">isOpen()</a>, <a class="el" href="ser__database_8cpp_source.html#l00085">open()</a>, <a class="el" href="ser__database_8cpp_source.html#l00477">recordExists()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00048">SERDatabase()</a>.</p>
 
 </div>
 </div>
@@ -905,7 +1058,7 @@ false if record not found </dd></dl>
 
 <p class="definition">Definition at line <a class="el" href="ser__database_8hpp_source.html#l00347">347</a> of file <a class="el" href="ser__database_8hpp_source.html">ser_database.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00048">open()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00036">SERDatabase()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00085">open()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00048">SERDatabase()</a>.</p>
 
 </div>
 </div>
@@ -933,7 +1086,7 @@ false if record not found </dd></dl>
 
 <p class="definition">Definition at line <a class="el" href="ser__database_8hpp_source.html#l00349">349</a> of file <a class="el" href="ser__database_8hpp_source.html">ser_database.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00110">insertRecord()</a>, <a class="el" href="ser__database_8cpp_source.html#l00153">insertRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00048">open()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00311">recordExists()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ser__database_8cpp_source.html#l00441">clearAllRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00156">createTable()</a>, <a class="el" href="ser__database_8cpp_source.html#l00521">exportToJSON()</a>, <a class="el" href="ser__database_8cpp_source.html#l00298">getAllRecords()</a>, <a class="el" href="ser__database_8cpp_source.html#l00350">getRecordsByStatus()</a>, <a class="el" href="ser__database_8cpp_source.html#l00195">insertRecord()</a>, <a class="el" href="ser__database_8cpp_source.html#l00256">insertRecords()</a>, and <a class="el" href="ser__database_8cpp_source.html#l00085">open()</a>.</p>
 
 </div>
 </div>

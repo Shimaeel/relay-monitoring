@@ -1,0 +1,5 @@
+<map id="WebSocketSession" name="WebSocketSession">
+<area shape="rect" id="Node000001" title="Handles a single WebSocket client connection." alt="" coords="33,139,187,720"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,5,215,91"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="110,103,113,139,108,139,110,108"/>
+</map>

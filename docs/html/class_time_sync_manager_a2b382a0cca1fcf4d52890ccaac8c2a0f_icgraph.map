@@ -1,0 +1,7 @@
+<map id="TimeSyncManager::compareTime" name="TimeSyncManager::compareTime">
+<area shape="rect" id="Node000001" title="Compare relay time and PC time." alt="" coords="551,5,768,32"/>
+<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#a6d7aefdf9577ff2f38b502ddbe603d66" title=" " alt="" coords="267,5,503,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="532,19,503,21,503,16,538,19"/>
+<area shape="rect" id="Node000003" href="$class_time_sync_manager.html#ab7e1061ae8a4a1bae60ed0411ff4b825" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="5,5,219,32"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="248,19,219,21,219,16,254,19"/>
+</map>

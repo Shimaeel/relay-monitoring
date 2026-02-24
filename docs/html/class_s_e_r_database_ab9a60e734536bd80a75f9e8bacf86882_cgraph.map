@@ -1,0 +1,33 @@
+<map id="SERDatabase::operator=" name="SERDatabase::operator=">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,288,174,315"/>
+<area shape="rect" id="Node000002" href="$class_s_e_r_database.html#acda974d3e6c636baafcc488aa9814de3" title="Delete all records from the database." alt="" coords="223,5,428,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="91,287,103,240,127,173,145,138,166,102,191,70,220,42,229,38,226,42,223,46,195,74,170,105,149,140,132,176,108,241,96,288"/>
+<area shape="rect" id="Node000003" href="$class_s_e_r_database.html#a6800d7f803456544a3915465fd092df9" title="Close database connection." alt="" coords="254,56,398,83"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="93,287,108,248,134,195,171,140,194,114,220,92,241,83,238,87,223,97,198,118,176,143,139,198,113,250,98,289"/>
+<area shape="rect" id="Node000004" href="$class_s_e_r_database.html#a798696a9c47ba55f7a3473afff3efe9f" title="Export all records to a JSON file for UI consumption." alt="" coords="226,107,426,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="97,286,144,221,179,183,220,150,249,137,245,141,223,154,183,187,148,224,101,289"/>
+<area shape="rect" id="Node000005" href="$class_s_e_r_database.html#a1a997738e16c0b0153823c259b33b071" title="Retrieve all SER records ordered by timestamp (newest first)." alt="" coords="478,132,673,159"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="101,286,150,239,183,214,221,194,281,172,343,158,405,149,465,145,460,148,406,154,344,163,282,177,223,198,186,219,153,243,105,289"/>
+<area shape="rect" id="Node000006" href="$class_s_e_r_database.html#ae42bb6aa2a4723f2696e2f5c67605765" title="Get last error message." alt="" coords="234,208,418,235"/>
+<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="119,285,221,244,249,237,245,241,223,249,122,290"/>
+<area shape="rect" id="Node000007" href="$class_s_e_r_database.html#af9f462113ba171ab65d126a4689c02be" title="Get total count of records in the database." alt="" coords="222,259,430,285"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="173,289,208,285,204,288,175,293"/>
+<area shape="rect" id="Node000008" href="$class_s_e_r_database.html#adbe68cbe0623ec047941da1c63528328" title="Retrieve records filtered by status." alt="" coords="228,309,424,352"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="173,309,215,315,210,318,175,314"/>
+<area shape="rect" id="Node000009" href="$class_s_e_r_database.html#a7af7d201eef0336f5c599c3d05671f18" title="Insert a single SER record into the database." alt="" coords="482,401,669,428"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="114,313,164,338,222,361,284,378,348,390,469,407,464,409,347,395,283,383,221,367,161,343,115,318"/>
+<area shape="rect" id="Node000011" href="$class_s_e_r_database.html#ac4611fbd8ff79ee0d8ec51cb04a171fc" title="Insert multiple SER records with transaction support." alt="" coords="229,427,423,453"/>
+<area shape="poly" id="edge11_Node000001_Node000011" title=" " alt="" coords="104,312,155,358,188,384,223,406,255,421,250,422,220,410,185,388,151,362,104,318"/>
+<area shape="rect" id="Node000012" href="$class_s_e_r_database.html#adc5c3b4c9ed3d82e560fd9be47406d80" title="Check if database is currently open." alt="" coords="249,477,403,504"/>
+<area shape="poly" id="edge13_Node000001_Node000012" title=" " alt="" coords="98,313,118,345,145,386,181,428,223,463,237,472,231,472,220,468,177,432,141,389,113,348,98,318"/>
+<area shape="rect" id="Node000013" href="$class_s_e_r_database.html#a4526bdbd509f3fc64952fa3a7f33bd5f" title="Open database connection and initialize schema." alt="" coords="255,528,396,555"/>
+<area shape="poly" id="edge14_Node000001_Node000013" title=" " alt="" coords="95,312,112,354,138,408,175,466,197,492,223,514,243,527,238,527,220,518,194,495,170,469,133,411,107,356,95,318"/>
+<area shape="rect" id="Node000015" href="$class_s_e_r_database.html#a304f1c512c577562c4d63b6bbdb9b05a" title="Construct database handler with specified file path." alt="" coords="227,579,424,605"/>
+<area shape="poly" id="edge16_Node000001_Node000015" title=" " alt="" coords="94,312,108,362,131,430,148,467,169,503,194,536,223,565,230,571,225,570,220,569,190,540,164,506,143,470,126,432,102,364,93,317"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="425,128,465,133,460,135,427,133"/>
+<area shape="rect" id="Node000010" href="$class_s_e_r_database.html#a844eb9c372acb5fa192d5e5b08fdf826" title="Check if a record already exists in the database." alt="" coords="721,401,908,428"/>
+<area shape="poly" id="edge10_Node000009_Node000010" title=" " alt="" coords="669,412,708,414,703,415,670,417"/>
+<area shape="poly" id="edge12_Node000011_Node000009" title=" " alt="" coords="423,428,469,425,464,426,424,433"/>
+<area shape="rect" id="Node000014" href="$class_s_e_r_database.html#ad55583b39ff6c9cc9d2d44f20f34ad47" title="Create SER records table and indexes." alt="" coords="486,528,666,555"/>
+<area shape="poly" id="edge15_Node000013_Node000014" title=" " alt="" coords="397,539,472,541,467,542,397,544"/>
+</map>

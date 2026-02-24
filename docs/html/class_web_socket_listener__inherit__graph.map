@@ -1,0 +1,5 @@
+<map id="WebSocketListener" name="WebSocketListener">
+<area shape="rect" id="Node000001" title="Listens for and accepts incoming WebSocket connections." alt="" coords="37,139,182,379"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,5,214,91"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="110,103,112,139,107,139,109,108"/>
+</map>

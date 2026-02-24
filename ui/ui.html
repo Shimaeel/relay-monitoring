@@ -652,6 +652,9 @@
         <button>
             <span class="material-icons-round">lock</span> Password
         </button>
+        <button>
+            <span class="material-icons-round">event_note</span> CEV
+        </button>
     </div>
 
     <div class="main">
@@ -694,6 +697,9 @@
                 <span class="material-icons-round">terminal</span> Commands
             </div>
             <button class="btn" onclick="sendFilDir()">FIL DIR</button>
+            <button class="btn">Read ETH</button>
+            <button class="btn">Read DATE</button>
+            <button class="btn">Read GOOSE</button>
             <button class="btn btn-danger" onclick="sendQuit()">QUIT</button>
 
             <div class="eve-toolbar">
@@ -757,6 +763,48 @@
         </div>
 
 
+
+        <!-- CEV Data -->
+        <div class="section" id="cev-section" style="display:none;">
+            <div class="section-title">
+                <span class="material-icons-round">event_note</span> CEV Data
+                <span class="file-count" id="cev-count">0</span>
+            </div>
+            <div id="cev-banner" class="conn-banner connecting" style="display:none;">
+                <span class="material-icons-round" style="font-size:18px;">sync</span>
+                <span id="cev-banner-text">Fetching CEV data from relay...</span>
+            </div>
+            <div style="margin-bottom: 12px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn" onclick="sendCev()">
+                    <span class="material-icons-round" style="font-size:16px;vertical-align:middle;">refresh</span>
+                    Refresh
+                </button>
+                <button class="btn" id="cev-save-btn" onclick="saveCevFile()" disabled>
+                    <span class="material-icons-round" style="font-size:16px;vertical-align:middle;">save</span>
+                    Save .cev
+                </button>
+            </div>
+            <div class="table-wrapper">
+                <table id="cev-table">
+                    <thead>
+                        <tr id="cev-thead-row">
+                            <th>#</th>
+                            <th>CEV Entry</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cev-tbody">
+                        <tr>
+                            <td colspan="2">
+                                <div class="empty-state">
+                                    <span class="material-icons-round">event_busy</span>
+                                    <div>Click <strong>CEV</strong> to load event data from relay</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
         <!-- Time Sync -->
         <div class="section">
@@ -873,14 +921,6 @@ function connectWS() {
     };
 
     ws.onmessage = (event) => {
-        // ── If we're waiting for an EVE response ──
-        if (eveReadPending) {
-            eveReadPending = false;
-            saveEveContent(eveReadNumber, event.data);
-            eveReadNumber = '';
-            return;
-        }
-
         // ── If we're waiting for a FIL READ response ──
         if (filReadPending) {
             filReadPending = false;
@@ -1542,6 +1582,164 @@ function resetReadButton(idx) {
         btn.disabled = false;
         btn.innerHTML = '<span class="material-icons-round">download</span> Read &amp; Save';
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CEV  –  Chronological Event Viewer from Relay
+// ═══════════════════════════════════════════════════════════════════════════
+
+let cevPending  = false;   // true while waiting for CEV response
+let cevRawData  = '';      // raw CEV response for saving
+
+const cevSection   = document.getElementById('cev-section');
+const cevTbody     = document.getElementById('cev-tbody');
+const cevCount     = document.getElementById('cev-count');
+const cevBanner    = document.getElementById('cev-banner');
+const cevBannerTxt = document.getElementById('cev-banner-text');
+const cevSaveBtn   = document.getElementById('cev-save-btn');
+
+/**
+ * Show/hide the CEV operation banner.
+ * @param {'loading'|'success'|'error'} type
+ * @param {string} msg
+ */
+function showCevBanner(type, msg) {
+    cevBanner.style.display = 'flex';
+    cevBannerTxt.textContent = msg;
+    const icon = cevBanner.querySelector('.material-icons-round');
+    if (type === 'loading') {
+        cevBanner.className = 'conn-banner connecting';
+        icon.textContent = 'sync';
+    } else if (type === 'success') {
+        cevBanner.className = 'conn-banner connected';
+        icon.textContent = 'check_circle';
+        setTimeout(() => { cevBanner.style.display = 'none'; }, 3000);
+    } else {
+        cevBanner.className = 'conn-banner disconnected';
+        icon.textContent = 'error';
+        setTimeout(() => { cevBanner.style.display = 'none'; }, 5000);
+    }
+}
+
+/**
+ * Send CEV command to relay via WebSocket.
+ */
+function sendCev() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showCevBanner('error', 'WebSocket not connected');
+        return;
+    }
+    cevPending = true;
+    cevSection.style.display = 'block';
+    showCevBanner('loading', 'Fetching CEV data from relay...');
+
+    // Set a timeout in case relay never responds
+    setTimeout(() => {
+        if (cevPending) {
+            cevPending = false;
+            showCevBanner('error', 'Timeout waiting for CEV data');
+        }
+    }, 15000);
+
+    ws.send('CEV');
+}
+
+/**
+ * Handle the raw CEV response from the relay.
+ * Parses lines and displays them in the CEV table.
+ * @param {string} rawData  Raw response text from relay
+ */
+function handleCevResponse(rawData) {
+    cevRawData = rawData;
+
+    const lines = rawData.split(/\r?\n/);
+    const entries = [];
+    let idx = 0;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        // Skip echo of the command itself and prompt lines
+        if (/^CEV$/i.test(trimmed)) continue;
+        if (/^[-=]+$/.test(trimmed)) continue;
+        if (trimmed === '=>' || trimmed === '>') continue;
+
+        idx++;
+        entries.push({ idx, text: trimmed });
+    }
+
+    cevTbody.innerHTML = '';
+    cevCount.textContent = entries.length;
+
+    if (entries.length === 0) {
+        cevTbody.innerHTML = `
+            <tr>
+                <td colspan="2">
+                    <div class="empty-state">
+                        <span class="material-icons-round">event_busy</span>
+                        <div>No CEV entries returned from relay</div>
+                    </div>
+                </td>
+            </tr>`;
+        cevSaveBtn.disabled = true;
+        showCevBanner('success', 'CEV response received (0 entries)');
+        return;
+    }
+
+    entries.forEach(e => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${e.idx}</td><td style="font-family:monospace;font-size:0.88rem;">${escapeHtml(e.text)}</td>`;
+        cevTbody.appendChild(tr);
+    });
+
+    cevSaveBtn.disabled = false;
+    showCevBanner('success', `Loaded ${entries.length} CEV entries from relay`);
+}
+
+/**
+ * Escape HTML special characters.
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+/**
+ * Save CEV data as a .cev file via browser download.
+ */
+function saveCevFile() {
+    if (!cevRawData) return;
+
+    // Clean the raw data (strip command echo / prompts)
+    const lines = cevRawData.split(/\r?\n/);
+    const cleaned = [];
+    for (const line of lines) {
+        const t = line.trim();
+        if (/^CEV$/i.test(t)) continue;
+        if (t === '=>' || t === '>') continue;
+        cleaned.push(line);
+    }
+    const content = cleaned.join('\n').trim();
+
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const timestamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const saveName = `CEV_${timestamp}.cev`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = saveName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showCevBanner('success', `Saved ${saveName}`);
 }
 
 // ── Start ───────────────────────────────────────────────────────────────

@@ -107,18 +107,18 @@ $(function(){initNavTree('class_web_socket_listener.html','','class_web_socket_l
 <div class="dynheader">
 Inheritance diagram for WebSocketListener:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_web_socket_listener__inherit__graph.svg" width="220" height="384"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 <div class="dynheader">
 Collaboration diagram for WebSocketListener:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 1 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_web_socket_listener__coll__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 id="header-pub-methods" class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:a0e8f7a432a448dc86b57112b88a4c4c5" id="r_a0e8f7a432a448dc86b57112b88a4c4c5"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a0e8f7a432a448dc86b57112b88a4c4c5">WebSocketListener</a> (net::io_context &amp;ioc, tcp::endpoint endpoint, <a class="el" href="class_s_e_r_database.html">SERDatabase</a> &amp;db, <a class="el" href="class_session_manager.html">SessionManager</a> *sessionMgr=nullptr)</td></tr>
-<tr class="memdesc:a0e8f7a432a448dc86b57112b88a4c4c5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct listener on specified endpoint.  <br /></td></tr>
+<tr class="memitem:aaf676ba105449b61e470757ad8b30e39" id="r_aaf676ba105449b61e470757ad8b30e39"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aaf676ba105449b61e470757ad8b30e39">WebSocketListener</a> (net::io_context &amp;ioc, tcp::endpoint endpoint, <a class="el" href="class_s_e_r_database.html">SERDatabase</a> &amp;db, <a class="el" href="class_session_manager.html">SessionManager</a> *sessionMgr=nullptr, <a class="el" href="class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a">WebSocketSession::CommandHandler</a> cmdHandler=nullptr, <a class="el" href="class_web_socket_session.html#a05e70a546700ee2c558457009a956b13">WebSocketSession::ActionHandler</a> actionHandler=nullptr)</td></tr>
+<tr class="memdesc:aaf676ba105449b61e470757ad8b30e39"><td class="mdescLeft">&#160;</td><td class="mdescRight">Construct listener on specified endpoint.  <br /></td></tr>
 <tr class="memitem:ae05702c3a772b176aaec12a389b49f0f" id="r_ae05702c3a772b176aaec12a389b49f0f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ae05702c3a772b176aaec12a389b49f0f">run</a> ()</td></tr>
 <tr class="memdesc:ae05702c3a772b176aaec12a389b49f0f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Start the accept loop.  <br /></td></tr>
 </table><table class="memberdecls">
@@ -139,19 +139,23 @@ Private Attributes</h2></td></tr>
 <tr class="memdesc:a1159f7e327d534103c394fb29812810d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reference to database for sessions.  <br /></td></tr>
 <tr class="memitem:ad319584c262d17c8db028aac55f2da45" id="r_ad319584c262d17c8db028aac55f2da45"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_session_manager.html">SessionManager</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#ad319584c262d17c8db028aac55f2da45">sessionMgr_</a></td></tr>
 <tr class="memdesc:ad319584c262d17c8db028aac55f2da45"><td class="mdescLeft">&#160;</td><td class="mdescRight">Session manager for broadcast support.  <br /></td></tr>
+<tr class="memitem:a2a1e6cac9bccd5a78f1f17e40358a3fb" id="r_a2a1e6cac9bccd5a78f1f17e40358a3fb"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a">WebSocketSession::CommandHandler</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2a1e6cac9bccd5a78f1f17e40358a3fb">cmdHandler_</a></td></tr>
+<tr class="memdesc:a2a1e6cac9bccd5a78f1f17e40358a3fb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Command handler for relay forwarding.  <br /></td></tr>
+<tr class="memitem:aad6435d46f6a11c57799815f95505b35" id="r_aad6435d46f6a11c57799815f95505b35"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_web_socket_session.html#a05e70a546700ee2c558457009a956b13">WebSocketSession::ActionHandler</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#aad6435d46f6a11c57799815f95505b35">actionHandler_</a></td></tr>
+<tr class="memdesc:aad6435d46f6a11c57799815f95505b35"><td class="mdescLeft">&#160;</td><td class="mdescRight">Action handler for JSON actions (time sync)  <br /></td></tr>
 </table>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Listens for and accepts incoming WebSocket connections. </p>
 <p>Manages the TCP acceptor and creates <a class="el" href="class_web_socket_session.html" title="Handles a single WebSocket client connection.">WebSocketSession</a> instances for each incoming connection. Runs continuously accepting connections.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md97"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md105"></a>
 Accept Loop</h2>
 <div class="dotgraph">
-</div>
+<iframe scrolling="no" loading="lazy" frameborder="0" src="dot_inline_dotgraph_23.svg" width="204" height="372"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
  
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00581">581</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00704">704</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 </div><a name="doc-constructors" id="doc-constructors"></a><h2 id="header-doc-constructors" class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a id="a0e8f7a432a448dc86b57112b88a4c4c5" name="a0e8f7a432a448dc86b57112b88a4c4c5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0e8f7a432a448dc86b57112b88a4c4c5">&#9670;&#160;</a></span>WebSocketListener()</h2>
+<a id="aaf676ba105449b61e470757ad8b30e39" name="aaf676ba105449b61e470757ad8b30e39"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaf676ba105449b61e470757ad8b30e39">&#9670;&#160;</a></span>WebSocketListener()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -177,7 +181,17 @@ Accept Loop</h2>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="class_session_manager.html">SessionManager</a> *</td>          <td class="paramname"><span class="paramname"><em>sessionMgr</em></span><span class="paramdefsep"> = </span><span class="paramdefval">nullptr</span>&#160;)</td>
+          <td class="paramtype"><a class="el" href="class_session_manager.html">SessionManager</a> *</td>          <td class="paramname"><span class="paramname"><em>sessionMgr</em></span><span class="paramdefsep"> = </span><span class="paramdefval">nullptr</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a">WebSocketSession::CommandHandler</a></td>          <td class="paramname"><span class="paramname"><em>cmdHandler</em></span><span class="paramdefsep"> = </span><span class="paramdefval">nullptr</span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="class_web_socket_session.html#a05e70a546700ee2c558457009a956b13">WebSocketSession::ActionHandler</a></td>          <td class="paramname"><span class="paramname"><em>actionHandler</em></span><span class="paramdefsep"> = </span><span class="paramdefval">nullptr</span>&#160;)</td>
         </tr>
       </table>
   </td>
@@ -194,13 +208,15 @@ Accept Loop</h2>
     <tr><td class="paramname">endpoint</td><td>TCP endpoint to listen on (address + port) </td></tr>
     <tr><td class="paramname">db</td><td>Database reference to pass to sessions </td></tr>
     <tr><td class="paramname">sessionMgr</td><td>Session manager for broadcast (may be null) </td></tr>
+    <tr><td class="paramname">cmdHandler</td><td>Command handler for relay forwarding (may be null) </td></tr>
+    <tr><td class="paramname">actionHandler</td><td>Action handler for JSON actions like time sync (may be null) </td></tr>
   </table>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00597">597</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00724">724</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00584">acceptor_</a>, <a class="el" href="ws__server_8hpp_source.html#l00585">db_</a>, <a class="el" href="ws__server_8hpp_source.html#l00583">ioc_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00586">sessionMgr_</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00707">acceptor_</a>, <a class="el" href="ws__server_8hpp_source.html#l00711">actionHandler_</a>, <a class="el" href="ws__server_8hpp_source.html#l00710">cmdHandler_</a>, <a class="el" href="ws__server_8hpp_source.html#l00708">db_</a>, <a class="el" href="ws__server_8hpp_source.html#l00706">ioc_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00709">sessionMgr_</a>.</p>
 
 </div>
 </div>
@@ -230,20 +246,20 @@ Accept Loop</h2>
 
 <p>Initiate async accept for next connection. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00652">652</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00784">784</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00584">acceptor_</a>, <a class="el" href="ws__server_8hpp_source.html#l00583">ioc_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00665">on_accept()</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00707">acceptor_</a>, <a class="el" href="ws__server_8hpp_source.html#l00706">ioc_</a>, and <a class="el" href="ws__server_8hpp_source.html#l00797">on_accept()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00665">on_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00643">run()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00797">on_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00775">run()</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 2 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_web_socket_listener_a4a02860b171ce2a28c38c07b8a241763_cgraph.svg" width="344" height="54"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 3 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_web_socket_listener_a4a02860b171ce2a28c38c07b8a241763_icgraph.svg" width="362" height="104"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -284,20 +300,20 @@ Here is the caller graph for this function:</div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00665">665</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00797">797</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00585">db_</a>, <a class="el" href="ws__server_8hpp_source.html#l00652">do_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00586">sessionMgr_</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00711">actionHandler_</a>, <a class="el" href="ws__server_8hpp_source.html#l00710">cmdHandler_</a>, <a class="el" href="ws__server_8hpp_source.html#l00708">db_</a>, <a class="el" href="ws__server_8hpp_source.html#l00784">do_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00709">sessionMgr_</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00652">do_accept()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00784">do_accept()</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 4 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_web_socket_listener_a0bc0ecdf40bbd64fe6b8c8317c3dd9bf_cgraph.svg" width="344" height="54"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 5 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_web_socket_listener_a0bc0ecdf40bbd64fe6b8c8317c3dd9bf_icgraph.svg" width="552" height="54"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -328,13 +344,13 @@ Here is the caller graph for this function:</div>
 <p>Start the accept loop. </p>
 <p>Begins accepting incoming connections. Called after constructor. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00643">643</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00775">775</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00652">do_accept()</a>.</p>
+<p class="reference">References <a class="el" href="ws__server_8hpp_source.html#l00784">do_accept()</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 6 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_web_socket_listener_ae05702c3a772b176aaec12a389b49f0f_cgraph.svg" width="552" height="54"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 
 </div>
@@ -362,9 +378,65 @@ Here is the call graph for this function:</div>
 
 <p>TCP acceptor for incoming connections. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00584">584</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00707">707</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00652">do_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00597">WebSocketListener()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00784">do_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00724">WebSocketListener()</a>.</p>
+
+</div>
+</div>
+<a id="aad6435d46f6a11c57799815f95505b35" name="aad6435d46f6a11c57799815f95505b35"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aad6435d46f6a11c57799815f95505b35">&#9670;&#160;</a></span>actionHandler_</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="class_web_socket_session.html#a05e70a546700ee2c558457009a956b13">WebSocketSession::ActionHandler</a> WebSocketListener::actionHandler_</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel private">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Action handler for JSON actions (time sync) </p>
+
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00711">711</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00797">on_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00724">WebSocketListener()</a>.</p>
+
+</div>
+</div>
+<a id="a2a1e6cac9bccd5a78f1f17e40358a3fb" name="a2a1e6cac9bccd5a78f1f17e40358a3fb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2a1e6cac9bccd5a78f1f17e40358a3fb">&#9670;&#160;</a></span>cmdHandler_</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a">WebSocketSession::CommandHandler</a> WebSocketListener::cmdHandler_</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel private">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Command handler for relay forwarding. </p>
+
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00710">710</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00797">on_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00724">WebSocketListener()</a>.</p>
 
 </div>
 </div>
@@ -390,9 +462,9 @@ Here is the call graph for this function:</div>
 
 <p>Reference to database for sessions. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00585">585</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00708">708</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00665">on_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00597">WebSocketListener()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00797">on_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00724">WebSocketListener()</a>.</p>
 
 </div>
 </div>
@@ -418,9 +490,9 @@ Here is the call graph for this function:</div>
 
 <p>Reference to I/O context. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00583">583</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00706">706</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00652">do_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00597">WebSocketListener()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00784">do_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00724">WebSocketListener()</a>.</p>
 
 </div>
 </div>
@@ -446,9 +518,9 @@ Here is the call graph for this function:</div>
 
 <p>Session manager for broadcast support. </p>
 
-<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00586">586</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="ws__server_8hpp_source.html#l00709">709</a> of file <a class="el" href="ws__server_8hpp_source.html">ws_server.hpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00665">on_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00597">WebSocketListener()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="ws__server_8hpp_source.html#l00797">on_accept()</a>, and <a class="el" href="ws__server_8hpp_source.html#l00724">WebSocketListener()</a>.</p>
 
 </div>
 </div>

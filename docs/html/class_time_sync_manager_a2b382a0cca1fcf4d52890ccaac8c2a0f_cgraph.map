@@ -1,0 +1,5 @@
+<map id="TimeSyncManager::compareTime" name="TimeSyncManager::compareTime">
+<area shape="rect" id="Node000001" title="Compare relay time and PC time." alt="" coords="5,13,223,40"/>
+<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#aaf4fd3f687f474548d24b78bf3233164" title="Parse &quot;YYYY&#45;MM&#45;DD HH:MM:SS&quot; to system_clock::time_point." alt="" coords="271,5,455,48"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="223,24,258,27,252,27,223,29"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="raw_data_ring_buffer.hpp" name="raw_data_ring_buffer.hpp">
+<area shape="rect" id="Node000001" title="Lock&#45;free SPSC Ring Buffer for Raw Telnet Data." alt="" coords="5,5,172,32"/>
+<area shape="rect" id="Node000002" href="$telnet__sml__app_8cpp.html" title="Telnet SML Application &#45; Main orchestrator implementation." alt="" coords="21,80,156,107"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="90,46,91,81,86,79,87,50"/>
+</map>

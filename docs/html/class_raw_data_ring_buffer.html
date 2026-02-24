@@ -107,7 +107,7 @@ $(function(){initNavTree('class_raw_data_ring_buffer.html','','class_raw_data_ri
 <div class="dynheader">
 Collaboration diagram for RawDataRingBuffer:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_raw_data_ring_buffer__coll__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 id="header-pub-methods" class="groupheader"><a id="pub-methods" name="pub-methods"></a>
@@ -139,14 +139,14 @@ Private Attributes</h2></td></tr>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>SPSC ring buffer for decoupling Telnet reception from FSM processing. </p>
 <p>Provides a thread-safe queue for passing raw Telnet data from the reception thread to the processing thread. Uses a deque internally with mutex protection and condition variable for efficient waiting.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md26"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md29"></a>
 Thread Safety</h2>
 <ul>
 <li>Single producer (reception thread) calls <a class="el" href="#a129b60f8eae8227dd28f19eab47303f5" title="Push a message into the buffer (non-blocking)">push()</a></li>
 <li>Single consumer (processing thread) calls <a class="el" href="#a4b54a146d435928f02f00f0ed052fb9b" title="Wait for and pop a message from the buffer.">waitPop()</a></li>
 <li>Multiple threads can safely call <a class="el" href="#a633bd9b5d56879e38a6a792669e4c3ba" title="Get current number of messages in buffer.">size()</a> and <a class="el" href="#a1bd4ea1300a7f04cfe4a737426928003" title="Check if buffer is empty.">empty()</a></li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md27"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md30"></a>
 Usage Example</h2>
 <div class="fragment"><div class="line"><a class="code hl_function" href="#a77028ab7eeea0d9b2c8a91fa95d2df52">RawDataRingBuffer</a> buffer(100);  <span class="comment">// Max 100 messages</span></div>
 <div class="line"> </div>

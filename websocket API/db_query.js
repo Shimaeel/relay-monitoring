@@ -55,7 +55,15 @@ class DBQuery {
 
   // ── Connection ─────────────────────────────────────────────────────────
 
-  /** Open the WebSocket. Resolves when ready. */
+  /**
+   * Open the WebSocket connection to the database server.
+   *
+   * @description If the socket is already open, resolves immediately.
+   *              Configures message routing for request/response matching.
+   *
+   * @returns {Promise<void>} Resolves when the WebSocket is open and ready.
+   * @throws {Error} If WebSocket creation fails or connection is refused.
+   */
   connect() {
     if (this._ws?.readyState === WebSocket.OPEN) return Promise.resolve();
     return new Promise((resolve, reject) => {
@@ -67,13 +75,21 @@ class DBQuery {
     });
   }
 
-  /** Close the WebSocket. */
+  /**
+   * Close the WebSocket connection and reject any pending requests.
+   *
+   * @description All in-flight requests will be rejected with a "Closed" error.
+   *              Safe to call multiple times.
+   */
   close() {
     if (this._ws) { this._ws.close(); this._ws = null; }
     this._rejectAll('Closed');
   }
 
-  /** @returns {boolean} */
+  /**
+   * Check whether the WebSocket is currently connected.
+   * @returns {boolean} True if the socket is open and ready.
+   */
   get connected() { return this._ws?.readyState === WebSocket.OPEN; }
 
   // ── API ────────────────────────────────────────────────────────────────
@@ -137,7 +153,18 @@ class DBQuery {
 
   // ── Internals ──────────────────────────────────────────────────────────
 
-  /** @private */
+  /**
+   * Send a JSON payload over the WebSocket and return a Promise for the response.
+   *
+   * @description Assigns a unique request ID, sets a timeout timer, and stores
+   *              the resolve/reject callbacks in the pending map. The matching
+   *              response is routed by _onMsg() based on the ID.
+   *
+   * @private
+   * @param {Object} payload  JSON-serialisable request object (action, sql, params, etc.).
+   * @returns {Promise<Object>} Resolves with the server's JSON response.
+   * @throws {Error} If not connected or the request times out.
+   */
   _send(payload) {
     return new Promise((resolve, reject) => {
       if (!this._ws || this._ws.readyState !== WebSocket.OPEN)
@@ -153,7 +180,15 @@ class DBQuery {
     });
   }
 
-  /** @private */
+  /**
+   * Handle an incoming WebSocket message and route it to the matching pending request.
+   *
+   * @description Parses the JSON response, looks up the request ID in the
+   *              pending map, and resolves or rejects the corresponding Promise.
+   *
+   * @private
+   * @param {MessageEvent} ev  WebSocket message event.
+   */
   _onMsg(ev) {
     let d; try { d = JSON.parse(ev.data); } catch { return; }
     const e = this._pending.get(d.id);
@@ -163,7 +198,14 @@ class DBQuery {
     d.ok ? e.resolve(d) : e.reject(new Error(d.error || 'Server error'));
   }
 
-  /** @private */
+  /**
+   * Reject all pending requests with the given error message.
+   *
+   * @description Called on WebSocket close to clean up all in-flight requests.
+   *
+   * @private
+   * @param {string} msg  Error message to pass to each rejected Promise.
+   */
   _rejectAll(msg) {
     for (const [, e] of this._pending) { clearTimeout(e.timer); e.reject(new Error(msg)); }
     this._pending.clear();

@@ -1,0 +1,3 @@
+<map id="Login1CompleteGuard" name="Login1CompleteGuard">
+<area shape="rect" id="Node000001" title="FSM Guard: Check if Level 1 login completed successfully." alt="" coords="5,5,145,75"/>
+</map>

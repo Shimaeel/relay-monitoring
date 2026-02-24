@@ -1,0 +1,28 @@
+{
+  "source": {
+    "include": [
+      "websocket API",
+      "ui"
+    ],
+    "includePattern": ".+\\.js$"
+  },
+  "opts": {
+    "destination": "docs_js",
+    "recurse": true,
+    "encoding": "utf8"
+  },
+  "plugins": [
+    "plugins/markdown"
+  ],
+  "templates": {
+    "cleverLinks": true,
+    "monospaceLinks": false,
+    "default": {
+      "outputSourceFiles": true,
+      "includeDate": true
+    }
+  },
+  "metadata": {
+    "title": "Telnet-SML JavaScript API Documentation"
+  }
+}

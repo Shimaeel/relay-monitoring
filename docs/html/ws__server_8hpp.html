@@ -121,12 +121,12 @@ $(function(){initNavTree('ws__server_8hpp.html','',''); });
 </div><div class="textblock"><div class="dynheader">
 Include dependency graph for ws_server.hpp:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="ws__server_8hpp__incl.svg" width="100%" height="496"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 </div><div class="textblock"><div class="dynheader">
 This graph shows which files directly or indirectly include this file:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 1 --></div>
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="ws__server_8hpp__dep__incl.svg" width="146" height="112"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 </div>
 </div>
 <p><a href="ws__server_8hpp_source.html">Go to the source code of this file.</a></p>
@@ -154,16 +154,16 @@ Functions</h2></td></tr>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>WebSocket Server for Real-time SER Data Access. </p>
 <p>This header implements a WebSocket server using Boost.Beast for providing real-time access to System Event Records from the web UI.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md90"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md98"></a>
 Architecture Overview</h2>
 <div class="dotgraph">
-</div>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md91"></a>
+<iframe scrolling="no" loading="lazy" frameborder="0" src="dot_inline_dotgraph_14.svg" width="512" height="612"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md99"></a>
 Communication Protocol</h2>
 <div class="mscgraph">
 <img src="msc_inline_mscgraph_3.svg" alt="msc_inline_mscgraph_3" border="0"/>
 </div>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md92"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md100"></a>
 Browser Architecture (Client Side)</h2>
 <div class="fragment"><div class="line">WebSocket Client</div>
 <div class="line">     ↓</div>
@@ -172,7 +172,7 @@ Browser Architecture (Client Side)</h2>
 <div class="line">Main JS Thread (DOM Access)</div>
 <div class="line">     ↓</div>
 <div class="line">Tabulator / JSON Export</div>
-</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md93"></a>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md101"></a>
 ASN.1 BER/TLV Payload Format</h2>
 <p>Top-level TLV:</p><ul>
 <li>Tag 0x61 (APPLICATION 1, constructed)</li>
@@ -188,7 +188,7 @@ ASN.1 BER/TLV Payload Format</h2>
 </ul>
 </li>
 </ul>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md94"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md102"></a>
 Usage Example</h2>
 <div class="fragment"><div class="line"><a class="code hl_class" href="class_s_e_r_database.html">SERDatabase</a> db(<span class="stringliteral">&quot;records.db&quot;</span>);</div>
 <div class="line">db.open();</div>
@@ -201,7 +201,7 @@ Usage Example</h2>
 <div class="line"> </div>
 <div class="line">wsServer.stop();</div>
 <div class="ttc" id="aclass_s_e_r_database_html"><div class="ttname"><a href="class_s_e_r_database.html">SERDatabase</a></div><div class="ttdoc">SQLite database handler for storing and retrieving SER records.</div><div class="ttdef"><b>Definition</b> <a href="ser__database_8hpp_source.html#l00134">ser_database.hpp:135</a></div></div>
-<div class="ttc" id="aclass_s_e_r_web_socket_server_html"><div class="ttname"><a href="class_s_e_r_web_socket_server.html">SERWebSocketServer</a></div><div class="ttdoc">High-level WebSocket server wrapper for SER data access.</div><div class="ttdef"><b>Definition</b> <a href="ws__server_8hpp_source.html#l00724">ws_server.hpp:725</a></div></div>
+<div class="ttc" id="aclass_s_e_r_web_socket_server_html"><div class="ttname"><a href="class_s_e_r_web_socket_server.html">SERWebSocketServer</a></div><div class="ttdoc">High-level WebSocket server wrapper for SER data access.</div><div class="ttdef"><b>Definition</b> <a href="ws__server_8hpp_source.html#l00856">ws_server.hpp:857</a></div></div>
 </div><!-- fragment --><dl class="section see"><dt>See also</dt><dd><a class="el" href="class_s_e_r_database.html" title="SQLite database handler for storing and retrieving SER records.">SERDatabase</a> Database for record storage </dd>
 <dd>
 <a class="el" href="namespaceasn__tlv.html#a03c61eaf7c30d4bb4e8f50d6cd2f5f03" title="Encode SER records to ASN.1 BER/TLV format.">asn_tlv::encodeSerRecordsToTlv()</a> ASN.1 BER/TLV conversion function </dd>

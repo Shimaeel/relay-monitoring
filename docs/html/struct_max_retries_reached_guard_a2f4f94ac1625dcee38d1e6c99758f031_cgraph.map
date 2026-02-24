@@ -1,0 +1,5 @@
+<map id="MaxRetriesReachedGuard::operator()" name="MaxRetriesReachedGuard::operator()">
+<area shape="rect" id="Node000001" title="Evaluate if max retries exceeded." alt="" coords="5,5,181,48"/>
+<area shape="rect" id="Node000002" href="$struct_retry_state.html#a4afc8529d240ce06c2b6ca0f4f996b49" title="Check if more retry attempts are available." alt="" coords="229,13,374,40"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="181,24,216,26,210,27,181,29"/>
+</map>

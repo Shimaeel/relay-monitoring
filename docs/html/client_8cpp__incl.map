@@ -1,0 +1,20 @@
+<map id="client.cpp" name="client.cpp">
+<area shape="rect" id="Node000001" title="Implementation of TelnetClient class." alt="" coords="402,5,479,32"/>
+<area shape="rect" id="Node000002" href="$client_8hpp.html" title="Telnet Client for Substation Communication." alt="" coords="250,80,327,107"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="417,32,330,75,328,70,412,33"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="340,155,400,181"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="430,31,412,55,395,81,383,111,376,141,372,138,378,109,390,79,408,52,426,34"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="405,80,476,107"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="442,30,443,66,438,63,439,35"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="501,80,551,107"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="456,30,502,70,497,70,455,35"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="574,80,632,107"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="469,30,563,73,558,73,468,35"/>
+<area shape="rect" id="Node000003" href="$dll__export_8hpp.html" title="DLL Export/Import Macros for Windows." alt="" coords="5,155,108,181"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="251,109,112,152,111,147,249,104"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="131,155,238,181"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="273,106,216,148,214,143,268,108"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="262,155,315,181"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="290,105,291,141,286,138,287,109"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="304,105,347,145,342,144,302,110"/>
+</map>

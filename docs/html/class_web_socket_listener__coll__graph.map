@@ -1,0 +1,28 @@
+<map id="WebSocketListener" name="WebSocketListener">
+<area shape="rect" id="Node000001" title="Listens for and accepts incoming WebSocket connections." alt="" coords="178,1937,324,2135"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,1756,214,1841"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="143,1851,195,1937,190,1938,141,1856"/>
+<area shape="rect" id="Node000003" href="$class_s_e_r_database.html" title="SQLite database handler for storing and retrieving SER records." alt="" coords="174,303,328,777"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="251,775,254,1107,254,1800,254,1921,248,1920,248,1800,248,1107,251,780"/>
+<area shape="rect" id="Node000010" href="$class_web_socket_session.html" title="Handles a single WebSocket client connection." alt="" coords="343,871,497,1345"/>
+<area shape="poly" id="edge11_Node000010_Node000003" title=" " alt="" coords="304,775,326,846,340,892,335,892,321,847,304,780"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="279,140,348,209"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="293,212,286,234,273,287,267,286,281,232,294,206"/>
+<area shape="poly" id="edge14_Node000010_Node000004" title=" " alt="" coords="343,207,359,232,372,284,380,349,386,503,386,657,389,777,396,854,391,853,384,777,381,657,381,503,374,350,366,285,354,234,344,212"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="256,5,371,91"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="314,103,316,140,311,140,313,108"/>
+<area shape="rect" id="Node000006" href="$class_session_manager.html" title="Manages all active WebSocket sessions for broadcast." alt="" coords="312,1732,420,1865"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="336,1863,308,1924,304,1921,332,1867"/>
+<area shape="poly" id="edge12_Node000010_Node000006" title=" " alt="" coords="348,1731,338,1660,334,1585,337,1509,345,1434,358,1364,359,1359,350,1434,343,1509,340,1585,343,1660,354,1733"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="352,1583,425,1652"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="385,1649,379,1716,374,1714,383,1654"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="449,1575,632,1660"/>
+<area shape="poly" id="edge7_Node000006_Node000008" title=" " alt="" coords="502,1658,433,1732,429,1728,498,1662"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="377,1417,554,1503"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="486,1500,516,1560,510,1559,485,1505"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="452,1343,461,1401,455,1400,450,1348"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="514,497,724,583"/>
+<area shape="poly" id="edge10_Node000010_Node000011" title=" " alt="" coords="600,594,500,889,495,887,599,599"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="748,505,884,575"/>
+<area shape="poly" id="edge13_Node000010_Node000012" title=" " alt="" coords="811,572,787,670,766,725,739,779,687,852,629,921,568,983,512,1035,508,1031,565,979,625,918,683,849,734,776,761,723,782,668,809,577"/>
+</map>

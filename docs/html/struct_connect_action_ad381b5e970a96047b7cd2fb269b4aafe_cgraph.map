@@ -1,0 +1,7 @@
+<map id="ConnectAction::operator()" name="ConnectAction::operator()">
+<area shape="rect" id="Node000001" title="Execute connection attempt." alt="" coords="5,31,176,57"/>
+<area shape="rect" id="Node000002" href="$class_telnet_client.html#a1cfe617f16e1055bdbe2577caaadce4e" title="Clear the last response buffer." alt="" coords="224,5,434,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="176,32,211,31,205,32,177,38"/>
+<area shape="rect" id="Node000003" href="$class_telnet_client.html#a43d0aa1501528357ae9d0a213c18c56b" title="Connect to a Telnet server with timeout." alt="" coords="238,56,420,83"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="176,50,225,58,219,58,176,56"/>
+</map>

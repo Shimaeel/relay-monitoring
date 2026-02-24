@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['5_20key_20design_20patterns_0',['5. Key Design Patterns',['../md_work.html#autotoc_md86',1,'']]]
+  ['5_20key_20design_20patterns_0',['5. Key Design Patterns',['../md_work.html#autotoc_md94',1,'']]]
 ];

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: ui/shm_worker.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: ui/shm_worker.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
+/**
+ * @file shm_worker.js
+ * @brief Web Worker that bridges WebSocket input to a SharedArrayBuffer ring buffer.
+ *
+ * @description This Web Worker runs in a background thread and performs two jobs:
+ *
+ * 1. **WebSocket consumer** — Connects to the SER WebSocket server, receives
+ *    JSON arrays of SER records, and encodes them into BER-TLV binary payloads.
+ *
+ * 2. **Ring buffer producer** — Writes the encoded payloads into a
+ *    SharedArrayBuffer-backed ring buffer so the main thread can read them
+ *    without copying or message passing.
+ *
+ * ## Communication Protocol (main thread → worker)
+ *
+ * | Message type | Fields                     | Description                             |
+ * |-------------|----------------------------|-----------------------------------------|
+ * | `init`      | `buffer`, `capacity`       | Provide the SharedArrayBuffer mapping.  |
+ * | `connect`   | `wsUrl`                    | Connect to the SER WebSocket server.    |
+ * | `send`      | `payload`                  | Send a raw command over the WebSocket.  |
+ *
+ * ## Communication Protocol (worker → main thread)
+ *
+ * | Message type  | Fields              | Description                          |
+ * |--------------|---------------------|--------------------------------------|
+ * | `ws_status`  | `status`            | WebSocket state: connecting/connected/disconnected/error |
+ * | `error`      | `message`           | Error details (JSON parse fail, etc.)|
+ *
+ * ## Ring Buffer Memory Layout
+ *
+ * ```
+ * SharedArrayBuffer:
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │ Int32[0]: writePos │ Int32[1]: readPos │ Int32[2]: signal     │
+ * ├────────────────────┴───────────────────┴──────────────────────┤
+ * │ Uint8[12 .. 12 + capacity]: data ring                         │
+ * │   [4-byte LE len][payload bytes][4-byte LE len][payload]...   │
+ * └─────────────────────────────────────────────────────────────────┘
+ * ```
+ *
+ * @see shared_ring_buffer.hpp  C++ equivalent ring buffer implementation
+ * @see asn_tlv_codec.hpp       C++ BER-TLV codec matching the JS encoding here
+ * @see index.html              Main thread consumer that reads the ring buffer
+ *
+ * @author Telnet-SML Development Team
+ * @version 1.0.0
+ * @date 2026
+ */
+
+/**
+ * Shared ring buffer state used by the worker.
+ * @type {{header: Int32Array|null, data: Uint8Array|null, view: DataView|null, capacity: number, signalIndex: number}}
+ */
+const STATE = {
+    header: null,
+    data: null,
+    view: null,
+    capacity: 0,
+    signalIndex: 2
+};
+
+/** @type {WebSocket|null} */
+let ws = null;
+/** @type {string|null} */
+let wsUrl = null;
+
+/**
+ * Initialize the ring buffer views for the shared buffer.
+ * @param {ArrayBuffer|SharedArrayBuffer} buffer
+ * @param {number} capacity
+ */
+function initRing(buffer, capacity) {
+    STATE.header = new Int32Array(buffer, 0, 3);
+    STATE.data = new Uint8Array(buffer, 12, capacity);
+    STATE.view = new DataView(buffer, 12, capacity);
+    STATE.capacity = capacity;
+}
+
+/**
+ * Compute free bytes available in the ring buffer.
+ * @param {number} readPos
+ * @param {number} writePos
+ * @returns {number}
+ */
+function freeBytes(readPos, writePos) {
+    if (writePos >= readPos) {
+        return STATE.capacity - (writePos - readPos);
+    }
+    return readPos - writePos;
+}
+
+/**
+ * Read a 32-bit little-endian length from the ring buffer.
+ * @param {number} pos
+ * @returns {number}
+ */
+function readLength(pos) {
+    return STATE.view.getUint32(pos, true);
+}
+
+/**
+ * Write a 32-bit little-endian length into the ring buffer.
+ * @param {number} pos
+ * @param {number} len
+ */
+function writeLength(pos, len) {
+    STATE.view.setUint32(pos, len, true);
+}
+
+/**
+ * Drop the oldest record to free space.
+ * @param {number} readPos
+ * @param {number} writePos
+ * @returns {number}
+ */
+function dropOldest(readPos, writePos) {
+    if (readPos === writePos) {
+        return readPos;
+    }
+
+    if (readPos + 4 > STATE.capacity) {
+        readPos = 0;
+        if (readPos === writePos) {
+            return readPos;
+        }
+    }
+
+    const len = readLength(readPos);
+    if (len === 0 || len > STATE.capacity - 4) {
+        return writePos;
+    }
+
+    let newRead = readPos + 4 + len;
+    if (newRead >= STATE.capacity) {
+        newRead = 0;
+    }
+    return newRead;
+}
+
+/**
+ * Write a payload into the ring buffer, evicting oldest data as needed.
+ * @param {Uint8Array} bytes
+ * @returns {boolean}
+ */
+function writePayload(bytes) {
+    if (!bytes || bytes.length === 0) {
+        return false;
+    }
+
+    if (bytes.length > STATE.capacity - 4) {
+        return false;
+    }
+
+    let readPos = Atomics.load(STATE.header, 1);
+    let writePos = Atomics.load(STATE.header, 0);
+
+    if (writePos + 4 + bytes.length > STATE.capacity) {
+        writePos = 0;
+    }
+
+    let available = freeBytes(readPos, writePos);
+    while (available &lt; 4 + bytes.length) {
+        readPos = dropOldest(readPos, writePos);
+        available = freeBytes(readPos, writePos);
+    }
+
+    writeLength(writePos, bytes.length);
+    STATE.data.set(bytes, writePos + 4);
+
+    let newWrite = writePos + 4 + bytes.length;
+    if (newWrite >= STATE.capacity) {
+        newWrite = 0;
+    }
+
+    Atomics.store(STATE.header, 1, readPos);
+    Atomics.store(STATE.header, 0, newWrite);
+    Atomics.add(STATE.header, STATE.signalIndex, 1);
+    Atomics.notify(STATE.header, STATE.signalIndex, 1);
+    return true;
+}
+
+/**
+ * Append BER length bytes to the output array.
+ * @param {number[]} out
+ * @param {number} len
+ */
+function berAppendLength(out, len) {
+    if (len &lt; 128) {
+        out.push(len);
+        return;
+    }
+
+    let tmp = len;
+    const buf = [];
+    while (tmp > 0) {
+        buf.push(tmp &amp; 0xff);
+        tmp >>= 8;
+    }
+
+    out.push(0x80 | buf.length);
+    for (let i = buf.length - 1; i >= 0; i -= 1) {
+        out.push(buf[i]);
+    }
+}
+
+/**
+ * Append a BER TLV item to the output array.
+ * @param {number[]} out
+ * @param {number} tag
+ * @param {Uint8Array|number[]} valueBytes
+ */
+function berAppendTlv(out, tag, valueBytes) {
+    out.push(tag);
+    berAppendLength(out, valueBytes.length);
+    for (let i = 0; i &lt; valueBytes.length; i += 1) {
+        out.push(valueBytes[i]);
+    }
+}
+
+/**
+ * Append a BER TLV string to the output array.
+ * @param {number[]} out
+ * @param {number} tag
+ * @param {string} value
+ */
+function berAppendString(out, tag, value) {
+    const bytes = new TextEncoder().encode(value);
+    berAppendTlv(out, tag, bytes);
+}
+
+/**
+ * Normalize a record entry into the expected SER shape.
+ * @param {Object} entry
+ * @returns {{record_id: string, timestamp: string, status: string, description: string}}
+ */
+function normalizeRecord(entry) {
+    const recordId = entry.record_id ?? entry.recordId ?? entry.sno ?? '';
+    const timestamp = entry.timestamp ?? `${entry.date ?? ''} ${entry.time ?? ''}`.trim();
+    const status = entry.status ?? entry.state ?? '';
+    const description = entry.description ?? entry.element ?? '';
+    return {
+        record_id: String(recordId),
+        timestamp: String(timestamp),
+        status: String(status),
+        description: String(description)
+    };
+}
+
+/**
+ * Encode SER records into a BER TLV payload.
+ * @param {Array&lt;Object>} records
+ * @returns {Uint8Array}
+ */
+function encodeSerRecordsToTlv(records) {
+    const content = [];
+
+    for (const entry of records) {
+        const rec = normalizeRecord(entry);
+        const recordValue = [];
+        berAppendString(recordValue, 0x80, rec.record_id);
+        berAppendString(recordValue, 0x81, rec.timestamp);
+        berAppendString(recordValue, 0x82, rec.status);
+        berAppendString(recordValue, 0x83, rec.description);
+
+        const recordTlv = [];
+        berAppendTlv(recordTlv, 0x30, recordValue);
+        content.push(...recordTlv);
+    }
+
+    const payload = [];
+    berAppendTlv(payload, 0x61, content);
+    return new Uint8Array(payload);
+}
+
+/**
+ * Convert incoming WebSocket data into a ring-buffer payload.
+ * @param {string|ArrayBuffer|Blob} data
+ * @returns {Promise&lt;void>}
+ */
+async function handleIncomingData(data) {
+    let payload = null;
+
+    if (typeof data === 'string') {
+        try {
+            const records = JSON.parse(data);
+            payload = encodeSerRecordsToTlv(Array.isArray(records) ? records : []);
+        } catch (err) {
+            self.postMessage({ type: 'error', message: `JSON parse failed: ${err}` });
+            return;
+        }
+    } else if (data instanceof ArrayBuffer) {
+        payload = new Uint8Array(data);
+    } else if (data &amp;&amp; typeof data.arrayBuffer === 'function') {
+        const buf = await data.arrayBuffer();
+        payload = new Uint8Array(buf);
+    }
+
+    if (payload &amp;&amp; payload.length) {
+        writePayload(payload);
+    }
+}
+
+/**
+ * Post a WebSocket status update to the main thread.
+ * @param {string} status
+ */
+function sendStatus(status) {
+    self.postMessage({ type: 'ws_status', status });
+}
+
+/**
+ * Connect to the WebSocket server and start streaming data.
+ * @param {string} url
+ */
+function connectWebSocket(url) {
+    if (!url) {
+        return;
+    }
+
+    wsUrl = url;
+
+    if (ws) {
+        try {
+            ws.close();
+        } catch (err) {
+            // ignore
+        }
+        ws = null;
+    }
+
+    sendStatus('connecting');
+    ws = new WebSocket(wsUrl);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+        sendStatus('connected');
+        ws.send('getData');
+    };
+
+    ws.onmessage = (event) => {
+        handleIncomingData(event.data).catch((err) => {
+            self.postMessage({ type: 'error', message: String(err) });
+        });
+    };
+
+    ws.onclose = () => {
+        sendStatus('disconnected');
+        if (wsUrl) {
+            setTimeout(() => connectWebSocket(wsUrl), 3000);
+        }
+    };
+
+    ws.onerror = () => {
+        sendStatus('error');
+    };
+}
+
+/**
+ * Send a command payload over the active WebSocket.
+ * @param {string|ArrayBuffer|Uint8Array} payload
+ */
+function sendWsCommand(payload) {
+    if (ws &amp;&amp; ws.readyState === WebSocket.OPEN) {
+        ws.send(payload);
+    }
+}
+
+/**
+ * Handle control messages from the main thread.
+ * @param {MessageEvent} event
+ */
+self.onmessage = (event) => {
+    const msg = event.data;
+    if (!msg || !msg.type) {
+        return;
+    }
+
+    if (msg.type === 'init') {
+        initRing(msg.buffer, msg.capacity);
+    } else if (msg.type === 'connect') {
+        connectWebSocket(msg.wsUrl);
+    } else if (msg.type === 'send') {
+        sendWsCommand(msg.payload);
+    }
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="DBFetchAll.html">DBFetchAll</a></li><li><a href="DBIncremental.html">DBIncremental</a></li><li><a href="DBQuery.html">DBQuery</a></li><li><a href="DBSchema.html">DBSchema</a></li><li><a href="DatabaseClient.html">DatabaseClient</a></li></ul><h3>Global</h3><ul><li><a href="global.html#STATE">STATE</a></li><li><a href="global.html#berAppendLength">berAppendLength</a></li><li><a href="global.html#berAppendString">berAppendString</a></li><li><a href="global.html#berAppendTlv">berAppendTlv</a></li><li><a href="global.html#connectWebSocket">connectWebSocket</a></li><li><a href="global.html#dropOldest">dropOldest</a></li><li><a href="global.html#encodeSerRecordsToTlv">encodeSerRecordsToTlv</a></li><li><a href="global.html#freeBytes">freeBytes</a></li><li><a href="global.html#handleIncomingData">handleIncomingData</a></li><li><a href="global.html#initRing">initRing</a></li><li><a href="global.html#normalizeRecord">normalizeRecord</a></li><li><a href="global.html#readLength">readLength</a></li><li><a href="global.html#sendStatus">sendStatus</a></li><li><a href="global.html#sendWsCommand">sendWsCommand</a></li><li><a href="global.html#writeLength">writeLength</a></li><li><a href="global.html#writePayload">writePayload</a></li><li><a href="global.html#ws">ws</a></li><li><a href="global.html#wsUrl">wsUrl</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Feb 23 2026 16:11:41 GMT+0530 (India Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

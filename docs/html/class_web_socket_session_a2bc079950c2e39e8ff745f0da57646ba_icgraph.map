@@ -1,0 +1,17 @@
+<map id="WebSocketSession::do_read" name="WebSocketSession::do_read">
+<area shape="rect" id="Node000001" title="Initiate async read for next client message." alt="" coords="905,5,1094,32"/>
+<area shape="rect" id="Node000002" href="$class_web_socket_session.html#a6c0557f87f9f6050a8848237ace942bb" title="Handle received client message." alt="" coords="215,5,404,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="887,26,644,30,405,28,404,22,644,25,892,25"/>
+<area shape="rect" id="Node000003" href="$class_web_socket_session.html#a0fed81151d5dcbe23dbee79f1bf12c66" title="Handle write completion." alt="" coords="699,68,857,111"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="943,37,848,70,846,65,938,38"/>
+<area shape="poly" id="edge2_Node000002_Node000001" title=" " alt="" coords="419,9,665,7,907,12,902,13,665,12,420,15"/>
+<area shape="rect" id="Node000004" href="$class_web_socket_session.html#a2529887f34770366fc2c225bd085edba" title="Send current database records to client as JSON." alt="" coords="452,68,651,95"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="681,86,652,88,652,82,686,86"/>
+<area shape="rect" id="Node000007" href="$class_web_socket_session.html#a6c789e228fc7a6101f1e586dc67ad8da" title="Send a plain text response to this client (for FIL DIR etc.)" alt="" coords="454,119,650,161"/>
+<area shape="poly" id="edge8_Node000003_Node000007" title=" " alt="" coords="687,110,650,121,649,115,682,111"/>
+<area shape="poly" id="edge7_Node000004_Node000002" title=" " alt="" coords="480,64,364,35,364,30,485,63"/>
+<area shape="rect" id="Node000005" href="$class_web_socket_session.html#a7b82f2e9c71f6822c2d2f6dcc1a251c5" title="Handle WebSocket handshake completion." alt="" coords="231,60,388,103"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="434,82,389,84,388,79,439,81"/>
+<area shape="rect" id="Node000006" href="$class_web_socket_session.html#aa60a520432526e90b74fd97713469a56" title="Start the session by accepting WebSocket handshake." alt="" coords="5,68,167,95"/>
+<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="213,82,167,84,167,79,218,81"/>
+</map>

@@ -1,0 +1,21 @@
+<map id="TimeSyncManager::handleAction" name="TimeSyncManager::handleAction">
+<area shape="rect" id="Node000001" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="5,181,219,208"/>
+<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#a729b318dd4e664a91323c6096211fa82" title=" " alt="" coords="551,232,772,259"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="189,206,267,217,406,230,538,240,533,241,405,235,266,223,189,211"/>
+<area shape="rect" id="Node000004" href="$class_time_sync_manager.html#a6d7aefdf9577ff2f38b502ddbe603d66" title=" " alt="" coords="267,93,503,120"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="155,178,327,123,326,128,157,183"/>
+<area shape="rect" id="Node000008" href="$class_time_sync_manager.html#ab03b40ab388284d44f5a30a63fa0f432" title=" " alt="" coords="267,181,502,208"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="219,192,254,194,249,195,219,197"/>
+<area shape="rect" id="Node000003" href="$ser__json__writer_8hpp.html#a5c077d95f29d39a73aa9b32b93ceddda" title="Escape special characters for JSON string values." alt="" coords="867,181,958,208"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="731,229,849,207,854,207,732,234"/>
+<area shape="poly" id="edge6_Node000004_Node000003" title=" " alt="" coords="462,90,529,82,608,79,692,84,773,100,806,113,837,131,888,171,883,170,834,135,804,118,772,105,691,89,608,84,530,88,463,95"/>
+<area shape="rect" id="Node000005" href="$class_time_sync_manager.html#a2b382a0cca1fcf4d52890ccaac8c2a0f" title="Compare relay time and PC time." alt="" coords="553,13,770,40"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="433,90,601,44,596,46,435,95"/>
+<area shape="rect" id="Node000007" href="$class_time_sync_manager.html#aed76e580fcce7cd534a760a3daf56af7" title="Get current local PC time formatted as &quot;YYYY&#45;MM&#45;DD HH:MM:SS&quot;." alt="" coords="568,115,755,157"/>
+<area shape="poly" id="edge7_Node000004_Node000007" title=" " alt="" coords="503,117,555,124,550,125,504,122"/>
+<area shape="rect" id="Node000006" href="$class_time_sync_manager.html#aaf4fd3f687f474548d24b78bf3233164" title="Parse &quot;YYYY&#45;MM&#45;DD HH:MM:SS&quot; to system_clock::time_point." alt="" coords="820,5,1005,48"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="770,24,807,26,802,27,771,29"/>
+<area shape="poly" id="edge9_Node000008_Node000002" title=" " alt="" coords="462,206,573,229,568,229,462,211"/>
+<area shape="poly" id="edge10_Node000008_Node000003" title=" " alt="" coords="503,192,854,194,849,195,503,197"/>
+<area shape="poly" id="edge11_Node000008_Node000007" title=" " alt="" coords="451,178,550,160,555,159,452,183"/>
+</map>

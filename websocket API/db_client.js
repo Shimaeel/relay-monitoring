@@ -190,7 +190,7 @@ class DatabaseClient {
    * Get column metadata for a table.
    *
    * @param {string} table  Table name
-   * @returns {Promise<Array<{name:string, type:string, notnull:number, dflt_value:string|null, pk:number}>>}
+   * @returns {Promise<Array<{name:string, type:string, notnull:number, dflt_value:(string|null), pk:number}>>}
    */
   async schema(table) {
     const res = await this._send({ action: 'schema', table });
@@ -201,7 +201,7 @@ class DatabaseClient {
    * Create a table from a JSON column definition.
    *
    * @param {string} table     Table name
-   * @param {Array<{name:string, type:string, pk?:boolean, autoincrement?:boolean, notnull?:boolean, unique?:boolean, default?:string}>} columns
+   * @param {Array<Object>} columns  Column definitions (name, type, pk, autoincrement, notnull, unique, default)
    * @returns {Promise<{sql:string}>}  — the generated CREATE TABLE statement
    *
    * @example
@@ -256,7 +256,7 @@ class DatabaseClient {
    * @param {object}   [opts]
    * @param {number}   [opts.intervalMs=2000]
    * @param {number}   [opts.sinceRowId=0]
-   * @returns {{ stop: () => void }}  Call .stop() to cancel polling
+   * @returns {Object}  Object with a stop() method to cancel polling
    *
    * @example
    * const poll = db.poll('ser_records', ({ rows, maxRowId }) => {
@@ -294,19 +294,53 @@ class DatabaseClient {
 
   // ─── Event system ──────────────────────────────────────────────────────
 
-  /** @param {'open'|'close'|'error'} event */
+  /**
+   * Register a listener for a connection lifecycle event.
+   *
+   * @description Supported events:
+   * - `'open'`  — Fired when the WebSocket connection is established.
+   * - `'close'` — Fired when the connection drops (with the CloseEvent).
+   * - `'error'` — Fired on WebSocket error (with the error Event).
+   *
+   * @param {'open'|'close'|'error'} event  Event name to listen for.
+   * @param {Function} fn  Callback function invoked when the event fires.
+   */
   on(event, fn)  { (this._listeners[event] ??= []).push(fn); }
+
+  /**
+   * Remove a previously registered event listener.
+   *
+   * @param {'open'|'close'|'error'} event  Event name.
+   * @param {Function} fn  The exact function reference passed to on().
+   */
   off(event, fn) { const a = this._listeners[event]; if (a) this._listeners[event] = a.filter(f => f !== fn); }
 
   // ─── Internals ─────────────────────────────────────────────────────────
 
-  /** @private */
+  /**
+   * Emit an event to all registered listeners.
+   *
+   * @private
+   * @param {'open'|'close'|'error'} event  Event name to emit.
+   * @param {...*} args  Arguments to pass to listener callbacks.
+   */
   _emit(event, ...args) {
     for (const fn of (this._listeners[event] ?? []))
       try { fn(...args); } catch (e) { console.error('[DatabaseClient]', e); }
   }
 
-  /** @private */
+  /**
+   * Send a JSON payload over the WebSocket and return a Promise for the response.
+   *
+   * @description Assigns a unique request ID, sets a timeout timer, and stores
+   *              the resolve/reject callbacks in the pending map. The matching
+   *              response is routed by _onMessage() based on the ID.
+   *
+   * @private
+   * @param {Object} payload  JSON-serialisable request object (action, table, sql, etc.).
+   * @returns {Promise<Object>} Resolves with the server's JSON response.
+   * @throws {Error} If not connected or the request times out.
+   */
   _send(payload) {
     return new Promise((resolve, reject) => {
       if (!this._ws || this._ws.readyState !== WebSocket.OPEN)
@@ -325,7 +359,16 @@ class DatabaseClient {
     });
   }
 
-  /** @private */
+  /**
+   * Handle an incoming WebSocket message and route it to the matching pending request.
+   *
+   * @description Parses the JSON response, looks up the request ID in the
+   *              pending map, and resolves or rejects the corresponding Promise.
+   *              Invalid JSON messages are logged and ignored.
+   *
+   * @private
+   * @param {MessageEvent} ev  WebSocket message event containing a JSON response.
+   */
   _onMessage(ev) {
     let data;
     try { data = JSON.parse(ev.data); }
@@ -340,7 +383,17 @@ class DatabaseClient {
     else         entry.reject(new Error(data.error || 'Server error'));
   }
 
-  /** @private */
+  /**
+   * Handle WebSocket close: clean up state, reject pending requests, and
+   * optionally schedule an automatic reconnection attempt.
+   *
+   * @description Emits a 'close' event, rejects all in-flight requests
+   *              with "Connection lost", and schedules reconnect if
+   *              autoReconnect is enabled.
+   *
+   * @private
+   * @param {CloseEvent} ev  The WebSocket CloseEvent.
+   */
   _handleClose(ev) {
     const was = this._connected;
     this._connected = false;

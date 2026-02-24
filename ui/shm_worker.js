@@ -2,7 +2,51 @@
 
 /**
  * @file shm_worker.js
- * @brief Web worker bridge between WebSocket input and a shared ring buffer.
+ * @brief Web Worker that bridges WebSocket input to a SharedArrayBuffer ring buffer.
+ *
+ * @description This Web Worker runs in a background thread and performs two jobs:
+ *
+ * 1. **WebSocket consumer** — Connects to the SER WebSocket server, receives
+ *    JSON arrays of SER records, and encodes them into BER-TLV binary payloads.
+ *
+ * 2. **Ring buffer producer** — Writes the encoded payloads into a
+ *    SharedArrayBuffer-backed ring buffer so the main thread can read them
+ *    without copying or message passing.
+ *
+ * ## Communication Protocol (main thread → worker)
+ *
+ * | Message type | Fields                     | Description                             |
+ * |-------------|----------------------------|-----------------------------------------|
+ * | `init`      | `buffer`, `capacity`       | Provide the SharedArrayBuffer mapping.  |
+ * | `connect`   | `wsUrl`                    | Connect to the SER WebSocket server.    |
+ * | `send`      | `payload`                  | Send a raw command over the WebSocket.  |
+ *
+ * ## Communication Protocol (worker → main thread)
+ *
+ * | Message type  | Fields              | Description                          |
+ * |--------------|---------------------|--------------------------------------|
+ * | `ws_status`  | `status`            | WebSocket state: connecting/connected/disconnected/error |
+ * | `error`      | `message`           | Error details (JSON parse fail, etc.)|
+ *
+ * ## Ring Buffer Memory Layout
+ *
+ * ```
+ * SharedArrayBuffer:
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │ Int32[0]: writePos │ Int32[1]: readPos │ Int32[2]: signal     │
+ * ├────────────────────┴───────────────────┴──────────────────────┤
+ * │ Uint8[12 .. 12 + capacity]: data ring                         │
+ * │   [4-byte LE len][payload bytes][4-byte LE len][payload]...   │
+ * └─────────────────────────────────────────────────────────────────┘
+ * ```
+ *
+ * @see shared_ring_buffer.hpp  C++ equivalent ring buffer implementation
+ * @see asn_tlv_codec.hpp       C++ BER-TLV codec matching the JS encoding here
+ * @see index.html              Main thread consumer that reads the ring buffer
+ *
+ * @author Telnet-SML Development Team
+ * @version 1.0.0
+ * @date 2026
  */
 
 /**

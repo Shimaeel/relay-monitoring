@@ -1,0 +1,3 @@
+<map id="ConnectFailGuard" name="ConnectFailGuard">
+<area shape="rect" id="Node000001" title="FSM Guard: Check if connection failed." alt="" coords="5,5,121,75"/>
+</map>

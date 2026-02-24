@@ -105,13 +105,13 @@ $(function(){initNavTree('class_telnet_sml_app_1_1_impl.html','','class_telnet_s
 <div class="dynheader">
 Collaboration diagram for TelnetSmlApp::Impl:</div>
 <div class="dyncontent">
-<div class="center"><!-- SVG 0 --></div>
+<div class="center"><div class="zoom"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_telnet_sml_app_1_1_impl__coll__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
 </div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 id="header-pub-methods" class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
 <tr class="memitem:a64957945d93500acea2140ec59b07802" id="r_a64957945d93500acea2140ec59b07802"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a64957945d93500acea2140ec59b07802">start</a> ()</td></tr>
-<tr class="memdesc:a64957945d93500acea2140ec59b07802"><td class="mdescLeft">&#160;</td><td class="mdescRight">Starts all application components.  <br /></td></tr>
+<tr class="memdesc:a64957945d93500acea2140ec59b07802"><td class="mdescLeft">&#160;</td><td class="mdescRight">Seed database with test SER records when empty (relay unavailable).  <br /></td></tr>
 <tr class="memitem:a372600e7360a074e2af21b1053742a03" id="r_a372600e7360a074e2af21b1053742a03"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a372600e7360a074e2af21b1053742a03">waitForExit</a> ()</td></tr>
 <tr class="memdesc:a372600e7360a074e2af21b1053742a03"><td class="mdescLeft">&#160;</td><td class="mdescRight">Blocks until user requests exit.  <br /></td></tr>
 <tr class="memitem:a89eb20013688f0554fff448b693de907" id="r_a89eb20013688f0554fff448b693de907"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a89eb20013688f0554fff448b693de907">stop</a> ()</td></tr>
@@ -129,7 +129,7 @@ Public Attributes</h2></td></tr>
 <tr class="memdesc:a19f284d402c46c5774d63af31773b618"><td class="mdescLeft">&#160;</td><td class="mdescRight">Login credentials for Level 1 authentication.  <br /></td></tr>
 <tr class="memitem:a06c6888e9d61dab36caa9685a54b89f4" id="r_a06c6888e9d61dab36caa9685a54b89f4"><td class="memItemLeft" align="right" valign="top"><a class="el" href="struct_retry_state.html">RetryState</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a06c6888e9d61dab36caa9685a54b89f4">retry</a> {3, 0, std::chrono::seconds(30)}</td></tr>
 <tr class="memdesc:a06c6888e9d61dab36caa9685a54b89f4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Retry configuration.  <br /></td></tr>
-<tr class="memitem:a34ae63509f3819e2a053eb5a22c80a53" id="r_a34ae63509f3819e2a053eb5a22c80a53"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_s_e_r_database.html">SERDatabase</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a34ae63509f3819e2a053eb5a22c80a53">serDb</a> {&quot;ser_records.db&quot;}</td></tr>
+<tr class="memitem:a34ae63509f3819e2a053eb5a22c80a53" id="r_a34ae63509f3819e2a053eb5a22c80a53"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_s_e_r_database.html">SERDatabase</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a34ae63509f3819e2a053eb5a22c80a53">serDb</a> {&quot;C:/Users/admin/Desktop/telnet/ser_records.db&quot;}</td></tr>
 <tr class="memdesc:a34ae63509f3819e2a053eb5a22c80a53"><td class="mdescLeft">&#160;</td><td class="mdescRight">SQLite database (persistent storage)  <br /></td></tr>
 <tr class="memitem:a2c1211406211b598ed34da14fe419624" id="r_a2c1211406211b598ed34da14fe419624"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_s_e_r_web_socket_server.html">SERWebSocketServer</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a2c1211406211b598ed34da14fe419624">wsServer</a> {<a class="el" href="#a34ae63509f3819e2a053eb5a22c80a53">serDb</a>, 8765}</td></tr>
 <tr class="memdesc:a2c1211406211b598ed34da14fe419624"><td class="mdescLeft">&#160;</td><td class="mdescRight">WebSocket server (port 8765)  <br /></td></tr>
@@ -145,6 +145,12 @@ Public Attributes</h2></td></tr>
 <tr class="memdesc:af1e9414617d14c92ed7e9a8d3d8ac678"><td class="mdescLeft">&#160;</td><td class="mdescRight">Thread 1: Reception worker.  <br /></td></tr>
 <tr class="memitem:a1236c82e1a27d6aa4c09b92934a7a171" id="r_a1236c82e1a27d6aa4c09b92934a7a171"><td class="memItemLeft" align="right" valign="top">std::unique_ptr&lt; ProcessingWorker &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a1236c82e1a27d6aa4c09b92934a7a171">processingWorker</a></td></tr>
 <tr class="memdesc:a1236c82e1a27d6aa4c09b92934a7a171"><td class="mdescLeft">&#160;</td><td class="mdescRight">Thread 2: Processing worker.  <br /></td></tr>
+<tr class="memitem:a5dc323211d8f13efbcc77f96af205723" id="r_a5dc323211d8f13efbcc77f96af205723"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_relay_service.html">RelayService</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a5dc323211d8f13efbcc77f96af205723">relayService</a> {<a class="el" href="#aa6775b5cb185027d54340720ac15aabd">client</a>}</td></tr>
+<tr class="memdesc:a5dc323211d8f13efbcc77f96af205723"><td class="mdescLeft">&#160;</td><td class="mdescRight">Thread-safe relay command service.  <br /></td></tr>
+<tr class="memitem:afd302023b4fb39e1df1a6331ff0090ee" id="r_afd302023b4fb39e1df1a6331ff0090ee"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_time_sync_manager.html">TimeSyncManager</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#afd302023b4fb39e1df1a6331ff0090ee">timeSyncMgr</a> {<a class="el" href="#a5dc323211d8f13efbcc77f96af205723">relayService</a>}</td></tr>
+<tr class="memdesc:afd302023b4fb39e1df1a6331ff0090ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">DATE synchronization orchestrator.  <br /></td></tr>
+<tr class="memitem:a67aebab6d98643d3cbee5566a4a39eb8" id="r_a67aebab6d98643d3cbee5566a4a39eb8"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_password_manager.html">PasswordManager</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a67aebab6d98643d3cbee5566a4a39eb8">passwordMgr</a> {<a class="el" href="#a5dc323211d8f13efbcc77f96af205723">relayService</a>}</td></tr>
+<tr class="memdesc:a67aebab6d98643d3cbee5566a4a39eb8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Password change orchestrator.  <br /></td></tr>
 <tr class="memitem:a937cefee1cd3ebd1c2410cd5e9ed1dae" id="r_a937cefee1cd3ebd1c2410cd5e9ed1dae"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_shared_ser_reader.html">SharedSerReader</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a937cefee1cd3ebd1c2410cd5e9ed1dae">shmReader</a> {<a class="el" href="#a45a3f9610ee745d8d017e4c7257949c7">shmRing</a>, &quot;ui/data.json&quot;}</td></tr>
 <tr class="memdesc:a937cefee1cd3ebd1c2410cd5e9ed1dae"><td class="mdescLeft">&#160;</td><td class="mdescRight">Thread 5: JSON file writer.  <br /></td></tr>
 <tr class="memitem:a525d199a90f52236a857d722dbc11386" id="r_a525d199a90f52236a857d722dbc11386"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a525d199a90f52236a857d722dbc11386">running</a> = false</td></tr>
@@ -153,7 +159,7 @@ Public Attributes</h2></td></tr>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Private implementation (PIMPL) of <a class="el" href="class_telnet_sml_app.html" title="Main application facade for the Telnet-SML system.">TelnetSmlApp</a>. </p>
 <p>This class contains the actual implementation of the Telnet-SML application, following the PIMPL idiom for ABI stability and compilation firewall.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md57"></a>
+<h2 class="doxsection"><a class="anchor" id="autotoc_md62"></a>
 Architecture</h2>
 <p>The implementation manages the complete multi-threaded pipeline: </p><div class="fragment"><div class="line">Relay Device (TCP:23)</div>
 <div class="line">      │</div>
@@ -173,7 +179,7 @@ Architecture</h2>
 <div class="line">      └──▶ SharedRingBuffer → JSON File</div>
 <div class="ttc" id="aclass_raw_data_ring_buffer_html"><div class="ttname"><a href="class_raw_data_ring_buffer.html">RawDataRingBuffer</a></div><div class="ttdoc">SPSC ring buffer for decoupling Telnet reception from FSM processing.</div><div class="ttdef"><b>Definition</b> <a href="raw__data__ring__buffer_8hpp_source.html#l00089">raw_data_ring_buffer.hpp:90</a></div></div>
 <div class="ttc" id="aclass_telnet_client_html"><div class="ttname"><a href="class_telnet_client.html">TelnetClient</a></div><div class="ttdoc">TCP/Telnet client for substation relay communication.</div><div class="ttdef"><b>Definition</b> <a href="client_8hpp_source.html#l00131">client.hpp:132</a></div></div>
-</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md58"></a>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md63"></a>
 Component Ownership</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -193,7 +199,7 @@ Component Ownership</h2>
 </table>
 <dl class="section see"><dt>See also</dt><dd><a class="el" href="class_telnet_sml_app.html" title="Main application facade for the Telnet-SML system.">TelnetSmlApp</a> Public interface </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00679">679</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00727">727</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 </div><a name="doc-func-members" id="doc-func-members"></a><h2 id="header-doc-func-members" class="groupheader">Member Function Documentation</h2>
 <a id="a64957945d93500acea2140ec59b07802" name="a64957945d93500acea2140ec59b07802"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a64957945d93500acea2140ec59b07802">&#9670;&#160;</a></span>start()</h2>
@@ -218,7 +224,10 @@ Component Ownership</h2>
 </table>
 </div><div class="memdoc">
 
-<p>Starts all application components. </p>
+<p>Seed database with test SER records when empty (relay unavailable). </p>
+<p>Inserts realistic dummy records so the UI pipeline can be verified end-to-end without a live relay connection. Records are only inserted when the database is empty (getRecordCount() == 0).</p>
+<dl class="section return"><dt>Returns</dt><dd>Number of test records inserted (0 if DB already had data)</dd></dl>
+<p>Starts all application components.</p>
 <p>Initialization sequence:</p><ol type="1">
 <li>Open SQLite database</li>
 <li>Start WebSocket server</li>
@@ -231,9 +240,14 @@ Component Ownership</h2>
 </ol>
 <dl class="section return"><dt>Returns</dt><dd>true on success, false if any component fails to start </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">730</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">826</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">References <a class="el" href="telnet__sml__app_8cpp_source.html#l00682">app_running</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00683">client</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00686">conn</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00693">creds</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00701">dbApiServer</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00709">processingWorker</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00705">rawBuffer</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00708">receptionWorker</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00713">running</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00699">serDb</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00711">shmReader</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00706">shmRing</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00702">threadMgr</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00700">wsServer</a>.</p>
+<p class="reference">References <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">app_running</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00731">client</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00734">conn</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00741">creds</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00749">dbApiServer</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00761">passwordMgr</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00757">processingWorker</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00753">rawBuffer</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00756">receptionWorker</a>, <a class="el" href="ser__json__writer_8hpp_source.html#l00101">recordsToJsonTable()</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00765">running</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00747">serDb</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00763">shmReader</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00754">shmRing</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00750">threadMgr</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00760">timeSyncMgr</a>, <a class="el" href="ser__json__writer_8hpp_source.html#l00161">writeJsonToFile()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00748">wsServer</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><iframe scrolling="no" loading="lazy" frameborder="0" src="class_telnet_sml_app_1_1_impl_a64957945d93500acea2140ec59b07802_cgraph.svg" width="471" height="88"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
 
 </div>
 </div>
@@ -271,9 +285,9 @@ Component Ownership</h2>
 <li>Close database </li>
 </ol>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">855</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">1013</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">References <a class="el" href="telnet__sml__app_8cpp_source.html#l00682">app_running</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00701">dbApiServer</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00709">processingWorker</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00708">receptionWorker</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00713">running</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00699">serDb</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00711">shmReader</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00702">threadMgr</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00700">wsServer</a>.</p>
+<p class="reference">References <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">app_running</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00749">dbApiServer</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00757">processingWorker</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00756">receptionWorker</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00765">running</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00747">serDb</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00763">shmReader</a>, <a class="el" href="telnet__sml__app_8cpp_source.html#l00750">threadMgr</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00748">wsServer</a>.</p>
 
 </div>
 </div>
@@ -303,7 +317,7 @@ Component Ownership</h2>
 <p>Blocks until user requests exit. </p>
 <p>Waits for Enter key press to signal shutdown. </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00837">837</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00995">995</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
 </div>
 </div>
@@ -322,9 +336,9 @@ Component Ownership</h2>
 
 <p>Global application running flag. </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00682">682</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">730</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
 
 </div>
 </div>
@@ -342,9 +356,9 @@ Component Ownership</h2>
 
 <p>Telnet client for relay I/O. </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00683">683</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00731">731</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>.</p>
 
 </div>
 </div>
@@ -368,9 +382,9 @@ Component Ownership</h2>
 <p>Connection configuration for relay. </p>
 <p>Relay IP address Telnet port Connection timeout </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00686">686</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00734">734</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>.</p>
 
 </div>
 </div>
@@ -393,9 +407,9 @@ Component Ownership</h2>
 <p>Login credentials for Level 1 authentication. </p>
 <p>Username Password </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00693">693</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00741">741</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>.</p>
 
 </div>
 </div>
@@ -413,9 +427,29 @@ Component Ownership</h2>
 
 <p>Generic DB WebSocket API (port 8766) </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00701">701</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00749">749</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
+
+</div>
+</div>
+<a id="a67aebab6d98643d3cbee5566a4a39eb8" name="a67aebab6d98643d3cbee5566a4a39eb8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a67aebab6d98643d3cbee5566a4a39eb8">&#9670;&#160;</a></span>passwordMgr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="class_password_manager.html">PasswordManager</a> TelnetSmlApp::Impl::passwordMgr {<a class="el" href="#a5dc323211d8f13efbcc77f96af205723">relayService</a>}</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Password change orchestrator. </p>
+
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00761">761</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>.</p>
 
 </div>
 </div>
@@ -433,9 +467,9 @@ Component Ownership</h2>
 
 <p>Thread 2: Processing worker. </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00709">709</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00757">757</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
 
 </div>
 </div>
@@ -453,9 +487,9 @@ Component Ownership</h2>
 
 <p>SPSC ring buffer (100 slots) </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00705">705</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00753">753</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>.</p>
 
 </div>
 </div>
@@ -473,9 +507,27 @@ Component Ownership</h2>
 
 <p>Thread 1: Reception worker. </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00708">708</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00756">756</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
+
+</div>
+</div>
+<a id="a5dc323211d8f13efbcc77f96af205723" name="a5dc323211d8f13efbcc77f96af205723"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5dc323211d8f13efbcc77f96af205723">&#9670;&#160;</a></span>relayService</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="class_relay_service.html">RelayService</a> TelnetSmlApp::Impl::relayService {<a class="el" href="#aa6775b5cb185027d54340720ac15aabd">client</a>}</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Thread-safe relay command service. </p>
+
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00759">759</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
 </div>
 </div>
@@ -493,7 +545,7 @@ Component Ownership</h2>
 
 <p>Retry configuration. </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00698">698</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00746">746</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
 </div>
 </div>
@@ -511,9 +563,9 @@ Component Ownership</h2>
 
 <p>Application running state. </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00713">713</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00765">765</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
 
 </div>
 </div>
@@ -524,16 +576,16 @@ Component Ownership</h2>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="class_s_e_r_database.html">SERDatabase</a> TelnetSmlApp::Impl::serDb {&quot;ser_records.db&quot;}</td>
+          <td class="memname"><a class="el" href="class_s_e_r_database.html">SERDatabase</a> TelnetSmlApp::Impl::serDb {&quot;C:/Users/admin/Desktop/telnet/ser_records.db&quot;}</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>SQLite database (persistent storage) </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00699">699</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00747">747</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
 
 </div>
 </div>
@@ -551,9 +603,9 @@ Component Ownership</h2>
 
 <p>Thread 5: JSON file writer. </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00711">711</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00763">763</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
 
 </div>
 </div>
@@ -571,9 +623,9 @@ Component Ownership</h2>
 
 <p>Shared ring buffer (500KB) </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00706">706</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00754">754</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>.</p>
 
 </div>
 </div>
@@ -591,9 +643,29 @@ Component Ownership</h2>
 
 <p>Poller (2 min interval) </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00702">702</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00750">750</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
+
+</div>
+</div>
+<a id="afd302023b4fb39e1df1a6331ff0090ee" name="afd302023b4fb39e1df1a6331ff0090ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afd302023b4fb39e1df1a6331ff0090ee">&#9670;&#160;</a></span>timeSyncMgr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="class_time_sync_manager.html">TimeSyncManager</a> TelnetSmlApp::Impl::timeSyncMgr {<a class="el" href="#a5dc323211d8f13efbcc77f96af205723">relayService</a>}</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>DATE synchronization orchestrator. </p>
+
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00760">760</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>.</p>
 
 </div>
 </div>
@@ -611,9 +683,9 @@ Component Ownership</h2>
 
 <p>WebSocket server (port 8765) </p>
 
-<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00700">700</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="telnet__sml__app_8cpp_source.html#l00748">748</a> of file <a class="el" href="telnet__sml__app_8cpp_source.html">telnet_sml_app.cpp</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00730">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l00855">stop()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="telnet__sml__app_8cpp_source.html#l00826">start()</a>, and <a class="el" href="telnet__sml__app_8cpp_source.html#l01013">stop()</a>.</p>
 
 </div>
 </div>
