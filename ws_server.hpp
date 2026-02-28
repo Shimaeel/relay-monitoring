@@ -112,6 +112,7 @@
 #pragma once
 
 #include "dll_export.hpp"
+#include <optional>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -1063,6 +1064,31 @@ public:
         auto sessions = sessionMgr_.getSessions();
         std::cout << "[WS] Broadcasting to " << sessions.size() << " clients\n";
         
+        for (auto& session : sessions)
+        {
+            if (session)
+                session->sendBroadcast(payload);
+        }
+    }
+
+    /**
+     * @brief Broadcast all SER records from the database to all clients.
+     *
+     * @details Useful after a SER poll to refresh the full table in the UI.
+     */
+    void broadcastAll()
+    {
+        if (!running_)
+            return;
+
+        auto records = db_.getAllRecords();
+        auto payload = asn_tlv::encodeSerRecordsToTlv(records);
+        if (payload.empty())
+            return;
+
+        auto sessions = sessionMgr_.getSessions();
+        std::cout << "[WS] Broadcasting full DB to " << sessions.size() << " clients\n";
+
         for (auto& session : sessions)
         {
             if (session)

@@ -502,18 +502,9 @@ class ProcessingWorker
             auto newRecords = db_.insertAndGetNewRecords(records, inserted);
             std::cout << "[Processing] SQLite: Stored " << inserted << " new records\n";
             
-            // Step 2: WebSocket Server (After DB Write) — broadcast only NEW records from DB
-            // New clients get ALL records from DB on connect (via sendData/getAllRecords)
-            // Here we only push genuinely new data to already-connected browsers
-            if (!newRecords.empty())
-            {
-                wsServer_.broadcast(newRecords);
-                std::cout << "[Processing] WebSocket: Broadcast " << newRecords.size() << " new records to clients\n";
-            }
-            else
-            {
-                std::cout << "[Processing] No new records (all duplicates), skipping broadcast\n";
-            }
+            // Step 2: WebSocket Server (After DB Write) — broadcast FULL DB to clients
+            // Ensures relay.html shows all stored records after a SER poll
+            wsServer_.broadcastAll();
             
             // Write to shared memory for JSON file writer (only on new data)
             if (inserted > 0)
@@ -766,7 +757,7 @@ public:
     };
 
     RetryState retry{3, 0, std::chrono::seconds(30)};    ///< Retry configuration
-    SERDatabase serDb{"C:/Users/admin/Desktop/telnet/ser_records.db"};                 ///< SQLite database (persistent storage)
+    SERDatabase serDb{"ser_records.db"};                 ///< SQLite database (persistent storage)
     SERWebSocketServer wsServer{serDb, 8765};            ///< WebSocket server (port 8765)
     std::unique_ptr<WSDBServer> dbApiServer;                ///< Generic DB WebSocket API (port 8766)
     ThreadManager threadMgr{serDb, std::chrono::seconds(120)}; ///< Poller (2 min interval)

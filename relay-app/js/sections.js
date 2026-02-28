@@ -322,6 +322,12 @@ function connectSerWebSocket() {
     serWorkerConnected = true;
     updateSerConnectionStatus("connected");
     startSerAutoRefresh();
+    // Request an immediate snapshot to populate the table on connect
+    try {
+      serWs.send("getData");
+    } catch (_) {
+      // Ignore send errors during handshake edge cases
+    }
     console.log("[SER] WebSocket connected");
   };
 
@@ -459,10 +465,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const tabs      = document.querySelectorAll(".vertical-item");
   const container = document.getElementById("dynamic-section");
 
-  // --- Resolve relay context once for host/port defaults ---
+  // --- Resolve defaults (match ui/index.html: localhost:8765) ---
   const relay = getCurrentRelay();
-  const defaultHost = (relay && relay.ip)     ? relay.ip     : "localhost";
-  const defaultPort = (relay && relay.wsPort) ? relay.wsPort : 8765;
+  const defaultHost = "localhost";
+  const defaultPort = 8765;
 
   // --- Pre-fill header config fields from relay data ---
   if (relay) {

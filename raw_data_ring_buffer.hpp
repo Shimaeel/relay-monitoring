@@ -53,7 +53,7 @@
  * // Consumer 1 (own thread)
  * std::atomic<bool> stop{false};
  * auto msg = buffer.waitPop(id1, stop);
- * if (msg) { /* process */ }
+ * if (msg) { process(msg); }
  * 
  * // Consumer 2 also gets the SAME message independently
  * auto msg2 = buffer.waitPop(id2, stop);
