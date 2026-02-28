@@ -18,7 +18,6 @@ let cserConnections    = {};     // relayId → WebSocket
 let cserAutoRefreshes  = {};     // relayId → interval handle
 let cserLastMessageAt  = 0;
 let cserDataReceived   = false;
-let cserRowCounter     = 0;      // globally-unique row id
 
 const _cserDecoder = new TextDecoder();
 
@@ -79,11 +78,11 @@ function _cserDecodeTlv(arrayBuffer, relayName) {
     if (sp !== -1) { date = ts.slice(0, sp); time = ts.slice(sp + 1); }
 
     const snoVal = Number.parseInt(fields.recordId, 10);
-    cserRowCounter++;
+    const sno = Number.isNaN(snoVal) ? (fields.recordId || "-") : snoVal;
     records.push({
-      _uid:    cserRowCounter,
+      _uid:    relayName + "_" + sno,
       relay:   relayName,
-      sno:     Number.isNaN(snoVal) ? (fields.recordId || "-") : snoVal,
+      sno:     sno,
       date:    date,
       time:    time,
       element: fields.description || "-",
@@ -188,7 +187,7 @@ function _cserUpdateTable(records) {
   if (!cserTable) {
     _cserInitTable(records);
   } else {
-    cserTable.addData(records);
+    cserTable.updateOrAddData(records);
   }
   cserDataReceived = true;
   _cserUpdateStats();
@@ -255,7 +254,7 @@ function _cserConnectRelay(relay) {
         try {
           const json = JSON.parse(event.data);
           if (Array.isArray(json)) {
-            const enriched = json.map(r => { cserRowCounter++; return { ...r, _uid: cserRowCounter, relay: relay.name }; });
+            const enriched = json.map(r => ({ ...r, _uid: relay.name + "_" + r.sno, relay: relay.name }));
             _cserUpdateTable(enriched);
             cserLastMessageAt = Date.now();
           }
