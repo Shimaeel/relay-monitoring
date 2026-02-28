@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relay Monitoring Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- Skip link for accessibility -->
+  <a href="#main-content" class="skip-link">Skip to content</a>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <span class="loading-text">Loading dashboard…</span>
+  </div>
+
+  <div class="app-shell">
+
+    <!-- ===== Main Wrapper ===== -->
+    <div class="main-wrapper">
+
+      <!-- Main Content -->
+      <main id="main-content" class="main-content">
+
+        <!-- Page Title -->
+        <div class="page-title-bar">
+          <div class="page-title-bar__left">
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-subtitle">Monitor and manage all connected relay devices</p>
+          </div>
+          <div class="page-title-bar__actions">
+            <button id="refresh-btn" class="btn btn--outline" type="button">
+              ⟳ Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Toolbar -->
+        <div class="toolbar">
+          <div class="search-wrap">
+            <span class="search-wrap__icon">🔍</span>
+            <input
+              type="text"
+              id="search-input"
+              class="input"
+              placeholder="Search by name, IP, or substation…"
+              aria-label="Search relays"
+            />
+          </div>
+        </div>
+
+        <!-- Relay Card Grid -->
+        <div id="relay-grid" class="relay-grid" aria-label="Relay devices">
+          <!-- Cards injected by dashboard.js -->
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

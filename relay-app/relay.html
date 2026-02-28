@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relay Details — Relay Monitor</title>
+
+  <!-- Tabulator -->
+  <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_modern.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+
+<body>
+
+<a href="#main-content" class="skip-link">Skip to content</a>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner"></div>
+  <span class="loading-text">Loading relay data…</span>
+</div>
+
+<div class="app-shell">
+  <div class="main-wrapper">
+    <main id="main-content" class="main-content">
+
+      <!-- Back -->
+      <div class="detail-back">
+        <a id="back-btn" class="detail-back__link">← Back to Dashboard</a>
+      </div>
+
+      <!-- Header -->
+      <div id="app" class="detail-header">
+        <div class="detail-header__top">
+          <div class="detail-header__left">
+            <div class="relay-image-container">
+              <img src="images/SEL-relay.svg" alt="SEL Relay Device" class="relay-image" />
+            </div>
+            <div>
+              <h1 id="relay-name">—</h1>
+              <p id="relay-subtitle">Loading relay information…</p>
+            </div>
+          </div>
+          <div class="detail-header__right">
+            <span id="relay-status-badge"></span>
+            <button id="sync-time-btn" class="btn btn--outline btn--sm">
+              ⏱ Sync Time
+            </button>
+          </div>
+        </div>
+
+        <!-- User Configuration Fields -->
+        <div class="detail-header__config">
+          <div class="header-field">
+            <label class="header-field__label">Substation</label>
+            <input id="cfg-substation" class="header-field__input" type="text" placeholder="—" />
+          </div>
+          <div class="header-field">
+            <label class="header-field__label">Bay</label>
+            <input id="cfg-bay" class="header-field__input" type="text" placeholder="—" />
+          </div>
+          <div class="header-field">
+            <label class="header-field__label">Power System Equipment</label>
+            <input id="cfg-pse" class="header-field__input" type="text" placeholder="—" />
+          </div>
+          <div class="header-field">
+            <label class="header-field__label">Breaker</label>
+            <input id="cfg-breaker" class="header-field__input" type="text" placeholder="—" />
+          </div>
+          <div class="header-field">
+            <label class="header-field__label">IP Address</label>
+            <input id="cfg-ip" class="header-field__input header-field__input--mono" type="text" placeholder="0.0.0.0" />
+          </div>
+          <div class="header-field">
+            <label class="header-field__label">Password</label>
+            <select id="cfg-pass-type" class="header-field__input header-field__input--select">
+              <option value="acc">acc: default</option>
+              <option value="2ac">2ac: default</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ACTION TOOLBAR ===== -->
+      <div class="section-toolbar">
+        <button class="btn btn--primary btn--sm">📥 Download Setting File</button>
+        <button class="btn btn--outline btn--sm" onclick="document.getElementById('upload-setting-file').click()">📤 Upload Setting File</button>
+        <input type="file" id="upload-setting-file" style="display:none" accept=".cfg,.txt,.set,.xml,.rdb" />
+        <button class="btn btn--outline btn--sm">🔒 Change Password</button>
+        <button class="btn btn--outline btn--sm">⏱ Synch Time to PC</button>
+        <button class="btn btn--danger btn--sm">⚡ Trigger</button>
+      </div>
+
+      <!-- ===== MAIN LAYOUT ===== -->
+      <div class="layout-container">
+
+        <!-- Dynamic Content -->
+        <div class="content-panel">
+          <div id="dynamic-section" class="section-card"></div>
+
+          <!-- ===== SER SECTION (static, toggled by sections.js) ===== -->
+          <div id="ser-section" class="section-card" style="display:none;">
+            <h2>📋 Sequence of Events (SER)</h2>
+
+            <!-- SER Toolbar -->
+            <div class="ser-toolbar">
+              <div class="ser-toolbar__left">
+                <span>Total Records: <strong id="ser-record-count" class="record-count">0</strong></span>
+                <span class="ser-toolbar__sep">|</span>
+                <span class="ser-toolbar__update">Last updated: <span id="ser-last-update">—</span></span>
+                <span class="ser-toolbar__sep">|</span>
+                <span id="ser-conn-status" style="font-weight:700">🟡 Connecting…</span>
+              </div>
+              <div class="ser-toolbar__right">
+                <button class="btn btn--outline btn--sm" onclick="serExportCSV()">📥 Export CSV</button>
+                <button class="btn btn--primary btn--sm" onclick="serRefresh()">🔄 Refresh</button>
+                <button class="btn btn--danger  btn--sm" onclick="serSendQuit()">⏹ QUIT</button>
+              </div>
+            </div>
+
+            <!-- Connection Config -->
+            <div class="ser-config">
+              <div class="ser-config__field">
+                <label>IP Address</label>
+                <input id="ser-ws-host" type="text" value="localhost" placeholder="192.168.1.10" />
+              </div>
+              <div class="ser-config__field">
+                <label>WebSocket Port</label>
+                <input id="ser-ws-port" type="number" min="1" max="65535" value="8765" />
+              </div>
+              <div class="ser-config__field">
+                <label>Poll Rate</label>
+                <input id="ser-poll-rate" type="number" min="250" step="250" value="2000" />
+                <span class="ser-config__suffix">ms</span>
+              </div>
+              <button class="btn btn--primary btn--sm" onclick="connectSerWebSocket()">Connect</button>
+            </div>
+
+            <!-- Empty-state hint (shown until first data arrives) -->
+            <div id="ser-live-empty" class="ser-live-empty" role="status" aria-live="polite">
+              <div id="ser-empty-title" class="ser-live-empty__title">Connecting to live data source</div>
+              <div id="ser-empty-hint"  class="ser-live-empty__hint">Waiting for the WebSocket server to accept the connection.</div>
+            </div>
+
+            <!-- Tabulator Table -->
+            <div id="ser-table"></div>
+          </div>
+          <!-- ===== END SER SECTION ===== -->
+        </div>
+
+        <!-- Right Vertical Sidebar -->
+        <div class="right-sidebar">
+          <div class="vertical-item" data-section="settings">Settings</div>
+          <div class="vertical-item" data-section="comtrade">COMTRADE Files</div>
+          <div class="vertical-item" data-section="event">Event Report</div>
+          <div class="vertical-item" data-section="io">Inputs / Outputs</div>
+          <div class="vertical-item" data-section="relayword">Relay Word</div>
+          <div class="vertical-item active" data-section="ser">SER</div>
+        </div>
+
+      </div>
+      <!-- ===== END LAYOUT ===== -->
+
+    </main>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+
+<script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/relay.js"></script>
+<script src="js/sections.js"></script>
+
+</body>
+</html>
