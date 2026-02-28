@@ -237,9 +237,8 @@ function initSerTable(data) {
       {
         title: "S.No",
         field: "sno",
-        widthGrow: 1,
-        widthShrink: 1,
-        minWidth: 60,
+        widthGrow: 0,
+        width: 230,
         hozAlign: "center",
         headerSort: true,
         sorter: "number",
@@ -248,9 +247,8 @@ function initSerTable(data) {
       {
         title: "Date",
         field: "date",
-        widthGrow: 2,
-        widthShrink: 1,
-        minWidth: 100,
+        widthGrow: 0,
+        width: 230,
         hozAlign: "center",
         headerSort: true,
         headerFilter: "input"
@@ -258,9 +256,8 @@ function initSerTable(data) {
       {
         title: "Time",
         field: "time",
-        widthGrow: 2,
-        widthShrink: 1,
-        minWidth: 110,
+       
+        width: 230,
         hozAlign: "center",
         headerSort: true,
         headerFilter: "input"
@@ -268,18 +265,16 @@ function initSerTable(data) {
       {
         title: "Element",
         field: "element",
-        widthGrow: 4,
-        widthShrink: 1,
-        minWidth: 150,
+        
+        width: 230,
         headerSort: true,
         headerFilter: "input"
       },
       {
         title: "State",
         field: "state",
-        widthGrow: 2,
-        widthShrink: 1,
-        minWidth: 100,
+        
+        width: 230,
         hozAlign: "center",
         formatter: serStatusFormatter,
         headerSort: true,

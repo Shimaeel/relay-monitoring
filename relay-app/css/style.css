@@ -1334,6 +1334,13 @@ ul, ol { list-style: none; }
   border-radius: var(--radius-sm);
 }
 
+.ser-config > .btn {
+  align-self: flex-end;
+  height: calc(1em * 1.2 + var(--sp-1) * 2 + 3px);   /* match input height */
+  display: inline-flex;
+  align-items: center;
+}
+
 .ser-config__field {
   display: flex;
   flex-direction: column;
@@ -1371,6 +1378,12 @@ ul, ol { list-style: none; }
   color: var(--color-text-muted);
   font-weight: 600;
   align-self: center;
+}
+
+.ser-config__input-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
 }
 
 /* Status text styling inside the table */

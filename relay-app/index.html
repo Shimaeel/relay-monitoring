@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Relay Monitoring Dashboard</title>
+  <!-- Tabulator -->
+  <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_modern.min.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -57,6 +59,43 @@
           <!-- Cards injected by dashboard.js -->
         </div>
 
+        <!-- ===== COMBINE SER SECTION ===== -->
+        <div id="combine-ser-section" class="section-card" style="margin-top:var(--sp-5)">
+          <h2>📋 Combine SER</h2>
+
+          <!-- Toolbar -->
+          <div class="ser-toolbar">
+            <div class="ser-toolbar__left">
+              <span>Total Records: <strong id="cser-record-count" class="record-count">0</strong></span>
+              <span class="ser-toolbar__sep">|</span>
+              <span class="ser-toolbar__update">Last updated: <span id="cser-last-update">—</span></span>
+              <span class="ser-toolbar__sep">|</span>
+              <span id="cser-conn-status" style="font-weight:700">🟡 Connecting…</span>
+            </div>
+            <div class="ser-toolbar__right">
+              <button class="btn btn--outline btn--sm" onclick="cserExportCSV()">📥 Export CSV</button>
+              <button class="btn btn--primary btn--sm" onclick="cserRefreshAll()">🔄 Refresh</button>
+              <button class="btn btn--danger btn--sm"  onclick="cserDisconnectAll()">⏹ Disconnect</button>
+            </div>
+          </div>
+
+          <!-- Connection Config -->
+          <div class="ser-config">
+            <div class="ser-config__field">
+              <label>Poll Rate</label>
+              <div class="ser-config__input-group">
+                <input id="cser-poll-rate" type="number" min="250" step="250" value="2000" />
+                <span class="ser-config__suffix">ms</span>
+              </div>
+            </div>
+            <button class="btn btn--primary btn--sm" onclick="cserConnectAll()">Connect All</button>
+          </div>
+
+          <!-- Tabulator Table -->
+          <div id="combine-ser-table"></div>
+        </div>
+        <!-- ===== END COMBINE SER ===== -->
+
       </main>
     </div>
   </div>
@@ -65,7 +104,9 @@
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
   <!-- Scripts -->
+  <script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
   <script src="js/data.js"></script>
   <script src="js/dashboard.js"></script>
+  <script src="js/combine_ser.js"></script>
 </body>
 </html>

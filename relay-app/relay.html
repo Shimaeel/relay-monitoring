@@ -129,8 +129,10 @@
               </div>
               <div class="ser-config__field">
                 <label>Poll Rate</label>
-                <input id="ser-poll-rate" type="number" min="250" step="250" value="2000" />
-                <span class="ser-config__suffix">ms</span>
+                <div class="ser-config__input-group">
+                  <input id="ser-poll-rate" type="number" min="250" step="250" value="2000" />
+                  <span class="ser-config__suffix">ms</span>
+                </div>
               </div>
               <button class="btn btn--primary btn--sm" onclick="connectSerWebSocket()">Connect</button>
             </div>
