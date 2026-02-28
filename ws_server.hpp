@@ -122,6 +122,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <deque>
 #include <iostream>
 #include <set>
 #include <mutex>
@@ -337,6 +338,16 @@ private:
     CommandHandler cmdHandler_;                   ///< Optional handler for relay commands
     ActionHandler actionHandler_;                 ///< Optional handler for JSON actions (time sync)
 
+    // ── Write queue for guaranteed delivery ─────────────────────────────
+    /// Pending message: binary payload or text string, with mode flag
+    struct PendingMsg
+    {
+        enum Kind { Binary, Text, SendAll } kind;
+        std::vector<uint8_t> binary_data;
+        std::string          text_data;
+    };
+    std::deque<PendingMsg> write_queue_;  ///< Queued writes while a write is in-flight
+
 public:
     /**
      * @brief Construct WebSocket session from accepted socket
@@ -449,12 +460,16 @@ private:
 
     /**
      * @brief Perform broadcast write operation (called on strand)
+     *
+     * @details If a write is already in progress, the payload is queued.
+     * The queue is drained automatically when the current write completes.
      */
     void do_broadcast(const std::vector<uint8_t>& data)
     {
         if (writing_)
         {
-            // Queue for later or skip - for simplicity, skip if busy
+            // Queue for delivery once the in-flight write finishes
+            write_queue_.push_back({PendingMsg::Binary, data, {}});
             return;
         }
         
@@ -468,7 +483,7 @@ private:
     }
     
     /**
-     * @brief Handle broadcast write completion
+     * @brief Handle broadcast write completion — drains pending queue.
      */
     void on_broadcast_write(beast::error_code ec, std::size_t /*bytes_transferred*/)
     {
@@ -477,6 +492,51 @@ private:
         if (ec)
         {
             std::cerr << "[WS] Broadcast write error: " << ec.message() << "\n";
+            write_queue_.clear();
+            return;
+        }
+
+        drainQueue();
+    }
+
+    /**
+     * @brief Send the next queued message (if any).
+     *
+     * @details Called after every successful write to flush pending data.
+     */
+    void drainQueue()
+    {
+        if (writing_ || write_queue_.empty())
+            return;
+
+        auto msg = std::move(write_queue_.front());
+        write_queue_.pop_front();
+
+        switch (msg.kind)
+        {
+        case PendingMsg::Binary:
+            writing_ = true;
+            broadcast_buffer_ = std::move(msg.binary_data);
+            ws_.binary(true);
+            ws_.async_write(
+                net::buffer(broadcast_buffer_),
+                beast::bind_front_handler(&WebSocketSession::on_broadcast_write,
+                                          shared_from_this()));
+            break;
+
+        case PendingMsg::Text:
+            writing_ = true;
+            text_write_buffer_ = std::move(msg.text_data);
+            ws_.text(true);
+            ws_.async_write(
+                net::buffer(text_write_buffer_),
+                beast::bind_front_handler(&WebSocketSession::on_broadcast_write,
+                                          shared_from_this()));
+            break;
+
+        case PendingMsg::SendAll:
+            sendData();   // will set writing_ itself
+            break;
         }
     }
 
@@ -572,17 +632,17 @@ private:
     }
 
     /**
-     * @brief Send current database records to client as JSON
+     * @brief Send current database records to client as ASN.1 BER/TLV.
      * 
-     * @details Queries all records from database and sends as JSON array.
-     * Prevents concurrent writes using writing_ flag.
+     * @details Queries all records from database and sends as binary.
+     * If a write is in-flight the request is queued and sent later.
      */
     void sendData()
     {
-        // Prevent concurrent writes
         if (writing_)
         {
-            std::cout << "[WS] Write already in progress, skipping\n";
+            // Queue a full-DB send for when the current write finishes
+            write_queue_.push_back({PendingMsg::SendAll, {}, {}});
             return;
         }
         
@@ -612,6 +672,7 @@ private:
         if (ec)
         {
             std::cerr << "[WS] Write error: " << ec.message() << "\n";
+            write_queue_.clear();
             return;
         }
         
@@ -621,6 +682,9 @@ private:
             pending_read_ = false;
             do_read();
         }
+
+        // Flush any queued writes (broadcasts / text / sendAll)
+        drainQueue();
     }
 
     /**
@@ -661,7 +725,8 @@ private:
     {
         if (writing_)
         {
-            std::cout << "[WS] Write in progress, skipping text response\n";
+            // Queue for delivery once the in-flight write finishes
+            write_queue_.push_back({PendingMsg::Text, {}, text});
             return;
         }
 

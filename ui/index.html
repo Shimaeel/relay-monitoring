@@ -564,27 +564,74 @@
             return records;
         }
 
+        /**
+         * MPMC SharedRingBuffer — multiple writers, multiple independent readers.
+         * Header layout (Int32Array):
+         *   [0] writePos
+         *   [1] signal (notification counter)
+         *   [2] readerCount (number of registered readers)
+         *   [3..3+MAX_READERS-1] per-reader readPos
+         */
+        const RING_MAX_READERS = 8;
+
         function createSharedRingBuffer(capacity) {
-            const headerBytes = 12; // writeIndex, readIndex, signal
+            const headerSlots = 3 + RING_MAX_READERS; // writePos + signal + readerCount + 8 readPos
+            const headerBytes = headerSlots * 4;
             const buffer = new SharedArrayBuffer(headerBytes + capacity);
-            const header = new Int32Array(buffer, 0, 3);
+            const header = new Int32Array(buffer, 0, headerSlots);
             const data = new Uint8Array(buffer, headerBytes, capacity);
             const view = new DataView(buffer, headerBytes, capacity);
 
-            header[0] = 0;
-            header[1] = 0;
-            header[2] = 0;
+            // Initialise header
+            Atomics.store(header, 0, 0);   // writePos
+            Atomics.store(header, 1, 0);   // signal
+            Atomics.store(header, 2, 0);   // readerCount
+            for (let i = 0; i < RING_MAX_READERS; i++) {
+                Atomics.store(header, 3 + i, -1);  // -1 = inactive
+            }
 
             function readLength(pos) {
                 return view.getUint32(pos, true);
             }
 
-            function readPayload() {
-                const readPos = Atomics.load(header, 1);
+            /**
+             * Register a new reader.  Returns readerId (0..MAX-1) or -1 if full.
+             * New reader starts at the current writePos (sees only future messages).
+             */
+            function registerReader() {
                 const writePos = Atomics.load(header, 0);
-                if (readPos === writePos) {
-                    return null;
+                for (let i = 0; i < RING_MAX_READERS; i++) {
+                    // CAS: only claim if currently inactive (-1)
+                    const old = Atomics.compareExchange(header, 3 + i, -1, writePos);
+                    if (old === -1) {
+                        Atomics.add(header, 2, 1);   // increment readerCount
+                        return i;
+                    }
                 }
+                return -1;  // all slots taken
+            }
+
+            /**
+             * Unregister a reader, freeing its slot.
+             */
+            function unregisterReader(readerId) {
+                if (readerId < 0 || readerId >= RING_MAX_READERS) return;
+                Atomics.store(header, 3 + readerId, -1);
+                Atomics.sub(header, 2, 1);
+            }
+
+            /**
+             * Read next payload for a specific reader.
+             * Returns Uint8Array payload or null if nothing available.
+             */
+            function readPayload(readerId) {
+                if (readerId < 0 || readerId >= RING_MAX_READERS) return null;
+
+                const readPos = Atomics.load(header, 3 + readerId);
+                if (readPos < 0) return null;  // inactive reader
+
+                const writePos = Atomics.load(header, 0);
+                if (readPos === writePos) return null;  // nothing to read
 
                 let pos = readPos;
                 if (pos + 4 > capacity) {
@@ -593,19 +640,19 @@
 
                 let len = readLength(pos);
                 if (len === 0 || len > capacity - 4) {
-                    Atomics.store(header, 1, writePos);
+                    Atomics.store(header, 3 + readerId, writePos);
                     return null;
                 }
 
                 if (pos + 4 + len > capacity) {
                     pos = 0;
                     if (pos === writePos) {
-                        Atomics.store(header, 1, pos);
+                        Atomics.store(header, 3 + readerId, pos);
                         return null;
                     }
                     len = readLength(pos);
                     if (len === 0 || len > capacity - 4) {
-                        Atomics.store(header, 1, writePos);
+                        Atomics.store(header, 3 + readerId, writePos);
                         return null;
                     }
                 }
@@ -615,7 +662,7 @@
                 if (newRead >= capacity) {
                     newRead = 0;
                 }
-                Atomics.store(header, 1, newRead);
+                Atomics.store(header, 3 + readerId, newRead);
                 return payload;
             }
 
@@ -623,8 +670,11 @@
                 buffer,
                 capacity,
                 header,
+                registerReader,
+                unregisterReader,
                 readPayload,
-                readerRunning: false
+                readerRunning: false,
+                readerId: -1              // assigned after registerReader()
             };
         }
 
@@ -644,13 +694,22 @@
                 return;
             }
 
+            // Register as a reader on the MPMC ring
+            if (shmRing.readerId < 0) {
+                shmRing.readerId = shmRing.registerReader();
+                if (shmRing.readerId < 0) {
+                    console.error('SharedRingBuffer: all reader slots full');
+                    return;
+                }
+            }
+
             shmRing.readerRunning = true;
-            let lastSignal = Atomics.load(shmRing.header, 2);
+            let lastSignal = Atomics.load(shmRing.header, 1);
 
             const pump = async () => {
                 while (shmRing && shmRing.readerRunning) {
                     if (typeof Atomics.waitAsync === 'function') {
-                        const result = Atomics.waitAsync(shmRing.header, 2, lastSignal);
+                        const result = Atomics.waitAsync(shmRing.header, 1, lastSignal);
                         if (result && result.value && typeof result.value.then === 'function') {
                             await result.value;
                         } else {
@@ -660,13 +719,13 @@
                         await new Promise((resolve) => setTimeout(resolve, 50));
                     }
 
-                    const current = Atomics.load(shmRing.header, 2);
+                    const current = Atomics.load(shmRing.header, 1);
                     if (current === lastSignal) {
                         continue;
                     }
                     lastSignal = current;
 
-                    let payload = shmRing.readPayload();
+                    let payload = shmRing.readPayload(shmRing.readerId);
                     while (payload) {
                         try {
                             const tlvBuffer = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
@@ -678,7 +737,7 @@
                         } catch (err) {
                             console.error('Shared ring decode error:', err);
                         }
-                        payload = shmRing.readPayload();
+                        payload = shmRing.readPayload(shmRing.readerId);
                     }
                 }
             };
@@ -765,27 +824,31 @@
                         width: 80,
                         hozAlign: "center",
                         headerSort: true,
-                        sorter: "number"
+                        sorter: "number",
+                        headerFilter:"input"
                     },
                     {
                         title: "Date",
                         field: "date",
                         width: 120,
                         hozAlign: "center",
-                        headerSort: true
+                        headerSort: true,
+                        headerFilter:"input"
                     },
                     {
                         title: "Time",
                         field: "time",
                         width: 100,
                         hozAlign: "center",
-                        headerSort: true
+                        headerSort: true,
+                        headerFilter:"input"
                     },
                     {
                         title: "Element",
                         field: "element",
-                        minWidth: 300,
-                        headerSort: true
+                        minWidth: 150,
+                        headerSort: true,
+                        headerFilter:"input"
                     },
                     {
                         title: "State",
@@ -793,7 +856,8 @@
                         width: 120,
                         hozAlign: "center",
                         formatter: statusFormatter,
-                        headerSort: true
+                        headerSort: true,
+                        headerFilter:"input"
                     }
                 ],
                 initialSort: [
@@ -887,6 +951,7 @@
                 if (Array.isArray(jsonData)) {
                     console.log('[WS] Parsed JSON records:', jsonData.length);
                     updateTable(jsonData);
+                    lastMessageAt = Date.now();
                     dataReceived = true;
                 }
             } catch (e) {
@@ -926,6 +991,7 @@
 
         if (records.length > 0) {
             updateTable(records);
+            lastMessageAt = Date.now();
             dataReceived = true;
         } else {
             console.warn('[WS] TLV decoded but returned 0 records');

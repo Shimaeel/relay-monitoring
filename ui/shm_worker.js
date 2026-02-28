@@ -2,7 +2,7 @@
 
 /**
  * @file shm_worker.js
- * @brief Web Worker that bridges WebSocket input to a SharedArrayBuffer ring buffer.
+ * @brief Web Worker that bridges WebSocket input to a SharedArrayBuffer MPMC ring buffer.
  *
  * @description This Web Worker runs in a background thread and performs two jobs:
  *
@@ -10,8 +10,8 @@
  *    JSON arrays of SER records, and encodes them into BER-TLV binary payloads.
  *
  * 2. **Ring buffer producer** — Writes the encoded payloads into a
- *    SharedArrayBuffer-backed ring buffer so the main thread can read them
- *    without copying or message passing.
+ *    SharedArrayBuffer-backed MPMC ring buffer so multiple readers (main thread,
+ *    other workers) can each consume every message independently.
  *
  * ## Communication Protocol (main thread → worker)
  *
@@ -28,16 +28,19 @@
  * | `ws_status`  | `status`            | WebSocket state: connecting/connected/disconnected/error |
  * | `error`      | `message`           | Error details (JSON parse fail, etc.)|
  *
- * ## Ring Buffer Memory Layout
+ * ## MPMC Ring Buffer Memory Layout
  *
  * ```
  * SharedArrayBuffer:
- * ┌─────────────────────────────────────────────────────────────────┐
- * │ Int32[0]: writePos │ Int32[1]: readPos │ Int32[2]: signal     │
- * ├────────────────────┴───────────────────┴──────────────────────┤
- * │ Uint8[12 .. 12 + capacity]: data ring                         │
- * │   [4-byte LE len][payload bytes][4-byte LE len][payload]...   │
- * └─────────────────────────────────────────────────────────────────┘
+ * ┌────────────────────────────────────────────────────────────────────────────┐
+ * │ Int32[0]: writePos                                                        │
+ * │ Int32[1]: signal (notification counter)                                   │
+ * │ Int32[2]: readerCount                                                     │
+ * │ Int32[3..10]: per-reader readPos (-1 = inactive)                          │
+ * ├──────────────────────────────────────────────────────────────────────────────┤
+ * │ Uint8[headerBytes .. headerBytes + capacity]: data ring                    │
+ * │   [4-byte LE len][payload bytes][4-byte LE len][payload]...               │
+ * └──────────────────────────────────────────────────────────────────────────────┘
  * ```
  *
  * @see shared_ring_buffer.hpp  C++ equivalent ring buffer implementation
@@ -45,20 +48,20 @@
  * @see index.html              Main thread consumer that reads the ring buffer
  *
  * @author Telnet-SML Development Team
- * @version 1.0.0
+ * @version 2.0.0
  * @date 2026
  */
 
 /**
- * Shared ring buffer state used by the worker.
- * @type {{header: Int32Array|null, data: Uint8Array|null, view: DataView|null, capacity: number, signalIndex: number}}
+ * Shared MPMC ring buffer state used by the worker.
+ * @type {{header: Int32Array|null, data: Uint8Array|null, view: DataView|null, capacity: number, maxReaders: number}}
  */
 const STATE = {
     header: null,
     data: null,
     view: null,
     capacity: 0,
-    signalIndex: 2
+    maxReaders: 8
 };
 
 /** @type {WebSocket|null} */
@@ -68,27 +71,58 @@ let wsUrl = null;
 
 /**
  * Initialize the ring buffer views for the shared buffer.
+ * Header layout: [writePos, signal, readerCount, readPos0..readPos7]
  * @param {ArrayBuffer|SharedArrayBuffer} buffer
  * @param {number} capacity
  */
 function initRing(buffer, capacity) {
-    STATE.header = new Int32Array(buffer, 0, 3);
-    STATE.data = new Uint8Array(buffer, 12, capacity);
-    STATE.view = new DataView(buffer, 12, capacity);
+    const headerSlots = 3 + STATE.maxReaders;
+    const headerBytes = headerSlots * 4;
+    STATE.header = new Int32Array(buffer, 0, headerSlots);
+    STATE.data = new Uint8Array(buffer, headerBytes, capacity);
+    STATE.view = new DataView(buffer, headerBytes, capacity);
     STATE.capacity = capacity;
 }
 
 /**
  * Compute free bytes available in the ring buffer.
- * @param {number} readPos
+ * Uses the slowest active reader for backpressure.
  * @param {number} writePos
  * @returns {number}
  */
-function freeBytes(readPos, writePos) {
-    if (writePos >= readPos) {
-        return STATE.capacity - (writePos - readPos);
+function freeBytes(writePos) {
+    const slowReadPos = slowestReaderPos(writePos);
+    if (writePos >= slowReadPos) {
+        return STATE.capacity - (writePos - slowReadPos);
     }
-    return readPos - writePos;
+    return slowReadPos - writePos;
+}
+
+/**
+ * Find the slowest (most behind) active reader position.
+ * If no readers are active, returns writePos (all space is free).
+ * @param {number} writePos
+ * @returns {number}
+ */
+function slowestReaderPos(writePos) {
+    let slowest = writePos;
+    let maxUsed = 0;
+    let anyActive = false;
+
+    for (let i = 0; i < STATE.maxReaders; i++) {
+        const rp = Atomics.load(STATE.header, 3 + i);
+        if (rp < 0) continue;  // inactive reader
+        anyActive = true;
+        const used = writePos >= rp
+            ? writePos - rp
+            : STATE.capacity - (rp - writePos);
+        if (used > maxUsed) {
+            maxUsed = used;
+            slowest = rp;
+        }
+    }
+
+    return anyActive ? slowest : writePos;
 }
 
 /**
@@ -110,37 +144,65 @@ function writeLength(pos, len) {
 }
 
 /**
- * Drop the oldest record to free space.
- * @param {number} readPos
+ * Drop the oldest record for the slowest reader(s) to free space.
+ * Advances ALL readers at the slowest position past one message.
  * @param {number} writePos
- * @returns {number}
+ * @returns {void}
  */
-function dropOldest(readPos, writePos) {
-    if (readPos === writePos) {
-        return readPos;
-    }
+function dropOldestForSlowest(writePos) {
+    // Find the slowest reader position
+    let slowestPos = writePos;
+    let maxUsed = 0;
 
-    if (readPos + 4 > STATE.capacity) {
-        readPos = 0;
-        if (readPos === writePos) {
-            return readPos;
+    for (let i = 0; i < STATE.maxReaders; i++) {
+        const rp = Atomics.load(STATE.header, 3 + i);
+        if (rp < 0) continue;
+        const used = writePos >= rp
+            ? writePos - rp
+            : STATE.capacity - (rp - writePos);
+        if (used > maxUsed) {
+            maxUsed = used;
+            slowestPos = rp;
         }
     }
 
-    const len = readLength(readPos);
-    if (len === 0 || len > STATE.capacity - 4) {
-        return writePos;
+    if (slowestPos === writePos) return;  // nothing to drop
+
+    let pos = slowestPos;
+    if (pos + 4 > STATE.capacity) {
+        pos = 0;
+        if (pos === writePos) return;
     }
 
-    let newRead = readPos + 4 + len;
-    if (newRead >= STATE.capacity) {
-        newRead = 0;
+    const len = readLength(pos);
+    if (len === 0 || len > STATE.capacity - 4) {
+        // Corrupt — skip all readers at slowestPos to writePos
+        for (let i = 0; i < STATE.maxReaders; i++) {
+            const rp = Atomics.load(STATE.header, 3 + i);
+            if (rp === slowestPos) {
+                Atomics.store(STATE.header, 3 + i, writePos);
+            }
+        }
+        return;
     }
-    return newRead;
+
+    let skipTo = pos + 4 + len;
+    if (skipTo >= STATE.capacity) {
+        skipTo = 0;
+    }
+
+    // Advance ALL readers at the same oldest position
+    for (let i = 0; i < STATE.maxReaders; i++) {
+        const rp = Atomics.load(STATE.header, 3 + i);
+        if (rp >= 0 && rp === slowestPos) {
+            Atomics.store(STATE.header, 3 + i, skipTo);
+        }
+    }
 }
 
 /**
- * Write a payload into the ring buffer, evicting oldest data as needed.
+ * Write a payload into the MPMC ring buffer, evicting oldest data as needed.
+ * Uses slowest active reader for backpressure.
  * @param {Uint8Array} bytes
  * @returns {boolean}
  */
@@ -153,17 +215,16 @@ function writePayload(bytes) {
         return false;
     }
 
-    let readPos = Atomics.load(STATE.header, 1);
     let writePos = Atomics.load(STATE.header, 0);
 
     if (writePos + 4 + bytes.length > STATE.capacity) {
         writePos = 0;
     }
 
-    let available = freeBytes(readPos, writePos);
+    let available = freeBytes(writePos);
     while (available < 4 + bytes.length) {
-        readPos = dropOldest(readPos, writePos);
-        available = freeBytes(readPos, writePos);
+        dropOldestForSlowest(writePos);
+        available = freeBytes(writePos);
     }
 
     writeLength(writePos, bytes.length);
@@ -174,10 +235,9 @@ function writePayload(bytes) {
         newWrite = 0;
     }
 
-    Atomics.store(STATE.header, 1, readPos);
     Atomics.store(STATE.header, 0, newWrite);
-    Atomics.add(STATE.header, STATE.signalIndex, 1);
-    Atomics.notify(STATE.header, STATE.signalIndex, 1);
+    Atomics.add(STATE.header, 1, 1);       // signal++ (index 1)
+    Atomics.notify(STATE.header, 1, 1);    // wake waiters on signal
     return true;
 }
 

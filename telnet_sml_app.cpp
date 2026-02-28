@@ -85,7 +85,7 @@ namespace
  * - Establish and maintain TCP connection to relay (port 23)
  * - Execute login sequence (Level 1 authentication)
  * - Process command queue and execute sequentially
- * - Push command/response pairs to RawDataRingBuffer
+ * - Push command/response pairs to RawDataRingBuffer (MPMC)
  *
  * ## Thread Safety
  * - Uses mutex-protected command queue
@@ -120,7 +120,7 @@ class ReceptionWorker
     TelnetClient& client_;                      ///< Reference to Telnet client for I/O
     ConnectionConfig& conn_;                    ///< Connection configuration (host, port, timeout)
     LoginConfig& creds_;                        ///< Login credentials (user, password)
-    RawDataRingBuffer& rawBuffer_;              ///< SPSC ring buffer for output
+    RawDataRingBuffer& rawBuffer_;              ///< MPMC ring buffer for output
     std::atomic<bool>& app_running_;            ///< Application running state flag
 
     bool connected_ = false;                    ///< Current TCP connection state
@@ -308,7 +308,7 @@ public:
      * @param client Reference to TelnetClient for relay communication
      * @param conn Connection configuration (host, port, timeout)
      * @param creds Login credentials for Level 1 authentication
-     * @param rawBuffer SPSC ring buffer for command/response output
+     * @param rawBuffer MPMC ring buffer for command/response output
      * @param app_running Application state flag for coordinated shutdown
      */
     ReceptionWorker(TelnetClient& client,
@@ -388,7 +388,7 @@ public:
  * coordinates the sequential pipeline for data persistence and distribution.
  *
  * ## Responsibilities
- * - Read command/response pairs from RawDataRingBuffer
+ * - Read command/response pairs from RawDataRingBuffer (MPMC)
  * - Parse SER response text into structured records
  * - Store validated records in SQLite database
  * - Broadcast new records via WebSocket (only after DB success)
@@ -396,7 +396,7 @@ public:
  *
  * ## Data Flow (Sequential Pipeline)
  * @code
- * SPSC Ring Buffer
+ * MPMC Ring Buffer
  *       │
  *       ▼
  * Parse SER Response
@@ -412,7 +412,7 @@ public:
  * @endcode
  *
  * ## Thread Safety
- * - Blocking wait on SPSC ring buffer
+ * - Blocking wait on MPMC ring buffer (per-reader cursor)
  * - Atomic stop flag for clean shutdown
  * - Database and WebSocket operations are thread-safe
  *
@@ -442,11 +442,12 @@ class ProcessingWorker
     std::atomic<bool> stop_flag_{false};       ///< Flag to signal worker thread termination
     std::thread worker_thread_;                 ///< Worker thread handle
 
-    RawDataRingBuffer& rawBuffer_;              ///< SPSC ring buffer input
+    RawDataRingBuffer& rawBuffer_;              ///< MPMC ring buffer input
     SERDatabase& db_;                           ///< SQLite database for persistence
     SERWebSocketServer& wsServer_;              ///< WebSocket server for broadcasting
     SharedRingBuffer& shmRing_;                 ///< Shared memory ring for JSON output
     std::atomic<bool>& app_running_;            ///< Application running state flag
+    RawDataRingBuffer::ReaderId readerId_{RawDataRingBuffer::kInvalidReader}; ///< Registered reader ID
 
     /**
      * @brief Main worker thread loop.
@@ -464,7 +465,7 @@ class ProcessingWorker
         while (!stop_flag_.load() && app_running_.load())
         {
             std::cout << "[Processing] Waiting for data from ring buffer...\n";
-            auto msg = rawBuffer_.waitPop(stop_flag_);
+            auto msg = rawBuffer_.waitPop(readerId_, stop_flag_);
             if (!msg)
             {
                 std::cout << "[Processing] waitPop returned empty (stop signal?)\n";
@@ -496,20 +497,28 @@ class ProcessingWorker
             
             std::cout << "[Processing] Parsed " << records.size() << " SER records\n";
             
-            // Step 1: SQLite (Persistent Storage)
-            int inserted = db_.insertRecords(records);
+            // Step 1: SQLite (Persistent Storage) — store and get only newly inserted records
+            int inserted = 0;
+            auto newRecords = db_.insertAndGetNewRecords(records, inserted);
             std::cout << "[Processing] SQLite: Stored " << inserted << " new records\n";
             
-            // Step 2: WebSocket Server (After DB Write) - always broadcast so UI stays current
-            // Even when inserted==0 (all duplicates), connected browsers need the data
-            // (e.g. browser connected after app restart with existing DB)
-            wsServer_.broadcast(records);
-            std::cout << "[Processing] WebSocket: Broadcast " << records.size() << " records to clients\n";
+            // Step 2: WebSocket Server (After DB Write) — broadcast only NEW records from DB
+            // New clients get ALL records from DB on connect (via sendData/getAllRecords)
+            // Here we only push genuinely new data to already-connected browsers
+            if (!newRecords.empty())
+            {
+                wsServer_.broadcast(newRecords);
+                std::cout << "[Processing] WebSocket: Broadcast " << newRecords.size() << " new records to clients\n";
+            }
+            else
+            {
+                std::cout << "[Processing] No new records (all duplicates), skipping broadcast\n";
+            }
             
             // Write to shared memory for JSON file writer (only on new data)
             if (inserted > 0)
             {
-                auto payload = asn_tlv::encodeSerRecordsToTlv(records);
+                auto payload = asn_tlv::encodeSerRecordsToTlv(newRecords);
                 if (!payload.empty())
                 {
                     shmRing_.write(payload.data(), payload.size());
@@ -523,7 +532,7 @@ public:
     /**
      * @brief Constructs a ProcessingWorker instance.
      *
-     * @param rawBuffer SPSC ring buffer for command/response input
+     * @param rawBuffer MPMC ring buffer for command/response input
      * @param db SQLite database for record persistence
      * @param wsServer WebSocket server for broadcasting to clients
      * @param shmRing Shared ring buffer for JSON file writer output
@@ -545,18 +554,26 @@ public:
     /**
      * @brief Starts the worker thread.
      *
-     * @details Resets stop flag and spawns worker thread running runLoop().
+     * @details Registers as a reader on the MPMC ring buffer, resets stop
+     * flag, and spawns worker thread running runLoop().
      */
     void start()
     {
         stop_flag_ = false;
+        readerId_ = rawBuffer_.registerReader();
+        if (readerId_ == RawDataRingBuffer::kInvalidReader)
+        {
+            std::cerr << "[Processing] Failed to register reader — max readers reached\n";
+            return;
+        }
         worker_thread_ = std::thread([this]() { runLoop(); });
     }
 
     /**
      * @brief Stops the worker thread gracefully.
      *
-     * @details Sets stop flag, notifies ring buffer, and joins worker thread.
+     * @details Sets stop flag, notifies ring buffer, joins worker thread,
+     * and unregisters the reader.
      */
     void stop()
     {
@@ -564,6 +581,11 @@ public:
         rawBuffer_.notifyAll();
         if (worker_thread_.joinable())
             worker_thread_.join();
+        if (readerId_ != RawDataRingBuffer::kInvalidReader)
+        {
+            rawBuffer_.unregisterReader(readerId_);
+            readerId_ = RawDataRingBuffer::kInvalidReader;
+        }
     }
 };
 
@@ -700,7 +722,7 @@ public:
  * TelnetClient Thread (ReceptionWorker)
  *       │
  *       ▼
- * C++ SPSC Ring Buffer (RawDataRingBuffer)
+ * C++ MPMC Ring Buffer (RawDataRingBuffer)
  *       │
  *       ▼
  * FSM/Processing Thread (ProcessingWorker)
@@ -718,7 +740,7 @@ public:
  * | client | TelnetClient | Relay communication |
  * | serDb | SERDatabase | SQLite persistence |
  * | wsServer | SERWebSocketServer | WebSocket broadcast |
- * | rawBuffer | RawDataRingBuffer | SPSC queue (100 slots) |
+ * | rawBuffer | RawDataRingBuffer | MPMC queue (100 slots) |
  * | shmRing | SharedRingBuffer | JSON output (500KB) |
  * | threadMgr | ThreadManager | 2-min polling |
  *
@@ -750,7 +772,7 @@ public:
     ThreadManager threadMgr{serDb, std::chrono::seconds(120)}; ///< Poller (2 min interval)
 
     // Architecture components
-    RawDataRingBuffer rawBuffer{100};                    ///< SPSC ring buffer (100 slots)
+    RawDataRingBuffer rawBuffer{100};                    ///< MPMC ring buffer (100 slots)
     SharedRingBuffer shmRing{"TelnetSmlShmRing", 500U * 1024U}; ///< Shared ring buffer (500KB)
 
     std::unique_ptr<ReceptionWorker> receptionWorker;    ///< Thread 1: Reception worker

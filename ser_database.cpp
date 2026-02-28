@@ -292,6 +292,53 @@ int SERDatabase::insertRecords(const std::vector<SERRecord>& records)
     return inserted;
 }
 
+/**
+ * @brief Insert records and return only the newly inserted ones.
+ *
+ * @details Wraps all inserts in a single transaction. For each record,
+ *          checks whether it already exists before inserting. Only records
+ *          that did not previously exist and were successfully inserted are
+ *          included in the returned vector.
+ *
+ * @param records        Vector of SERRecord objects to insert.
+ * @param insertedCount  [out] Number of records actually inserted.
+ *
+ * @return std::vector<SERRecord>  Records that were newly inserted (not duplicates).
+ *
+ * @pre isOpen() == true
+ */
+std::vector<SERRecord> SERDatabase::insertAndGetNewRecords(
+    const std::vector<SERRecord>& records, int& insertedCount)
+{
+    insertedCount = 0;
+    std::vector<SERRecord> newRecords;
+
+    if (!db_)
+    {
+        last_error_ = "Database not open";
+        return newRecords;
+    }
+
+    sqlite3_exec(db_, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
+
+    for (const auto& record : records)
+    {
+        // Check if already exists BEFORE inserting
+        if (recordExists(record.record_id, record.timestamp))
+            continue;   // duplicate — skip
+
+        if (insertRecord(record))
+        {
+            ++insertedCount;
+            newRecords.push_back(record);
+        }
+    }
+
+    sqlite3_exec(db_, "COMMIT;", nullptr, nullptr, nullptr);
+
+    return newRecords;
+}
+
 // ================= QUERY OPERATIONS =================
 
 /**

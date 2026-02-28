@@ -227,6 +227,22 @@ public:
     int insertRecords(const std::vector<SERRecord>& records);
 
     /**
+     * @brief Insert records and return only the newly inserted ones.
+     *
+     * @details Inserts all records within a transaction, skips duplicates,
+     * and returns a vector containing only the records that were actually
+     * stored (not already present in the database).
+     *
+     * @param records Vector of SER records to insert
+     * @param[out] insertedCount Number of records inserted
+     *
+     * @return std::vector<SERRecord> Only the records that were newly inserted
+     *
+     * @pre isOpen() == true
+     */
+    std::vector<SERRecord> insertAndGetNewRecords(const std::vector<SERRecord>& records, int& insertedCount);
+
+    /**
      * @brief Retrieve all SER records ordered by timestamp (newest first).
      *
      * @return std::vector<SERRecord> All stored records, or empty if error/none
