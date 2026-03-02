@@ -451,6 +451,316 @@ function serSendQuit() {
 }
 
 // ============================================================
+//  RELAY WORD (TAR) Module State
+// ============================================================
+
+let rwTable          = null;   // Tabulator instance
+let rwWs             = null;   // WebSocket connection
+let rwFetching       = false;  // Currently fetching TAR data
+let rwRowsReceived   = 0;      // Parsed TAR rows so far
+let rwConnected      = false;  // WebSocket connected flag
+const RW_TOTAL_ROWS  = 77;    // TAR 0 through TAR 76
+
+// ============================================================
+//  Relay Word — Helpers
+// ============================================================
+
+function buildRwWsUrl() {
+  const h = (document.getElementById("rw-ws-host") || {}).value?.trim() || "localhost";
+  const p = (document.getElementById("rw-ws-port") || {}).value?.trim() || "8765";
+  return `ws://${h}:${p}`;
+}
+
+function updateRwStatus(status) {
+  const el = document.getElementById("rw-conn-status");
+  if (!el) return;
+  const map = {
+    idle:         { text: "🟡 Idle",         color: "#d97706" },
+    connecting:   { text: "🟡 Connecting…",  color: "#d97706" },
+    fetching:     { text: "🔵 Fetching…",    color: "#2563eb" },
+    connected:    { text: "🟢 Connected",    color: "#16a34a" },
+    done:         { text: "🟢 Done",         color: "#16a34a" },
+    disconnected: { text: "🔴 Disconnected", color: "#dc2626" },
+    error:        { text: "🔴 Error",        color: "#dc2626" }
+  };
+  const info = map[status] || map.idle;
+  el.textContent = info.text;
+  el.style.color = info.color;
+}
+
+function updateRwProgress(current) {
+  const container = document.getElementById("rw-progress-container");
+  const bar       = document.getElementById("rw-progress-bar");
+  const text      = document.getElementById("rw-progress-text");
+  if (!container) return;
+
+  if (current >= RW_TOTAL_ROWS) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "";
+  const pct = Math.min(100, Math.round((current / RW_TOTAL_ROWS) * 100));
+  if (bar)  bar.style.width = pct + "%";
+  if (text) text.textContent = `TAR ${current} / ${RW_TOTAL_ROWS}  (${pct}%)`;
+}
+
+function updateRwRowCount() {
+  const el = document.getElementById("rw-row-count");
+  if (el) el.textContent = rwRowsReceived;
+}
+
+// ============================================================
+//  Relay Word — TAR Response Parser
+// ============================================================
+
+/**
+ * Parse the raw text response from a TAR command.
+ *
+ * Expected relay output (SEL format):
+ *   TAR n
+ *    ROW  n ( dnp ):
+ *           7       6       5       4       3       2       1       0
+ *       -----   -----   -----   -----   -----   -----   -----   -----
+ *       LBL7    LBL6    LBL5    LBL4    LBL3    LBL2    LBL1    LBL0
+ *           0       0       0       0       0       0       0       0
+ *   =>
+ */
+function parseTarResponse(text) {
+  // Extract ROW n ( dnpIndex )
+  const rowMatch = text.match(/ROW\s+(\d+)\s*\(\s*(\d+)\s*\)/i);
+  if (!rowMatch) return null;
+
+  const targetRow = parseInt(rowMatch[1], 10);
+  const dnpIndex  = parseInt(rowMatch[2], 10);
+
+  const lines = text.split(/\r?\n/);
+
+  // Locate the bit-values line: exactly 8 tokens, all '0' or '1'
+  let valIdx = -1;
+  let values = [];
+  for (let i = 0; i < lines.length; i++) {
+    const tok = lines[i].trim().split(/\s+/).filter(t => t.length > 0);
+    if (tok.length === 8 && tok.every(t => t === '0' || t === '1')) {
+      values = tok.map(Number);
+      valIdx = i;
+      break;
+    }
+  }
+
+  if (valIdx === -1) {
+    // No values found — return row with defaults
+    return { targetRow, dnpIndex, labels: Array(8).fill(''), values: Array(8).fill(0) };
+  }
+
+  // Walk backwards to find the label line (skip dashes, column header, ROW line)
+  let labels = Array(8).fill('');
+  for (let i = valIdx - 1; i >= 0; i--) {
+    const tok = lines[i].trim().split(/\s+/).filter(t => t.length > 0);
+    if (tok.length === 0) continue;
+    if (tok.every(t => /^-+$/.test(t))) continue;                       // dash rows
+    if (tok.length === 8 && tok.join(' ') === '7 6 5 4 3 2 1 0') continue; // header
+    if (/ROW/i.test(lines[i])) continue;
+    if (/TARGET/i.test(lines[i]) && /^\s*TARGET\s/i.test(lines[i])) continue;
+    // Assume this is the label line
+    if (tok.length <= 8) {
+      const padded = Array(8 - tok.length).fill('').concat(tok);
+      labels = padded.slice(-8);
+    }
+    break;
+  }
+
+  return { targetRow, dnpIndex, labels, values };
+}
+
+// ============================================================
+//  Relay Word — Tabulator Table
+// ============================================================
+
+/** Formatter for each bit column cell: shows label + 0/1 value. */
+function rwBitFormatter(cell) {
+  const v = cell.getValue();
+  if (v === null || v === undefined) return '<span style="color:#9ca3af">—</span>';
+
+  const label      = v.label || '';
+  const val        = v.value;
+  const isAsserted = val === 1;
+  const bg   = isAsserted ? 'background:#dcfce7;border-radius:4px;' : '';
+  const clr  = isAsserted ? '#16a34a' : '#9ca3af';
+
+  return `<div style="text-align:center;padding:2px 0;${bg}">
+    <div style="font-size:.7em;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px" title="${label}">${label || '—'}</div>
+    <div style="font-weight:700;color:${clr};font-size:1.1em">${val ?? '—'}</div>
+  </div>`;
+}
+
+function initRwTable() {
+  // Pre-populate 77 blank rows
+  const data = [];
+  for (let i = 0; i < RW_TOTAL_ROWS; i++) {
+    data.push({
+      targetRow: i, dnpIndex: '—',
+      bit7: null, bit6: null, bit5: null, bit4: null,
+      bit3: null, bit2: null, bit1: null, bit0: null
+    });
+  }
+
+  const bitCol = (title, field) => ({
+    title,
+    field,
+    hozAlign: "center",
+    formatter: rwBitFormatter,
+    headerSort: true,
+    width: 100,
+    sorter: (a, b) => ((a?.value ?? -1) - (b?.value ?? -1))
+  });
+
+  rwTable = new Tabulator("#rw-table", {
+    data,
+    index: "targetRow",
+    layout: "fitColumns",
+    height: "600px",
+    pagination: false,
+    movableColumns: true,
+    placeholder: "No Relay Word Data — click Fetch All TAR",
+    columns: [
+      { title: "Target<br>Row",  field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", width: 80, frozen: true },
+      { title: "DNP<br>Index",   field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", width: 80 },
+      bitCol("7", "bit7"),
+      bitCol("6", "bit6"),
+      bitCol("5", "bit5"),
+      bitCol("4", "bit4"),
+      bitCol("3", "bit3"),
+      bitCol("2", "bit2"),
+      bitCol("1", "bit1"),
+      bitCol("0", "bit0")
+    ]
+  });
+}
+
+function updateRwTableRow(parsed) {
+  if (!rwTable) return;
+
+  rwTable.updateOrAddData([{
+    targetRow: parsed.targetRow,
+    dnpIndex:  parsed.dnpIndex,
+    bit7: { label: parsed.labels[0], value: parsed.values[0] },
+    bit6: { label: parsed.labels[1], value: parsed.values[1] },
+    bit5: { label: parsed.labels[2], value: parsed.values[2] },
+    bit4: { label: parsed.labels[3], value: parsed.values[3] },
+    bit3: { label: parsed.labels[4], value: parsed.values[4] },
+    bit2: { label: parsed.labels[5], value: parsed.values[5] },
+    bit1: { label: parsed.labels[6], value: parsed.values[6] },
+    bit0: { label: parsed.labels[7], value: parsed.values[7] }
+  }]);
+}
+
+// ============================================================
+//  Relay Word — WebSocket
+// ============================================================
+
+function connectRwWebSocket() {
+  disconnectRwWebSocket();
+  updateRwStatus("connecting");
+
+  const url = buildRwWsUrl();
+  console.log("[RW] Connecting to", url);
+  rwWs = new WebSocket(url);
+
+  rwWs.onopen = () => {
+    rwConnected = true;
+    updateRwStatus("connected");
+    console.log("[RW] WebSocket connected");
+    if (rwFetching) sendAllTarCommands();
+  };
+
+  rwWs.onmessage = (event) => {
+    // TAR responses arrive as text frames (broadcasts from ProcessingWorker)
+    if (typeof event.data !== 'string') return;
+
+    console.log("[RW] Received text (" + event.data.length + " bytes)");
+
+    const parsed = parseTarResponse(event.data);
+    if (!parsed) return;
+
+    console.log("[RW] Parsed TAR row:", parsed.targetRow, "DNP:", parsed.dnpIndex);
+    updateRwTableRow(parsed);
+    rwRowsReceived++;
+    updateRwRowCount();
+    updateRwProgress(rwRowsReceived);
+
+    if (rwRowsReceived >= RW_TOTAL_ROWS) {
+      rwFetching = false;
+      updateRwStatus("done");
+    }
+  };
+
+  rwWs.onclose = () => {
+    rwConnected = false;
+    console.log("[RW] WebSocket closed");
+    if (rwFetching) {
+      updateRwStatus("disconnected");
+    }
+  };
+
+  rwWs.onerror = (err) => {
+    console.error("[RW] WebSocket error:", err);
+    updateRwStatus("error");
+  };
+}
+
+function disconnectRwWebSocket() {
+  rwFetching = false;
+  if (rwWs) {
+    rwWs.onclose = null;
+    rwWs.onerror = null;
+    rwWs.close();
+    rwWs = null;
+  }
+  rwConnected = false;
+}
+
+function sendAllTarCommands() {
+  if (!rwWs || rwWs.readyState !== WebSocket.OPEN) return;
+
+  updateRwStatus("fetching");
+  updateRwProgress(0);
+
+  // Queue all 77 TAR commands — ReceptionWorker processes them sequentially
+  for (let i = 0; i < RW_TOTAL_ROWS; i++) {
+    rwWs.send("TAR " + i);
+  }
+  console.log("[RW] Sent", RW_TOTAL_ROWS, "TAR commands");
+}
+
+// ============================================================
+//  Relay Word — Public Actions (called from onclick)
+// ============================================================
+
+function rwFetchAll() {
+  rwFetching      = true;
+  rwRowsReceived  = 0;
+  updateRwRowCount();
+  updateRwProgress(0);
+
+  if (rwWs && rwWs.readyState === WebSocket.OPEN) {
+    sendAllTarCommands();
+  } else {
+    connectRwWebSocket();
+  }
+}
+
+function rwExportCSV() {
+  if (rwTable) rwTable.download("csv", "relay_word_targets.csv");
+}
+
+function rwDisconnect() {
+  disconnectRwWebSocket();
+  updateRwStatus("idle");
+  const pc = document.getElementById("rw-progress-container");
+  if (pc) pc.style.display = "none";
+}
+
+// ============================================================
 //  Section Loader
 // ============================================================
 
@@ -480,15 +790,28 @@ document.addEventListener("DOMContentLoaded", function () {
     serDataReceived = false;
   }
 
+  function teardownRelayWord() {
+    disconnectRwWebSocket();
+  }
+
   // --- References to SER section (static HTML in relay.html) ---
   const serSection   = document.getElementById("ser-section");
   const serHostInput  = document.getElementById("ser-ws-host");
   const serPortInput  = document.getElementById("ser-ws-port");
   const serPollInput  = document.getElementById("ser-poll-rate");
 
+  // --- References to Relay Word section (static HTML in relay.html) ---
+  const rwSection    = document.getElementById("relayword-section");
+  const rwHostInput  = document.getElementById("rw-ws-host");
+  const rwPortInput  = document.getElementById("rw-ws-port");
+
   // Pre-fill SER config inputs from relay context
   if (serHostInput) serHostInput.value = defaultHost;
   if (serPortInput) serPortInput.value = defaultPort;
+
+  // Pre-fill Relay Word config inputs from relay context
+  if (rwHostInput) rwHostInput.value = defaultHost;
+  if (rwPortInput) rwPortInput.value = defaultPort;
 
   // Poll-rate live update
   if (serPollInput) {
@@ -519,12 +842,36 @@ document.addEventListener("DOMContentLoaded", function () {
     container.style.display = "";
   }
 
+  function showRelayWordSection() {
+    if (rwSection) rwSection.style.display = "";
+    container.style.display = "none";
+
+    requestAnimationFrame(() => {
+      if (!rwTable) {
+        initRwTable();
+      } else {
+        rwTable.redraw(true);
+      }
+    });
+  }
+
+  function hideRelayWordSection() {
+    if (rwSection) rwSection.style.display = "none";
+    container.style.display = "";
+  }
+
   function loadSection(section) {
 
     // Clean up previous SER resources when switching away
     if (section !== "ser") {
       teardownSer();
       hideSerSection();
+    }
+
+    // Clean up previous Relay Word resources when switching away
+    if (section !== "relayword") {
+      teardownRelayWord();
+      hideRelayWordSection();
     }
 
     switch (section) {
@@ -558,10 +905,7 @@ document.addEventListener("DOMContentLoaded", function () {
         break;
 
       case "relayword":
-        container.innerHTML = `
-          <h2>📊 Relay Word Status</h2>
-          <p>Bit-level relay word breakdown displayed here.</p>
-        `;
+        showRelayWordSection();
         break;
 
       case "ser":

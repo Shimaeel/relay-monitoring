@@ -147,6 +147,50 @@
             <div id="ser-table"></div>
           </div>
           <!-- ===== END SER SECTION ===== -->
+
+          <!-- ===== RELAY WORD SECTION (static, toggled by sections.js) ===== -->
+          <div id="relayword-section" class="section-card" style="display:none;">
+            <h2>📊 Relay Word — Target Status</h2>
+
+            <!-- Relay Word Toolbar -->
+            <div class="ser-toolbar">
+              <div class="ser-toolbar__left">
+                <span>Rows Loaded: <strong id="rw-row-count" class="record-count">0</strong> / 77</span>
+                <span class="ser-toolbar__sep">|</span>
+                <span id="rw-conn-status" style="font-weight:700">🟡 Idle</span>
+              </div>
+              <div class="ser-toolbar__right">
+                <button class="btn btn--outline btn--sm" onclick="rwExportCSV()">📥 Export CSV</button>
+                <button class="btn btn--primary btn--sm" onclick="rwFetchAll()">🔄 Fetch All TAR</button>
+                <button class="btn btn--danger btn--sm" onclick="rwDisconnect()">⏹ Stop</button>
+              </div>
+            </div>
+
+            <!-- Connection Config -->
+            <div class="ser-config">
+              <div class="ser-config__field">
+                <label>IP Address</label>
+                <input id="rw-ws-host" type="text" value="localhost" placeholder="192.168.1.10" />
+              </div>
+              <div class="ser-config__field">
+                <label>WebSocket Port</label>
+                <input id="rw-ws-port" type="number" min="1" max="65535" value="8765" />
+              </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div id="rw-progress-container" style="display:none; margin: 12px 0;">
+              <div style="background: var(--surface-2, #e5e7eb); border-radius: 6px; overflow: hidden; height: 8px;">
+                <div id="rw-progress-bar" style="background: var(--accent, #2563eb); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+              </div>
+              <small id="rw-progress-text" style="color: var(--text-secondary, #6b7280); margin-top: 4px; display: inline-block;">Fetching TAR data…</small>
+            </div>
+
+            <!-- Tabulator Table -->
+            <div id="rw-table"></div>
+          </div>
+          <!-- ===== END RELAY WORD SECTION ===== -->
+
         </div>
 
         <!-- Right Vertical Sidebar -->
