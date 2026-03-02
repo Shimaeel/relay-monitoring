@@ -225,7 +225,6 @@ function serStatusFormatter(cell) {
 function initSerTable(data) {
   serTable = new Tabulator("#ser-table", {
     data: data,
-    index: "sno",
     layout: "fitColumns",
     pagination: true,
     paginationSize: 50,
@@ -288,7 +287,7 @@ function initSerTable(data) {
 
 function updateSerTable(data) {
   if (serTable) {
-    serTable.updateOrAddData(data);
+    serTable.setData(data);
   } else {
     initSerTable(data);
   }
