@@ -514,57 +514,83 @@ function updateRwRowCount() {
 // ============================================================
 
 /**
- * Parse the raw text response from a TAR command.
+ * Split a combined relay response (multiple TAR blocks separated by "=>")
+ * into individual per-TAR text blocks.
  *
- * Expected relay output (SEL format):
- *   TAR n
- *    ROW  n ( dnp ):
- *           7       6       5       4       3       2       1       0
- *       -----   -----   -----   -----   -----   -----   -----   -----
- *       LBL7    LBL6    LBL5    LBL4    LBL3    LBL2    LBL1    LBL0
- *           0       0       0       0       0       0       0       0
- *   =>
+ * Relay output example:
+ *   TAR 1\n\nLABELS\nVALUES\n\n=>TAR 2\n\nLABELS\nVALUES\n\n=>TAR 3...
+ */
+function splitTarBlocks(text) {
+  // Normalise "=>TAR n" (relay prompt + command echo) into a plain newline separator
+  const normalised = text.replace(/=>\s*TAR\s+/gi, '\nTAR ');
+  return normalised
+    .split(/\n(?=TAR\s+\d+)/i)
+    .map(p => p.trim())
+    .filter(p => /^TAR\s+\d+/i.test(p));
+}
+
+/**
+ * Parse a single TAR block into a structured row object.
+ *
+ * Supports two relay output formats:
+ *
+ *  New format (compact):
+ *    TAR n
+ *    LABEL0  LABEL1  ...  LABEL7
+ *    0       0       ...  0
+ *
+ *  Legacy SEL format:
+ *    TAR n
+ *     ROW  n ( dnp ):
+ *            7       6  ...  0
+ *        -----   -----  ...  -----
+ *        LBL7    LBL6   ...  LBL0
+ *            0       0  ...  0
+ *    =>
  */
 function parseTarResponse(text) {
-  // Extract ROW n ( dnpIndex )
-  const rowMatch = text.match(/ROW\s+(\d+)\s*\(\s*(\d+)\s*\)/i);
-  if (!rowMatch) return null;
-
-  const targetRow = parseInt(rowMatch[1], 10);
-  const dnpIndex  = parseInt(rowMatch[2], 10);
-
   const lines = text.split(/\r?\n/);
 
-  // Locate the bit-values line: exactly 8 tokens, all '0' or '1'
-  let valIdx = -1;
-  let values = [];
+  // --- Extract targetRow ---
+  let targetRow = null;
+  let dnpIndex  = '—';
+
+  for (const line of lines) {
+    const tarM = line.match(/^\s*TAR\s+(\d+)/i);
+    if (tarM) { targetRow = parseInt(tarM[1], 10); break; }
+  }
+
+  // Override with legacy ROW/DNP line if present
+  const rowMatch = text.match(/ROW\s+(\d+)\s*\(\s*(\d+)\s*\)/i);
+  if (rowMatch) {
+    targetRow = parseInt(rowMatch[1], 10);
+    dnpIndex  = parseInt(rowMatch[2], 10);
+  }
+
+  if (targetRow === null) return null;
+
+  // --- Locate bit-values line: exactly 8 tokens, all '0' or '1' ---
+  let labels = Array(8).fill('');
+  let values = Array(8).fill(0);
+
   for (let i = 0; i < lines.length; i++) {
     const tok = lines[i].trim().split(/\s+/).filter(t => t.length > 0);
-    if (tok.length === 8 && tok.every(t => t === '0' || t === '1')) {
-      values = tok.map(Number);
-      valIdx = i;
+    if (tok.length !== 8 || !tok.every(t => t === '0' || t === '1')) continue;
+
+    values = tok.map(Number);
+
+    // Walk backwards to find the label line
+    for (let j = i - 1; j >= 0; j--) {
+      const ltok = lines[j].trim().split(/\s+/).filter(t => t.length > 0);
+      if (ltok.length === 0) continue;
+      if (ltok.every(t => /^-+$/.test(t))) continue;                        // dash rows
+      if (ltok.length === 8 && ltok.join(' ') === '7 6 5 4 3 2 1 0') continue; // bit-index header
+      if (/ROW/i.test(lines[j])) continue;
+      if (/^\s*TAR\s+\d+/i.test(lines[j])) continue;
+      if (ltok.length <= 8) {
+        labels = Array(8 - ltok.length).fill('').concat(ltok);
+      }
       break;
-    }
-  }
-
-  if (valIdx === -1) {
-    // No values found — return row with defaults
-    return { targetRow, dnpIndex, labels: Array(8).fill(''), values: Array(8).fill(0) };
-  }
-
-  // Walk backwards to find the label line (skip dashes, column header, ROW line)
-  let labels = Array(8).fill('');
-  for (let i = valIdx - 1; i >= 0; i--) {
-    const tok = lines[i].trim().split(/\s+/).filter(t => t.length > 0);
-    if (tok.length === 0) continue;
-    if (tok.every(t => /^-+$/.test(t))) continue;                       // dash rows
-    if (tok.length === 8 && tok.join(' ') === '7 6 5 4 3 2 1 0') continue; // header
-    if (/ROW/i.test(lines[i])) continue;
-    if (/TARGET/i.test(lines[i]) && /^\s*TARGET\s/i.test(lines[i])) continue;
-    // Assume this is the label line
-    if (tok.length <= 8) {
-      const padded = Array(8 - tok.length).fill('').concat(tok);
-      labels = padded.slice(-8);
     }
     break;
   }
@@ -674,19 +700,23 @@ function connectRwWebSocket() {
   };
 
   rwWs.onmessage = (event) => {
-    // TAR responses arrive as text frames (broadcasts from ProcessingWorker)
+    // TAR responses arrive as text frames (broadcasts from ProcessingWorker).
+    // A single message may contain multiple TAR blocks separated by "=>".
     if (typeof event.data !== 'string') return;
 
     console.log("[RW] Received text (" + event.data.length + " bytes)");
 
-    const parsed = parseTarResponse(event.data);
-    if (!parsed) return;
+    const blocks = splitTarBlocks(event.data);
+    for (const block of blocks) {
+      const parsed = parseTarResponse(block);
+      if (!parsed) continue;
 
-    console.log("[RW] Parsed TAR row:", parsed.targetRow, "DNP:", parsed.dnpIndex);
-    updateRwTableRow(parsed);
-    rwRowsReceived++;
-    updateRwRowCount();
-    updateRwProgress(rwRowsReceived);
+      console.log("[RW] Parsed TAR row:", parsed.targetRow, "DNP:", parsed.dnpIndex);
+      updateRwTableRow(parsed);
+      rwRowsReceived++;
+      updateRwRowCount();
+      updateRwProgress(rwRowsReceived);
+    }
 
     if (rwRowsReceived >= RW_TOTAL_ROWS) {
       rwFetching = false;
