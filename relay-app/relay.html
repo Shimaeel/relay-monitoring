@@ -155,13 +155,13 @@
             <!-- Relay Word Toolbar -->
             <div class="ser-toolbar">
               <div class="ser-toolbar__left">
-                <span>Rows Loaded: <strong id="rw-row-count" class="record-count">0</strong> / 77</span>
+                <span>Rows Loaded: <strong id="rw-row-count" class="record-count">0</strong> / 78</span>
                 <span class="ser-toolbar__sep">|</span>
                 <span id="rw-conn-status" style="font-weight:700">🟡 Idle</span>
               </div>
               <div class="ser-toolbar__right">
                 <button class="btn btn--outline btn--sm" onclick="rwExportCSV()">📥 Export CSV</button>
-                <button class="btn btn--primary btn--sm" onclick="rwFetchAll()">🔄 Fetch All TAR</button>
+                <button id="rw-fetch-btn" class="btn btn--primary btn--sm" onclick="rwFetchAll()">🔄 Fetch All TAR</button>
                 <button class="btn btn--danger btn--sm" onclick="rwDisconnect()">⏹ Stop</button>
               </div>
             </div>

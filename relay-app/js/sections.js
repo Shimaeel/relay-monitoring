@@ -451,145 +451,145 @@ function serSendQuit() {
 }
 
 // ============================================================
-//  RELAY WORD (TAR) Module State
+//  RELAY WORD (TAR) Module
+// ============================================================
+//
+//  Clean async/await implementation.
+//  Sends TAR 0 → TAR 77 sequentially, waits for each response
+//  before sending the next, and updates the Tabulator table
+//  row-by-row.
+//
+//  Public API (called from onclick in relay.html):
+//    rwFetchAll()   — start sequential fetch
+//    rwExportCSV()  — download CSV
+//    rwDisconnect() — abort & disconnect
 // ============================================================
 
-let rwTable          = null;   // Tabulator instance
-let rwWs             = null;   // WebSocket connection
-let rwFetching       = false;  // Currently fetching TAR data
-let rwRowsReceived   = 0;      // Parsed TAR rows so far
-let rwConnected      = false;  // WebSocket connected flag
-const RW_TOTAL_ROWS  = 77;    // TAR 0 through TAR 76
+// ── State ───────────────────────────────────────────────────
 
-// ============================================================
-//  Relay Word — Helpers
-// ============================================================
+let rwTable     = null;   // Tabulator instance (created once)
+let rwWs        = null;   // WebSocket connection
+let rwAbort     = false;  // Abort signal for in-flight fetch
+const RW_TOTAL  = 78;     // TAR 0 through TAR 77
 
-function buildRwWsUrl() {
+// ── Promise queue for request-response over WebSocket ───────
+
+let _rwResolve  = null;   // resolve() of current pending sendCommand
+let _rwReject   = null;   // reject()  of current pending sendCommand
+
+// ── UI Helpers ──────────────────────────────────────────────
+
+function _rwBuildWsUrl() {
   const h = (document.getElementById("rw-ws-host") || {}).value?.trim() || "localhost";
   const p = (document.getElementById("rw-ws-port") || {}).value?.trim() || "8765";
   return `ws://${h}:${p}`;
 }
 
-function updateRwStatus(status) {
+function _rwSetStatus(status) {
   const el = document.getElementById("rw-conn-status");
   if (!el) return;
   const map = {
-    idle:         { text: "🟡 Idle",         color: "#d97706" },
-    connecting:   { text: "🟡 Connecting…",  color: "#d97706" },
-    fetching:     { text: "🔵 Fetching…",    color: "#2563eb" },
-    connected:    { text: "🟢 Connected",    color: "#16a34a" },
-    done:         { text: "🟢 Done",         color: "#16a34a" },
-    disconnected: { text: "🔴 Disconnected", color: "#dc2626" },
-    error:        { text: "🔴 Error",        color: "#dc2626" }
+    idle:         { text: "🟡 Idle",           color: "#d97706" },
+    connecting:   { text: "🟡 Connecting…",    color: "#d97706" },
+    fetching:     { text: "🔵 Fetching…",      color: "#2563eb" },
+    done:         { text: "🟢 Done",           color: "#16a34a" },
+    error:        { text: "🔴 Error",          color: "#dc2626" },
+    disconnected: { text: "🔴 Disconnected",   color: "#dc2626" },
+    aborted:      { text: "🟠 Aborted",        color: "#ea580c" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
   el.style.color = info.color;
 }
 
-function updateRwProgress(current) {
+function _rwSetProgress(current, total) {
   const container = document.getElementById("rw-progress-container");
   const bar       = document.getElementById("rw-progress-bar");
   const text      = document.getElementById("rw-progress-text");
   if (!container) return;
 
-  if (current >= RW_TOTAL_ROWS) {
+  if (current < 0) {                       // hide
     container.style.display = "none";
     return;
   }
   container.style.display = "";
-  const pct = Math.min(100, Math.round((current / RW_TOTAL_ROWS) * 100));
+  const pct = Math.min(100, Math.round((current / total) * 100));
   if (bar)  bar.style.width = pct + "%";
-  if (text) text.textContent = `TAR ${current} / ${RW_TOTAL_ROWS}  (${pct}%)`;
+  if (text) text.textContent = `Fetching TAR ${current} / ${total}  (${pct}%)`;
 }
 
-function updateRwRowCount() {
+function _rwSetRowCount(n) {
   const el = document.getElementById("rw-row-count");
-  if (el) el.textContent = rwRowsReceived;
+  if (el) el.textContent = n;
 }
 
-// ============================================================
-//  Relay Word — TAR Response Parser
-// ============================================================
-
-/**
- * Split a combined relay response (multiple TAR blocks separated by "=>")
- * into individual per-TAR text blocks.
- *
- * Relay output example:
- *   TAR 1\n\nLABELS\nVALUES\n\n=>TAR 2\n\nLABELS\nVALUES\n\n=>TAR 3...
- */
-function splitTarBlocks(text) {
-  // Normalise "=>TAR n" (relay prompt + command echo) into a plain newline separator
-  const normalised = text.replace(/=>\s*TAR\s+/gi, '\nTAR ');
-  return normalised
-    .split(/\n(?=TAR\s+\d+)/i)
-    .map(p => p.trim())
-    .filter(p => /^TAR\s+\d+/i.test(p));
+function _rwSetFetchBtn(disabled) {
+  const btn = document.getElementById("rw-fetch-btn");
+  if (!btn) return;
+  btn.disabled = disabled;
+  btn.style.opacity = disabled ? "0.5" : "1";
+  btn.style.pointerEvents = disabled ? "none" : "";
 }
 
+// ── TAR Response Parser ─────────────────────────────────────
+
 /**
- * Parse a single TAR block into a structured row object.
+ * Parse the raw text response of a single TAR command.
  *
- * Supports two relay output formats:
+ * Expected SEL relay output:
+ *   TAR n
+ *    ROW  n ( dnpIndex ):
+ *            7       6       5       4       3       2       1       0
+ *        -----   -----   -----   -----   -----   -----   -----   -----
+ *        LED6    LED5    LED4    LED3    LED2    LED1    *       ENABLE
+ *            0       0       0       0       0       0       0       1
+ *   =>
  *
- *  New format (compact):
- *    TAR n
- *    LABEL0  LABEL1  ...  LABEL7
- *    0       0       ...  0
- *
- *  Legacy SEL format:
- *    TAR n
- *     ROW  n ( dnp ):
- *            7       6  ...  0
- *        -----   -----  ...  -----
- *        LBL7    LBL6   ...  LBL0
- *            0       0  ...  0
- *    =>
+ * Or compact format:
+ *   TAR n
+ *   LED6    LED5    LED4    LED3    LED2    LED1    *       ENABLE
+ *   0       0       0       0       0       0       0       1
  */
 function parseTarResponse(text) {
   const lines = text.split(/\r?\n/);
 
-  // --- Extract targetRow ---
+  // ── Extract targetRow from "TAR n" ──
   let targetRow = null;
-  let dnpIndex  = '—';
+  let dnpIndex  = "—";
 
   for (const line of lines) {
-    const tarM = line.match(/^\s*TAR\s+(\d+)/i);
-    if (tarM) { targetRow = parseInt(tarM[1], 10); break; }
+    const m = line.match(/^\s*TAR\s+(\d+)/i);
+    if (m) { targetRow = parseInt(m[1], 10); break; }
   }
 
-  // Override with legacy ROW/DNP line if present
-  const rowMatch = text.match(/ROW\s+(\d+)\s*\(\s*(\d+)\s*\)/i);
-  if (rowMatch) {
-    targetRow = parseInt(rowMatch[1], 10);
-    dnpIndex  = parseInt(rowMatch[2], 10);
+  // Override with "ROW n ( dnp ):" if present
+  const rowM = text.match(/ROW\s+(\d+)\s*\(\s*(\d+)\s*\)/i);
+  if (rowM) {
+    targetRow = parseInt(rowM[1], 10);
+    dnpIndex  = parseInt(rowM[2], 10);
   }
 
   if (targetRow === null) return null;
 
-  // --- Locate bit-values line: exactly 8 tokens, all '0' or '1' ---
-  let labels = Array(8).fill('');
+  // ── Find the values line: exactly 8 tokens, all '0' or '1' ──
+  let labels = Array(8).fill("");
   let values = Array(8).fill(0);
 
   for (let i = 0; i < lines.length; i++) {
-    const tok = lines[i].trim().split(/\s+/).filter(t => t.length > 0);
-    if (tok.length !== 8 || !tok.every(t => t === '0' || t === '1')) continue;
+    const tok = lines[i].trim().split(/\s+/).filter(Boolean);
+    if (tok.length !== 8 || !tok.every(t => t === "0" || t === "1")) continue;
 
     values = tok.map(Number);
 
     // Walk backwards to find the label line
     for (let j = i - 1; j >= 0; j--) {
-      const ltok = lines[j].trim().split(/\s+/).filter(t => t.length > 0);
-      if (ltok.length === 0) continue;
-      if (ltok.every(t => /^-+$/.test(t))) continue;                        // dash rows
-      if (ltok.length === 8 && ltok.join(' ') === '7 6 5 4 3 2 1 0') continue; // bit-index header
+      const lt = lines[j].trim().split(/\s+/).filter(Boolean);
+      if (lt.length === 0) continue;
+      if (lt.every(t => /^-+$/.test(t))) continue;                           // dash row
+      if (lt.length === 8 && lt.join(" ") === "7 6 5 4 3 2 1 0") continue;   // column header
       if (/ROW/i.test(lines[j])) continue;
       if (/^\s*TAR\s+\d+/i.test(lines[j])) continue;
-      if (ltok.length <= 8) {
-        labels = Array(8 - ltok.length).fill('').concat(ltok);
-      }
+      labels = lt.length <= 8 ? Array(8 - lt.length).fill("").concat(lt) : lt.slice(0, 8);
       break;
     }
     break;
@@ -598,50 +598,39 @@ function parseTarResponse(text) {
   return { targetRow, dnpIndex, labels, values };
 }
 
-// ============================================================
-//  Relay Word — Tabulator Table
-// ============================================================
+// ── Tabulator — Init (once) ─────────────────────────────────
 
-/** Formatter for each bit column cell: shows label + 0/1 value. */
-function rwBitFormatter(cell) {
+function _rwBitFormatter(cell) {
   const v = cell.getValue();
-  if (v === null || v === undefined) return '<span style="color:#9ca3af">—</span>';
+  if (v === null || v === undefined)
+    return '<span style="color:#9ca3af">—</span>';
 
-  const label      = v.label || '';
-  const val        = v.value;
-  const isAsserted = val === 1;
-  const bg   = isAsserted ? 'background:#dcfce7;border-radius:4px;' : '';
-  const clr  = isAsserted ? '#16a34a' : '#9ca3af';
+  const label = v.label || "";
+  const val   = v.value;
+  const on    = val === 1;
+  const bg    = on ? "background:#dcfce7;border-radius:4px;" : "";
+  const clr   = on ? "#16a34a" : "#9ca3af";
 
   return `<div style="text-align:center;padding:2px 0;${bg}">
-    <div style="font-size:.7em;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px" title="${label}">${label || '—'}</div>
-    <div style="font-weight:700;color:${clr};font-size:1.1em">${val ?? '—'}</div>
+    <div style="font-size:.7em;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px" title="${label}">${label || "—"}</div>
+    <div style="font-weight:700;color:${clr};font-size:1.1em">${val ?? "—"}</div>
   </div>`;
 }
 
 function initRwTable() {
-  // Pre-populate 77 blank rows
-  const data = [];
-  for (let i = 0; i < RW_TOTAL_ROWS; i++) {
-    data.push({
-      targetRow: i, dnpIndex: '—',
-      bit7: null, bit6: null, bit5: null, bit4: null,
-      bit3: null, bit2: null, bit1: null, bit0: null
-    });
-  }
+  if (rwTable) return;                 // never recreate
 
   const bitCol = (title, field) => ({
-    title,
-    field,
+    title, field,
     hozAlign: "center",
-    formatter: rwBitFormatter,
+    formatter: _rwBitFormatter,
     headerSort: true,
     width: 100,
     sorter: (a, b) => ((a?.value ?? -1) - (b?.value ?? -1))
   });
 
   rwTable = new Tabulator("#rw-table", {
-    data,
+    data: [],                          // start empty — rows added dynamically
     index: "targetRow",
     layout: "fitColumns",
     height: "600px",
@@ -649,8 +638,8 @@ function initRwTable() {
     movableColumns: true,
     placeholder: "No Relay Word Data — click Fetch All TAR",
     columns: [
-      { title: "Target<br>Row",  field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", width: 80, frozen: true },
-      { title: "DNP<br>Index",   field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", width: 80 },
+      { title: "Target<br>Row", field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", width: 80, frozen: true },
+      { title: "DNP<br>Index",  field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", width: 80 },
       bitCol("7", "bit7"),
       bitCol("6", "bit6"),
       bitCol("5", "bit5"),
@@ -663,9 +652,10 @@ function initRwTable() {
   });
 }
 
-function updateRwTableRow(parsed) {
-  if (!rwTable) return;
+// ── Tabulator — Update one row ──────────────────────────────
 
+function _rwUpdateRow(parsed) {
+  if (!rwTable) return;
   rwTable.updateOrAddData([{
     targetRow: parsed.targetRow,
     dnpIndex:  parsed.dnpIndex,
@@ -680,103 +670,183 @@ function updateRwTableRow(parsed) {
   }]);
 }
 
-// ============================================================
-//  Relay Word — WebSocket
-// ============================================================
+// ── WebSocket — Connect (returns Promise) ───────────────────
 
-function connectRwWebSocket() {
-  disconnectRwWebSocket();
-  updateRwStatus("connecting");
-
-  const url = buildRwWsUrl();
-  console.log("[RW] Connecting to", url);
-  rwWs = new WebSocket(url);
-
-  rwWs.onopen = () => {
-    rwConnected = true;
-    updateRwStatus("connected");
-    console.log("[RW] WebSocket connected");
-    if (rwFetching) sendAllTarCommands();
-  };
-
-  rwWs.onmessage = (event) => {
-    // TAR responses arrive as text frames (broadcasts from ProcessingWorker).
-    // A single message may contain multiple TAR blocks separated by "=>".
-    if (typeof event.data !== 'string') return;
-
-    console.log("[RW] Received text (" + event.data.length + " bytes)");
-
-    const blocks = splitTarBlocks(event.data);
-    for (const block of blocks) {
-      const parsed = parseTarResponse(block);
-      if (!parsed) continue;
-
-      console.log("[RW] Parsed TAR row:", parsed.targetRow, "DNP:", parsed.dnpIndex);
-      updateRwTableRow(parsed);
-      rwRowsReceived++;
-      updateRwRowCount();
-      updateRwProgress(rwRowsReceived);
+function _rwEnsureConnection() {
+  return new Promise((resolve, reject) => {
+    // Already open
+    if (rwWs && rwWs.readyState === WebSocket.OPEN) {
+      return resolve(rwWs);
     }
 
-    if (rwRowsReceived >= RW_TOTAL_ROWS) {
-      rwFetching = false;
-      updateRwStatus("done");
-    }
-  };
+    // Clean up any previous socket
+    _rwDisconnectRaw();
 
-  rwWs.onclose = () => {
-    rwConnected = false;
-    console.log("[RW] WebSocket closed");
-    if (rwFetching) {
-      updateRwStatus("disconnected");
-    }
-  };
+    _rwSetStatus("connecting");
+    const url = _rwBuildWsUrl();
+    console.log("[RW] Connecting to", url);
+    rwWs = new WebSocket(url);
 
-  rwWs.onerror = (err) => {
-    console.error("[RW] WebSocket error:", err);
-    updateRwStatus("error");
-  };
+    rwWs.onopen = () => {
+      console.log("[RW] Connected");
+      resolve(rwWs);
+    };
+
+    rwWs.onerror = (err) => {
+      console.error("[RW] Connection error:", err);
+      reject(new Error("WebSocket connection failed"));
+    };
+
+    rwWs.onclose = () => {
+      console.log("[RW] Closed");
+      // If a sendCommand promise is pending, reject it
+      if (_rwReject) {
+        _rwReject(new Error("WebSocket closed unexpectedly"));
+        _rwResolve = null;
+        _rwReject  = null;
+      }
+    };
+
+    // Route incoming text messages to the pending sendCommand promise
+    rwWs.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      if (_rwResolve) {
+        const res = _rwResolve;
+        _rwResolve = null;
+        _rwReject  = null;
+        res(event.data);             // resolve sendCommand()'s promise
+      }
+    };
+  });
 }
 
-function disconnectRwWebSocket() {
-  rwFetching = false;
+// ── WebSocket — Send one command, wait for response ─────────
+
+/**
+ * Send a single command string over WebSocket and wait for the
+ * next text response.  Returns a Promise<string>.
+ *
+ * @param {string} cmd  e.g. "TAR 0"
+ * @returns {Promise<string>}  raw relay response text
+ */
+async function sendCommand(cmd) {
+  const ws = await _rwEnsureConnection();
+
+  if (ws.readyState !== WebSocket.OPEN) {
+    throw new Error("WebSocket is not open");
+  }
+
+  return new Promise((resolve, reject) => {
+    // Set up the response listener (onmessage will call resolve)
+    _rwResolve = resolve;
+    _rwReject  = reject;
+
+    // Timeout: 30 s per command (relay may be slow)
+    const timer = setTimeout(() => {
+      _rwResolve = null;
+      _rwReject  = null;
+      reject(new Error(`Timeout waiting for response to "${cmd}"`));
+    }, 30_000);
+
+    // Wrap resolve/reject to clear the timer
+    const origResolve = resolve;
+    const origReject  = reject;
+    _rwResolve = (data) => { clearTimeout(timer); origResolve(data); };
+    _rwReject  = (err)  => { clearTimeout(timer); origReject(err);   };
+
+    console.log("[RW] Sending:", cmd);
+    ws.send(cmd);
+  });
+}
+
+// ── Core — fetchAllTAR() ────────────────────────────────────
+
+/**
+ * Sequentially sends TAR 0 through TAR 77, waits for each
+ * response, parses it, and updates the Tabulator table row-by-row.
+ */
+async function fetchAllTAR() {
+  // Prevent double invocation
+  _rwSetFetchBtn(true);
+  rwAbort = false;
+
+  let completed = 0;
+
+  try {
+    // 1. Connect
+    await _rwEnsureConnection();
+    _rwSetStatus("fetching");
+    _rwSetProgress(0, RW_TOTAL);
+    _rwSetRowCount(0);
+
+    // 2. Sequential loop
+    for (let i = 0; i < RW_TOTAL; i++) {
+      if (rwAbort) {
+        console.log("[RW] Aborted by user at TAR", i);
+        _rwSetStatus("aborted");
+        break;
+      }
+
+      _rwSetProgress(i, RW_TOTAL);
+
+      // Send command & wait for response
+      const cmd      = "TAR " + i;
+      const response = await sendCommand(cmd);
+
+      // Parse
+      const parsed = parseTarResponse(response);
+      if (!parsed) {
+        console.warn(`[RW] Failed to parse response for ${cmd}:`, response.substring(0, 200));
+        throw new Error(`Failed to parse response for ${cmd}`);
+      }
+
+      // Update table
+      _rwUpdateRow(parsed);
+      completed++;
+      _rwSetRowCount(completed);
+      console.log(`[RW] TAR ${i} OK — row ${parsed.targetRow}, DNP ${parsed.dnpIndex}`);
+    }
+
+    // 3. Finished
+    if (!rwAbort) {
+      _rwSetProgress(-1);              // hide progress bar
+      _rwSetStatus("done");
+      console.log(`[RW] All ${RW_TOTAL} TAR commands completed`);
+    }
+
+  } catch (err) {
+    console.error("[RW] fetchAllTAR error:", err);
+    _rwSetStatus("error");
+    _rwSetProgress(-1);
+
+    // Show error toast if available
+    if (typeof showToast === "function") {
+      showToast(`TAR fetch failed at row ${completed}: ${err.message}`, "error");
+    }
+  } finally {
+    _rwSetFetchBtn(false);
+  }
+}
+
+// ── Disconnect helpers ──────────────────────────────────────
+
+function _rwDisconnectRaw() {
   if (rwWs) {
-    rwWs.onclose = null;
-    rwWs.onerror = null;
-    rwWs.close();
+    rwWs.onopen    = null;
+    rwWs.onclose   = null;
+    rwWs.onerror   = null;
+    rwWs.onmessage = null;
+    try { rwWs.close(); } catch (_) {}
     rwWs = null;
   }
-  rwConnected = false;
+  _rwResolve = null;
+  _rwReject  = null;
 }
 
-function sendAllTarCommands() {
-  if (!rwWs || rwWs.readyState !== WebSocket.OPEN) return;
-
-  updateRwStatus("fetching");
-  updateRwProgress(0);
-
-  // Queue all 77 TAR commands — ReceptionWorker processes them sequentially
-  for (let i = 0; i < RW_TOTAL_ROWS; i++) {
-    rwWs.send("TAR " + i);
-  }
-  console.log("[RW] Sent", RW_TOTAL_ROWS, "TAR commands");
-}
-
-// ============================================================
-//  Relay Word — Public Actions (called from onclick)
-// ============================================================
+// ── Public Actions (called from onclick in relay.html) ──────
 
 function rwFetchAll() {
-  rwFetching      = true;
-  rwRowsReceived  = 0;
-  updateRwRowCount();
-  updateRwProgress(0);
-
-  if (rwWs && rwWs.readyState === WebSocket.OPEN) {
-    sendAllTarCommands();
-  } else {
-    connectRwWebSocket();
-  }
+  fetchAllTAR();                       // fire-and-forget (async)
 }
 
 function rwExportCSV() {
@@ -784,10 +854,11 @@ function rwExportCSV() {
 }
 
 function rwDisconnect() {
-  disconnectRwWebSocket();
-  updateRwStatus("idle");
-  const pc = document.getElementById("rw-progress-container");
-  if (pc) pc.style.display = "none";
+  rwAbort = true;                      // signal fetchAllTAR to stop
+  _rwDisconnectRaw();
+  _rwSetStatus("idle");
+  _rwSetProgress(-1);
+  _rwSetFetchBtn(false);
 }
 
 // ============================================================
@@ -821,7 +892,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function teardownRelayWord() {
-    disconnectRwWebSocket();
+    rwAbort = true;
+    _rwDisconnectRaw();
   }
 
   // --- References to SER section (static HTML in relay.html) ---
