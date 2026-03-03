@@ -652,13 +652,19 @@ function initRwTable() {
   });
 }
 
+function _rwDnpRange(row) {
+  const start = row * 8;
+  const end = start + 7;
+  return `${start}-${end}`;
+}
+
 // ── Tabulator — Update one row ──────────────────────────────
 
 function _rwUpdateRow(parsed) {
   if (!rwTable) return;
   rwTable.updateOrAddData([{
     targetRow: parsed.targetRow,
-    dnpIndex:  parsed.dnpIndex,
+    dnpIndex:  _rwDnpRange(parsed.targetRow),
     bit7: { label: parsed.labels[0], value: parsed.values[0] },
     bit6: { label: parsed.labels[1], value: parsed.values[1] },
     bit5: { label: parsed.labels[2], value: parsed.values[2] },
