@@ -1545,3 +1545,26 @@ ul, ol { list-style: none; }
   color: var(--color-text-muted, #6b7280);
   text-align: right;
 }
+
+/* ============================================================
+   COMTRADE (CTR C / CTR D) Output
+   ============================================================ */
+
+.ctr-content {
+  margin-top: var(--sp-3, 12px);
+}
+
+.ctr-pre {
+  margin: 0;
+  padding: 14px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .8rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--color-bg, #f9fafb);
+  color: var(--color-text, #111827);
+  max-height: 500px;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}

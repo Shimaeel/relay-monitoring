@@ -119,6 +119,41 @@
           </div>
           <!-- ===== END SETTINGS SECTION ===== -->
 
+          <!-- ===== COMTRADE SECTION (static, toggled by sections.js) ===== -->
+          <div id="comtrade-section" class="section-card" style="display:none;">
+            <h2>📁 COMTRADE Files</h2>
+
+            <!-- COMTRADE Toolbar -->
+            <div class="ser-toolbar">
+              <div class="ser-toolbar__left">
+                <span id="ctr-conn-status" style="font-weight:700">🟡 Idle</span>
+              </div>
+              <div class="ser-toolbar__right">
+                <button class="btn btn--danger btn--sm" onclick="ctrClear()">🗑 Clear</button>
+              </div>
+            </div>
+
+            <!-- CTR C / CTR D inputs -->
+            <div class="ser-config">
+              <div class="ser-config__field">
+                <label>CTR C</label>
+                <input id="ctr-c-num" type="number" min="1" value="1" placeholder="Config file #" />
+              </div>
+              <button id="ctr-c-fetch-btn" class="btn btn--primary btn--sm" onclick="ctrFetchConfig()">🔄 Fetch Config</button>
+              <div class="ser-config__field" style="margin-left: 16px;">
+                <label>CTR D</label>
+                <input id="ctr-d-num" type="number" min="1" value="1" placeholder="Data file #" />
+              </div>
+              <button id="ctr-d-fetch-btn" class="btn btn--primary btn--sm" onclick="ctrFetchData()">🔄 Fetch Data</button>
+            </div>
+
+            <!-- COMTRADE output -->
+            <div id="ctr-content" class="ctr-content">
+              <div class="set-empty">Enter a file number and click <strong>Fetch Config</strong> or <strong>Fetch Data</strong>.</div>
+            </div>
+          </div>
+          <!-- ===== END COMTRADE SECTION ===== -->
+
           <!-- ===== SER SECTION (static, toggled by sections.js) ===== -->
           <div id="ser-section" class="section-card" style="display:none;">
             <h2>📋 Sequence of Events (SER)</h2>

@@ -1188,6 +1188,232 @@ function ioDisconnect() {
 }
 
 // ============================================================
+//  COMTRADE (CTR C / CTR D) Module
+// ============================================================
+//
+//  Sends  CTR C <n>  (configuration) or  CTR D <n>  (data)
+//  over WebSocket, displays the raw response.
+//
+//  Public API:
+//    ctrFetchConfig()  — send CTR C n
+//    ctrFetchData()    — send CTR D n
+//    ctrClear()        — clear display and disconnect
+// ============================================================
+
+let ctrWs       = null;
+let _ctrResolve  = null;
+let _ctrReject   = null;
+
+function _ctrBuildWsUrl() {
+  const h = (document.getElementById("ser-ws-host") || {}).value?.trim() || "localhost";
+  const p = (document.getElementById("ser-ws-port") || {}).value?.trim() || "8765";
+  return `ws://${h}:${p}`;
+}
+
+function _ctrSetStatus(status) {
+  const el = document.getElementById("ctr-conn-status");
+  if (!el) return;
+  const map = {
+    idle:       { text: "🟡 Idle",        color: "#d97706" },
+    connecting: { text: "🟡 Connecting…", color: "#d97706" },
+    fetching:   { text: "🔵 Fetching…",   color: "#2563eb" },
+    done:       { text: "🟢 Done",        color: "#16a34a" },
+    error:      { text: "🔴 Error",       color: "#dc2626" }
+  };
+  const info = map[status] || map.idle;
+  el.textContent = info.text;
+  el.style.color = info.color;
+}
+
+function _ctrSetBtns(disabled) {
+  ["ctr-c-fetch-btn", "ctr-d-fetch-btn"].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = disabled;
+    btn.style.opacity = disabled ? "0.5" : "1";
+    btn.style.pointerEvents = disabled ? "none" : "";
+  });
+}
+
+function _ctrEnsureConnection() {
+  return new Promise((resolve, reject) => {
+    if (ctrWs && ctrWs.readyState === WebSocket.OPEN) return resolve(ctrWs);
+    _ctrDisconnectRaw();
+    _ctrSetStatus("connecting");
+    const url = _ctrBuildWsUrl();
+    console.log("[CTR] Connecting to", url);
+    ctrWs = new WebSocket(url);
+
+    ctrWs.onopen = () => { console.log("[CTR] Connected"); resolve(ctrWs); };
+    ctrWs.onerror = (err) => { console.error("[CTR] Error", err); reject(new Error("WebSocket connection failed")); };
+    ctrWs.onclose = () => {
+      console.log("[CTR] Closed");
+      if (_ctrReject) { _ctrReject(new Error("WebSocket closed")); _ctrResolve = null; _ctrReject = null; }
+    };
+    ctrWs.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      if (_ctrResolve) { const r = _ctrResolve; _ctrResolve = null; _ctrReject = null; r(event.data); }
+    };
+  });
+}
+
+async function _ctrSendCommand(cmd) {
+  const ws = await _ctrEnsureConnection();
+  if (ws.readyState !== WebSocket.OPEN) throw new Error("WebSocket not open");
+  return new Promise((resolve, reject) => {
+    _ctrResolve = resolve;
+    _ctrReject  = reject;
+    const timer = setTimeout(() => { _ctrResolve = null; _ctrReject = null; reject(new Error("Timeout")); }, 30_000);
+    const origR = resolve, origE = reject;
+    _ctrResolve = (d) => { clearTimeout(timer); origR(d); };
+    _ctrReject  = (e) => { clearTimeout(timer); origE(e); };
+    console.log("[CTR] Sending:", cmd);
+    ws.send(cmd);
+  });
+}
+
+function _ctrDisconnectRaw() {
+  if (ctrWs) {
+    ctrWs.onopen = null; ctrWs.onclose = null; ctrWs.onerror = null; ctrWs.onmessage = null;
+    try { ctrWs.close(); } catch (_) {}
+    ctrWs = null;
+  }
+  _ctrResolve = null; _ctrReject = null;
+}
+
+// Store last fetched content for download
+let _ctrLastCfg = null;  // { n, text }
+let _ctrLastDat = null;  // { n, text }
+
+function _ctrDownloadFile(filename, text) {
+  const blob = new Blob([text], { type: "text/plain" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function ctrDownloadCfg() {
+  if (!_ctrLastCfg) {
+    if (typeof showToast === "function") showToast("Fetch a config file first", "error");
+    return;
+  }
+  _ctrDownloadFile(`comtrade_${_ctrLastCfg.n}.cfg`, _ctrLastCfg.text);
+}
+
+function ctrDownloadDat() {
+  if (!_ctrLastDat) {
+    if (typeof showToast === "function") showToast("Fetch a data file first", "error");
+    return;
+  }
+  _ctrDownloadFile(`comtrade_${_ctrLastDat.n}.dat`, _ctrLastDat.text);
+}
+
+function _ctrRenderResponse(label, cmd, text, type) {
+  const container = document.getElementById("ctr-content");
+  if (!container) return;
+
+  // Build a card showing the command and the raw response
+  const card = document.createElement("div");
+  card.className = "set-group";
+
+  const downloadFn = type === "cfg" ? "ctrDownloadCfg()" : "ctrDownloadDat()";
+  const ext = type === "cfg" ? ".cfg" : ".dat";
+
+  card.innerHTML =
+    `<h3 class="set-group__title" style="display:flex;justify-content:space-between;align-items:center;">` +
+      `<span>${_ctrEscHtml(label)} \u2014 ${_ctrEscHtml(cmd)}</span>` +
+      `<button class="btn btn--outline btn--sm" onclick="${downloadFn}" style="margin-left:12px;">\ud83d\udce5 Download ${ext}</button>` +
+    `</h3>` +
+    `<pre class="ctr-pre">${_ctrEscHtml(text)}</pre>`;
+
+  // Prepend so newest is on top
+  if (container.firstChild && container.firstChild.classList?.contains("set-empty")) {
+    container.innerHTML = "";
+  }
+  container.prepend(card);
+}
+
+function _ctrEscHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function ctrFetchConfig() {
+  const input = document.getElementById("ctr-c-num");
+  const n = parseInt(input?.value, 10);
+  if (!n || n < 1) {
+    if (typeof showToast === "function") showToast("Enter a valid file number", "error");
+    return;
+  }
+  _ctrSetBtns(true);
+  try {
+    await _ctrEnsureConnection();
+    _ctrSetStatus("fetching");
+    const cmd = "CTR C " + n;
+    const response = await _ctrSendCommand(cmd);
+    _ctrLastCfg = { n, text: response };
+    _ctrRenderResponse("Configuration File", cmd, response, "cfg");
+    _ctrSetStatus("done");
+    console.log(`[CTR] ${cmd} fetched`);
+  } catch (err) {
+    console.error("[CTR] error:", err);
+    _ctrSetStatus("error");
+    if (typeof showToast === "function") showToast(`COMTRADE config fetch failed: ${err.message}`, "error");
+  } finally {
+    _ctrSetBtns(false);
+  }
+}
+
+async function ctrFetchData() {
+  const input = document.getElementById("ctr-d-num");
+  const n = parseInt(input?.value, 10);
+  if (!n || n < 1) {
+    if (typeof showToast === "function") showToast("Enter a valid file number", "error");
+    return;
+  }
+  _ctrSetBtns(true);
+  try {
+    await _ctrEnsureConnection();
+    _ctrSetStatus("fetching");
+    const cmd = "CTR D " + n;
+    const response = await _ctrSendCommand(cmd);
+    _ctrLastDat = { n, text: response };
+    _ctrRenderResponse("Data File", cmd, response, "dat");
+    _ctrSetStatus("done");
+    console.log(`[CTR] ${cmd} fetched`);
+  } catch (err) {
+    console.error("[CTR] error:", err);
+    _ctrSetStatus("error");
+    if (typeof showToast === "function") showToast(`COMTRADE data fetch failed: ${err.message}`, "error");
+  } finally {
+    _ctrSetBtns(false);
+  }
+}
+
+function ctrClear() {
+  _ctrDisconnectRaw();
+  const container = document.getElementById("ctr-content");
+  if (container) container.innerHTML = '<div class="set-empty">Enter a file number and click <strong>Fetch Config</strong> or <strong>Fetch Data</strong>.</div>';
+  _ctrLastCfg = null;
+  _ctrLastDat = null;
+  _ctrSetStatus("idle");
+  _ctrSetBtns(false);
+  console.log("[CTR] Cleared");
+}
+
+function ctrDisconnect() {
+  _ctrDisconnectRaw();
+  _ctrSetStatus("idle");
+  _ctrSetBtns(false);
+}
+
+// ============================================================
 //  SETTINGS (SHOSET) Module
 // ============================================================
 //
@@ -1849,6 +2075,10 @@ document.addEventListener("DOMContentLoaded", function () {
     _setDisconnectRaw();
   }
 
+  function teardownComtrade() {
+    _ctrDisconnectRaw();
+  }
+
   // --- References to SER section (static HTML in relay.html) ---
   const serSection   = document.getElementById("ser-section");
   const serHostInput  = document.getElementById("ser-ws-host");
@@ -1870,6 +2100,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // --- References to Settings section (static HTML in relay.html) ---
   const setSection   = document.getElementById("settings-section");
+
+  // --- References to COMTRADE section (static HTML in relay.html) ---
+  const ctrSection   = document.getElementById("comtrade-section");
 
   // Pre-fill SER config inputs from relay context
   if (serHostInput) serHostInput.value = defaultHost;
@@ -1976,6 +2209,16 @@ document.addEventListener("DOMContentLoaded", function () {
     container.style.display = "";
   }
 
+  function showComtradeSection() {
+    if (ctrSection) ctrSection.style.display = "";
+    container.style.display = "none";
+  }
+
+  function hideComtradeSection() {
+    if (ctrSection) ctrSection.style.display = "none";
+    container.style.display = "";
+  }
+
   function loadSection(section) {
 
     // Clean up previous SER resources when switching away
@@ -2008,6 +2251,12 @@ document.addEventListener("DOMContentLoaded", function () {
       hideSettingsSection();
     }
 
+    // Clean up previous COMTRADE resources when switching away
+    if (section !== "comtrade") {
+      teardownComtrade();
+      hideComtradeSection();
+    }
+
     switch (section) {
 
       case "settings":
@@ -2015,10 +2264,7 @@ document.addEventListener("DOMContentLoaded", function () {
         break;
 
       case "comtrade":
-        container.innerHTML = `
-          <h2>📁 COMTRADE Files</h2>
-          <p>Relay file name, command, and retrieval functions appear here.</p>
-        `;
+        showComtradeSection();
         break;
 
       case "event":
