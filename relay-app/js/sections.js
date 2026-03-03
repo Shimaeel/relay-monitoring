@@ -1191,12 +1191,12 @@ function ioDisconnect() {
 //  EVENT REPORT Module
 // ============================================================
 //
-//  Sends EVE <n> commands sequentially over WebSocket for a
-//  user-specified range, parses the text response, and populates
-//  a Tabulator table with the fetched event records.
+//  Sends  EVE <n> R  over WebSocket, parses the tabular
+//  Currents / Voltages response from the SEL relay, and
+//  populates a Tabulator table.
 //
 //  Public API (called from onclick in relay.html):
-//    evFetchReports()  — start sequential event fetch
+//    evFetchReport()   — fetch one event report
 //    evExportCSV()     — download CSV
 //    evClearRecords()  — clear table and disconnect
 // ============================================================
@@ -1216,8 +1216,9 @@ let _evReject  = null;
 // ── UI Helpers ──────────────────────────────────────────────
 
 function _evBuildWsUrl() {
-  const h = (document.getElementById("ev-ws-host") || {}).value?.trim() || "localhost";
-  const p = (document.getElementById("ev-ws-port") || {}).value?.trim() || "8765";
+  // Reuse the SER host/port inputs so the user doesn't need to enter them twice
+  const h = (document.getElementById("ser-ws-host") || {}).value?.trim() || "localhost";
+  const p = (document.getElementById("ser-ws-port") || {}).value?.trim() || "8765";
   return `ws://${h}:${p}`;
 }
 
@@ -1236,22 +1237,6 @@ function _evSetStatus(status) {
   const info = map[status] || map.idle;
   el.textContent = info.text;
   el.style.color = info.color;
-}
-
-function _evSetProgress(current, total) {
-  const container = document.getElementById("ev-progress-container");
-  const bar       = document.getElementById("ev-progress-bar");
-  const text      = document.getElementById("ev-progress-text");
-  if (!container) return;
-
-  if (current < 0) {
-    container.style.display = "none";
-    return;
-  }
-  container.style.display = "";
-  const pct = Math.min(100, Math.round((current / total) * 100));
-  if (bar)  bar.style.width = pct + "%";
-  if (text) text.textContent = `Fetching EVE ${current} / ${total}  (${pct}%)`;
 }
 
 function _evSetRecordCount(n) {
@@ -1282,54 +1267,72 @@ function initEvTable() {
     height: "500px",
     columns: [
       {
-        title: "Eve #",
-        field: "eveNum",
-        width: 90,
+        title: "#",
+        field: "sample",
+        width: 70,
         hozAlign: "center",
         headerSort: true,
         sorter: "number",
-        headerFilter: "input"
+        frozen: true
       },
       {
-        title: "Date",
-        field: "date",
-        width: 140,
-        hozAlign: "center",
+        title: "IA",
+        field: "IA",
+        widthGrow: 1,
+        hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
       },
       {
-        title: "Time",
-        field: "time",
-        width: 160,
-        hozAlign: "center",
+        title: "IB",
+        field: "IB",
+        widthGrow: 1,
+        hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
       },
       {
-        title: "Element",
-        field: "element",
-        widthGrow: 2,
+        title: "IC",
+        field: "IC",
+        widthGrow: 1,
+        hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
       },
       {
-        title: "State",
-        field: "state",
-        width: 140,
-        hozAlign: "center",
+        title: "IN",
+        field: "IN",
+        widthGrow: 1,
+        hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
       },
       {
-        title: "Details",
-        field: "details",
-        widthGrow: 3,
+        title: "VAB",
+        field: "VAB",
+        widthGrow: 1,
+        hozAlign: "right",
+        headerSort: true,
+        headerFilter: "input"
+      },
+      {
+        title: "VBC",
+        field: "VBC",
+        widthGrow: 1,
+        hozAlign: "right",
+        headerSort: true,
+        headerFilter: "input"
+      },
+      {
+        title: "VCA",
+        field: "VCA",
+        widthGrow: 1,
+        hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
       }
     ],
-    initialSort: [{ column: "eveNum", dir: "desc" }]
+    initialSort: [{ column: "sample", dir: "asc" }]
   });
 }
 
@@ -1409,92 +1412,81 @@ async function _evSendCommand(cmd) {
   });
 }
 
-// ── Parse EVE response ──────────────────────────────────────
+// ── Parse EVE n R response ──────────────────────────────────
 
 /**
- * Parse the raw text response of an EVE command.
+ * Parse the tabular "EVE n R" response from a SEL relay.
  *
- * The response typically contains date/time, element names and
- * their states. This parser extracts meaningful rows from the
- * relay's event report output.
+ * Expected format:
+ *   Currents (Amps Pri)                  Voltages (Volts Pri)
+ *   IA      IB      IC      IN      VAB      VBC      VCA
+ *   0.00    0.00    0.00    0.00    0.00     0.00     0.04
+ *   ...  (many sample rows)
+ *   =>
+ *
+ * Returns an array of { sample, IA, IB, IC, IN, VAB, VBC, VCA }.
  */
-function parseEveResponse(text, eveNum) {
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const rows = [];
+function parseEveResponse(text) {
+  const lines = text.split(/\r?\n/);
+  const rows  = [];
 
-  let date = "—";
-  let time = "—";
+  // 1) Find the header line that contains the column labels
+  //    e.g.  "IA   IB   IC   IN   VAB   VBC   VCA"
+  let headers    = null;
+  let headerIdx  = -1;
 
-  // Try to find date/time from the response
-  for (const line of lines) {
-    // Common SEL date patterns: MM/DD/YY, YYYY-MM-DD, etc.
-    const dtMatch = line.match(/(?:Date|DATE)[:\s]+([\d\/\-]+)/i);
-    if (dtMatch) { date = dtMatch[1]; }
-    const tmMatch = line.match(/(?:Time|TIME)[:\s]+([\d:\.]+)/i);
-    if (tmMatch) { time = tmMatch[1]; }
-  }
-
-  // Try to extract element/state pairs from the response
-  // Pattern 1: Lines with element names followed by values (tabular)
-  let foundElements = false;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Skip header/command echo lines
-    if (/^\s*EVE\s+\d+/i.test(line)) continue;
-    if (/^\s*=>\s*$/.test(line)) continue;
-    if (/^-+$/.test(line)) continue;
-
-    // Look for "ELEMENT = VALUE" or "ELEMENT : VALUE" patterns
-    const kvMatch = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*[=:]\s*(.+)$/);
-    if (kvMatch) {
-      rows.push({
-        eveNum:  eveNum,
-        date:    date,
-        time:    time,
-        element: kvMatch[1].trim(),
-        state:   kvMatch[2].trim(),
-        details: ""
-      });
-      foundElements = true;
-      continue;
-    }
-
-    // Look for tabular data: label rows followed by value rows
-    // (like TAR output — labels on one line, 0/1 values on next)
-    const tokens = line.split(/\s+/).filter(Boolean);
-    if (tokens.length >= 2 && i + 1 < lines.length) {
-      const nextTokens = lines[i + 1].split(/\s+/).filter(Boolean);
-      if (nextTokens.length === tokens.length &&
-          nextTokens.every(t => /^[\d.]+$/.test(t) || /^(Asserted|Deasserted|ON|OFF|0|1|Trip|Close|Open|Closed)$/i.test(t))) {
-        for (let j = 0; j < tokens.length; j++) {
-          rows.push({
-            eveNum:  eveNum,
-            date:    date,
-            time:    time,
-            element: tokens[j],
-            state:   nextTokens[j],
-            details: ""
-          });
-        }
-        foundElements = true;
-        i++; // skip the value line
-        continue;
+    const tokens = lines[i].trim().split(/\s+/).filter(Boolean);
+    // Detect header: all tokens are alphabetic labels (IA, IB, IC…)
+    if (tokens.length >= 3 && tokens.every(t => /^[A-Za-z][A-Za-z0-9]*$/.test(t))) {
+      // Confirm it's our expected header (contains at least IA or VAB)
+      const upper = tokens.map(t => t.toUpperCase());
+      if (upper.includes("IA") || upper.includes("VAB")) {
+        headers   = upper;
+        headerIdx = i;
+        break;
       }
     }
   }
 
-  // If we couldn't parse structured elements, push the whole
-  // response as a single record so the user still sees the data
-  if (!foundElements) {
-    rows.push({
-      eveNum:  eveNum,
-      date:    date,
-      time:    time,
-      element: "Event Report",
-      state:   "—",
-      details: text.replace(/\n/g, " ").substring(0, 500)
-    });
+  // 2) Parse every subsequent data line
+  if (headers && headerIdx >= 0) {
+    let sampleNum = 1;
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || /^\s*=>\s*$/.test(line)) continue;
+
+      const values = line.split(/\s+/).filter(Boolean);
+      // Accept lines that have at least as many numeric tokens as headers
+      if (values.length < headers.length) continue;
+      if (!values.every(v => /^-?\d+(\.\d+)?$/.test(v))) continue;
+
+      const row = { sample: sampleNum++ };
+      for (let j = 0; j < headers.length; j++) {
+        row[headers[j]] = values[j];
+      }
+      rows.push(row);
+    }
+  }
+
+  // 3) Fallback: if we couldn't detect structured columns, push raw
+  if (rows.length === 0) {
+    // Parse every line that looks like all-numeric whitespace-separated
+    let sampleNum = 1;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || /^\s*=>\s*$/.test(trimmed)) continue;
+      const values = trimmed.split(/\s+/).filter(Boolean);
+      if (values.length < 3) continue;
+      if (!values.every(v => /^-?\d+(\.\d+)?$/.test(v))) continue;
+
+      const row = { sample: sampleNum++ };
+      const fallbackCols = ["IA", "IB", "IC", "IN", "VAB", "VBC", "VCA"];
+      for (let j = 0; j < values.length && j < fallbackCols.length; j++) {
+        row[fallbackCols[j]] = values[j];
+      }
+      rows.push(row);
+    }
   }
 
   return rows;
@@ -1502,58 +1494,37 @@ function parseEveResponse(text, eveNum) {
 
 // ── Main Fetch Logic (sequential) ───────────────────────────
 
-async function evFetchReports() {
-  const startInput = document.getElementById("ev-event-num");
-  const countInput = document.getElementById("ev-num-records");
+async function evFetchReport() {
+  const input  = document.getElementById("ev-event-num");
+  const eveNum = parseInt(input?.value, 10);
 
-  const startNum = parseInt(startInput?.value, 10) || 1;
-  const count    = parseInt(countInput?.value, 10) || 1;
-
-  if (count < 1 || startNum < 1) {
-    if (typeof showToast === "function") showToast("Enter valid Eve and Num values", "error");
+  if (!eveNum || eveNum < 1) {
+    if (typeof showToast === "function") showToast("Enter a valid event number", "error");
     return;
   }
 
   evAbort = false;
   _evSetFetchBtn(true);
-  _evAllRows = [];
 
   try {
     await _evEnsureConnection();
     _evSetStatus("fetching");
 
-    for (let i = 0; i < count; i++) {
-      if (evAbort) {
-        console.log("[EVE] Aborted by user at event", startNum + i);
-        _evSetStatus("aborted");
-        break;
-      }
+    const cmd      = "EVE " + eveNum + " R";
+    const response = await _evSendCommand(cmd);
+    const parsed   = parseEveResponse(response);
 
-      const eveNum = startNum + i;
-      _evSetProgress(i + 1, count);
-
-      const cmd      = "EVE " + eveNum;
-      const response = await _evSendCommand(cmd);
-      const parsed   = parseEveResponse(response, eveNum);
-
-      if (parsed.length > 0) {
-        _evAllRows.push(...parsed);
-        _evUpdateTable();
-      }
-
-      console.log(`[EVE] EVE ${eveNum} fetched — ${_evAllRows.length} rows total`);
+    if (parsed.length > 0) {
+      _evAllRows.push(...parsed);
+      _evUpdateTable();
     }
 
-    if (!evAbort) {
-      _evSetProgress(-1);
-      _evSetStatus("done");
-      console.log(`[EVE] Fetch complete — ${_evAllRows.length} rows`);
-    }
+    _evSetStatus("done");
+    console.log(`[EVE] EVE ${eveNum} fetched — ${_evAllRows.length} rows total`);
 
   } catch (err) {
     console.error("[EVE] fetch error:", err);
     _evSetStatus("error");
-    _evSetProgress(-1);
     if (typeof showToast === "function") {
       showToast(`Event fetch failed: ${err.message}`, "error");
     }
@@ -1597,7 +1568,6 @@ function evClearRecords() {
   if (evTable) evTable.setData([]);
   _evSetRecordCount(0);
   _evSetStatus("idle");
-  _evSetProgress(-1);
   _evSetFetchBtn(false);
   console.log("[EVE] Records cleared");
 }
@@ -1606,7 +1576,6 @@ function evDisconnect() {
   evAbort = true;
   _evDisconnectRaw();
   _evSetStatus("idle");
-  _evSetProgress(-1);
   _evSetFetchBtn(false);
 }
 
@@ -1673,8 +1642,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // --- References to Event Report section (static HTML in relay.html) ---
   const evSection    = document.getElementById("event-section");
-  const evHostInput  = document.getElementById("ev-ws-host");
-  const evPortInput  = document.getElementById("ev-ws-port");
 
   // Pre-fill SER config inputs from relay context
   if (serHostInput) serHostInput.value = defaultHost;
@@ -1687,10 +1654,6 @@ document.addEventListener("DOMContentLoaded", function () {
   // Pre-fill IO config inputs from relay context
   if (ioHostInput) ioHostInput.value = defaultHost;
   if (ioPortInput) ioPortInput.value = defaultPort;
-
-  // Pre-fill Event Report config inputs from relay context
-  if (evHostInput) evHostInput.value = defaultHost;
-  if (evPortInput) evPortInput.value = defaultPort;
 
   // Poll-rate live update
   if (serPollInput) {

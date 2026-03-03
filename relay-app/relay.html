@@ -259,33 +259,13 @@
               </div>
             </div>
 
-            <!-- Connection Config -->
+            <!-- EVE Command Input -->
             <div class="ser-config">
               <div class="ser-config__field">
-                <label>IP Address</label>
-                <input id="ev-ws-host" type="text" value="localhost" placeholder="192.168.1.10" />
+                <label>EVE</label>
+                <input id="ev-event-num" type="number" min="1" value="1" placeholder="Enter event number" />
               </div>
-              <div class="ser-config__field">
-                <label>WebSocket Port</label>
-                <input id="ev-ws-port" type="number" min="1" max="65535" value="8765" />
-              </div>
-              <div class="ser-config__field">
-                <label>Eve</label>
-                <input id="ev-event-num" type="number" min="1" value="1" placeholder="Event #" />
-              </div>
-              <div class="ser-config__field">
-                <label>Num</label>
-                <input id="ev-num-records" type="number" min="1" max="100" value="1" placeholder="# of records" />
-              </div>
-              <button id="ev-fetch-btn" class="btn btn--primary btn--sm" onclick="evFetchReports()">🔄 Fetch Report</button>
-            </div>
-
-            <!-- Progress Bar -->
-            <div id="ev-progress-container" style="display:none; margin: 12px 0;">
-              <div style="background: var(--surface-2, #e5e7eb); border-radius: 6px; overflow: hidden; height: 8px;">
-                <div id="ev-progress-bar" style="background: var(--accent, #2563eb); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
-              </div>
-              <small id="ev-progress-text" style="color: var(--text-secondary, #6b7280); margin-top: 4px; display: inline-block;">Fetching event reports…</small>
+              <button id="ev-fetch-btn" class="btn btn--primary btn--sm" onclick="evFetchReport()">🔄 Fetch</button>
             </div>
 
             <!-- Tabulator Table -->
