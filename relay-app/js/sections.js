@@ -1283,17 +1283,23 @@ function _setDisconnectRaw() {
  * Parse the SHOSET text response into structured groups.
  *
  * Format:
- *   Section Header (standalone line, no :=)
- *   KEY1 := VALUE1   KEY2 := VALUE2   ...
- *   Another Section Header
- *   KEY3 := VALUE3
+ *   SHOSET
+ *   General
+ *   Identifier and Scaling
+ *   MID      := FEEDER 1
+ *   CTR      := 1.0000      PTR      := 1.0000      VOLT_SCA := KILO
+ *   ...
+ *   Instrument Transformer Compensation
+ *   Enable Instrument Transformer Compensation
+ *   EITCI    := N           EITCV    := N
+ *   Demand Metering
  *
  * Returns: [{ title: "Section", entries: [{key, value}, ...] }, ...]
  */
 function parseShosetResponse(text) {
   const lines   = text.split(/\r?\n/);
   const groups  = [];
-  let current   = { title: "General", entries: [] };
+  let current   = null;
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -1303,25 +1309,33 @@ function parseShosetResponse(text) {
 
     // Lines containing := are key-value pairs
     if (line.includes(":=")) {
-      // There can be multiple key := value pairs on the same line
-      const pairs = line.split(/\s{2,}/).filter(Boolean);
-      for (const pair of pairs) {
-        const m = pair.match(/^([A-Za-z0-9_]+)\s*:=\s*(.*)$/);
-        if (m) {
-          current.entries.push({ key: m[1].trim(), value: m[2].trim() });
-        }
+      // If no group started yet, create a default one
+      if (!current) current = { title: "General", entries: [] };
+
+      // Use regex to find all  KEY := VALUE  patterns in the line.
+      // VALUE runs until the next KEY := or end-of-line.
+      const kvRegex = /([A-Za-z0-9_]+)\s*:=\s*(.*?)(?=\s{2,}[A-Za-z0-9_]+\s*:=|$)/g;
+      let m;
+      while ((m = kvRegex.exec(line)) !== null) {
+        current.entries.push({ key: m[1].trim(), value: m[2].trim() });
       }
     } else {
-      // This is a section header — start a new group
-      if (current.entries.length > 0 || groups.length === 0) {
-        if (current.entries.length > 0) groups.push(current);
+      // This is a section / sub-section header
+      // Push the previous group if it had entries
+      if (current && current.entries.length > 0) {
+        groups.push(current);
+      }
+      // Start a new group (or update title if current is empty)
+      if (!current || current.entries.length > 0) {
         current = { title: line, entries: [] };
       } else {
+        // Consecutive headers — append as subtitle
         current.title = line;
       }
     }
   }
-  if (current.entries.length > 0) groups.push(current);
+  // Push the last group if it had entries
+  if (current && current.entries.length > 0) groups.push(current);
 
   return groups;
 }
