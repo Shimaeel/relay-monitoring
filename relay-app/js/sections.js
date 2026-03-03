@@ -871,10 +871,11 @@ function rwDisconnect() {
 //  INPUT / OUTPUT (I/O) Module
 // ============================================================
 //
-//  Fetches all TAR rows (0–77) just like the Relay Word module,
-//  but keeps only rows whose bit labels start with "IN" or "OUT".
-//  Displays them in a flattened Tabulator table with columns:
-//    Target Row | DNP Index | Bit | Label | Value | Type
+//  Fetches all TAR rows (0–77) — same as Relay Word — but only
+//  keeps rows where at least one bit label starts with "IN" or
+//  "OUT".  Shows them in the EXACT same table format as Relay
+//  Word (Target Row | DNP Index | bit7…bit0) with the same
+//  label+value cell renderer.
 //
 //  Public API (called from onclick in relay.html):
 //    ioFetchAll()    — start fetch, filter, display
@@ -888,7 +889,7 @@ function rwDisconnect() {
 let ioTable      = null;   // Tabulator instance
 let ioWs         = null;   // WebSocket connection
 let ioAbort      = false;  // Abort signal
-let _ioAllRows   = [];     // All collected I/O rows (unfiltered)
+let _ioAllRows   = [];     // All collected I/O rows (RW format, unfiltered)
 let _ioFilter    = "all";  // Current filter: 'all' | 'in' | 'out'
 const IO_TOTAL   = 78;     // TAR 0 through TAR 77
 
@@ -949,53 +950,55 @@ function _ioSetFetchBtn(disabled) {
   btn.style.pointerEvents = disabled ? "none" : "";
 }
 
-// ── Tabulator — IO Status Formatter ─────────────────────────
-
-function _ioValueFormatter(cell) {
-  const v = cell.getValue();
-  if (v === null || v === undefined) return '<span style="color:#9ca3af">—</span>';
-  const on = v === 1;
-  const bg  = on ? "background:#dcfce7;border-radius:4px;padding:2px 10px;" : "padding:2px 10px;";
-  const clr = on ? "#16a34a" : "#9ca3af";
-  const txt = on ? "1 (ON)" : "0 (OFF)";
-  return `<span style="font-weight:700;color:${clr};${bg}">${txt}</span>`;
-}
-
-function _ioTypeFormatter(cell) {
-  const v = cell.getValue();
-  if (v === "IN") {
-    return `<span style="color:#2563eb;font-weight:600;">⬇ Input</span>`;
-  }
-  if (v === "OUT") {
-    return `<span style="color:#ea580c;font-weight:600;">⬆ Output</span>`;
-  }
-  return `<span>${v || "—"}</span>`;
-}
-
-// ── Tabulator — Init ────────────────────────────────────────
+// ── Tabulator — Init (same format as Relay Word table) ──────
 
 function initIoTable() {
   if (ioTable) return;
 
+  const bitCol = (title, field) => ({
+    title, field,
+    hozAlign: "center",
+    formatter: _rwBitFormatter,     // reuse the same cell renderer
+    headerSort: true,
+    width: 100,
+    sorter: (a, b) => ((a?.value ?? -1) - (b?.value ?? -1))
+  });
+
   ioTable = new Tabulator("#io-table", {
     data: [],
+    index: "targetRow",
     layout: "fitColumns",
     height: "600px",
-    pagination: true,
-    paginationSize: 50,
-    paginationSizeSelector: [10, 20, 50, 100],
+    pagination: false,
     movableColumns: true,
     placeholder: "No I/O Data — click Fetch I/O to scan relay",
     columns: [
-      { title: "Type",        field: "type",      hozAlign: "center", formatter: _ioTypeFormatter, headerSort: true, headerFilter: "input", width: 120 },
-      { title: "Label",       field: "label",     hozAlign: "left",   headerSort: true, headerFilter: "input", width: 160 },
-      { title: "Value",       field: "value",     hozAlign: "center", formatter: _ioValueFormatter, headerSort: true, headerFilter: "input", width: 120 },
-      { title: "Target Row",  field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", headerFilter: "input", width: 120 },
-      { title: "DNP Index",   field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", headerFilter: "input", width: 120 },
-      { title: "Bit",         field: "bit",       hozAlign: "center", headerSort: true, sorter: "number", headerFilter: "input", width: 80 }
-    ],
-    initialSort: [{ column: "type", dir: "asc" }, { column: "label", dir: "asc" }]
+      { title: "Target Row", field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", width: 200, frozen: true },
+      { title: "DNP Index",  field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", width: 200 },
+      bitCol("7", "bit7"),
+      bitCol("6", "bit6"),
+      bitCol("5", "bit5"),
+      bitCol("4", "bit4"),
+      bitCol("3", "bit3"),
+      bitCol("2", "bit2"),
+      bitCol("1", "bit1"),
+      bitCol("0", "bit0")
+    ]
   });
+}
+
+// ── Helper — check if a row has any IN/OUT label ────────────
+
+function _ioRowHasLabel(row, prefix) {
+  for (const f of ["bit7","bit6","bit5","bit4","bit3","bit2","bit1","bit0"]) {
+    const lbl = (row[f]?.label || "").toUpperCase();
+    if (lbl.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+function _ioRowHasIO(row) {
+  return _ioRowHasLabel(row, "IN") || _ioRowHasLabel(row, "OUT");
 }
 
 // ── Tabulator — Filter ──────────────────────────────────────
@@ -1020,8 +1023,8 @@ function ioSetFilter(f) {
 function _ioApplyFilter() {
   if (!ioTable) return;
   let data = _ioAllRows;
-  if (_ioFilter === "in")  data = _ioAllRows.filter(r => r.type === "IN");
-  if (_ioFilter === "out") data = _ioAllRows.filter(r => r.type === "OUT");
+  if (_ioFilter === "in")  data = _ioAllRows.filter(r => _ioRowHasLabel(r, "IN"));
+  if (_ioFilter === "out") data = _ioAllRows.filter(r => _ioRowHasLabel(r, "OUT"));
   ioTable.setData(data);
   _ioSetRowCount(data.length);
 }
@@ -1079,8 +1082,9 @@ async function _ioSendCommand(cmd) {
 // ── Core — fetchAllIO() ─────────────────────────────────────
 
 /**
- * Fetch all TAR rows, collect only bits whose labels start with
- * "IN" or "OUT", build a flat table of individual I/O points.
+ * Fetch all TAR rows (0–77), build the same row format as Relay
+ * Word, but only keep rows where at least one bit label starts
+ * with "IN" or "OUT".
  */
 async function fetchAllIO() {
   _ioSetFetchBtn(true);
@@ -1108,39 +1112,37 @@ async function fetchAllIO() {
 
       if (!parsed) {
         console.warn(`[IO] Failed to parse response for ${cmd}`);
-        continue;   // skip unparseable rows instead of throwing
+        continue;
       }
 
-      // Extract individual bits that are IN or OUT
-      for (let b = 0; b < 8; b++) {
-        const lbl = (parsed.labels[b] || "").trim();
-        if (!lbl) continue;
-        const upper = lbl.toUpperCase();
-        let type = null;
-        if (upper.startsWith("OUT")) type = "OUT";
-        else if (upper.startsWith("IN"))  type = "IN";
-        if (!type) continue;
+      // Build row in the same format as the Relay Word table
+      const row = {
+        targetRow: parsed.targetRow,
+        dnpIndex:  _rwDnpRange(parsed.targetRow),
+        bit7: { label: parsed.labels[0], value: parsed.values[0] },
+        bit6: { label: parsed.labels[1], value: parsed.values[1] },
+        bit5: { label: parsed.labels[2], value: parsed.values[2] },
+        bit4: { label: parsed.labels[3], value: parsed.values[3] },
+        bit3: { label: parsed.labels[4], value: parsed.values[4] },
+        bit2: { label: parsed.labels[5], value: parsed.values[5] },
+        bit1: { label: parsed.labels[6], value: parsed.values[6] },
+        bit0: { label: parsed.labels[7], value: parsed.values[7] }
+      };
 
-        _ioAllRows.push({
-          type:      type,
-          label:     lbl,
-          value:     parsed.values[b],
-          targetRow: parsed.targetRow,
-          dnpIndex:  parsed.dnpIndex,
-          bit:       7 - b       // labels[0] = bit 7, labels[7] = bit 0
-        });
+      // Only keep rows that have at least one IN or OUT label
+      if (_ioRowHasIO(row)) {
+        _ioAllRows.push(row);
+        _ioApplyFilter();
       }
 
-      // Live-update table as rows arrive
-      _ioApplyFilter();
-      console.log(`[IO] TAR ${i} scanned — ${_ioAllRows.length} I/O points so far`);
+      console.log(`[IO] TAR ${i} scanned — ${_ioAllRows.length} I/O rows so far`);
     }
 
     if (!ioAbort) {
       _ioSetProgress(-1);
       _ioSetStatus("done");
       _ioApplyFilter();
-      console.log(`[IO] Scan complete — ${_ioAllRows.length} I/O points found`);
+      console.log(`[IO] Scan complete — ${_ioAllRows.length} I/O rows found`);
     }
 
   } catch (err) {
