@@ -638,8 +638,8 @@ function initRwTable() {
     movableColumns: true,
     placeholder: "No Relay Word Data — click Fetch All TAR",
     columns: [
-      { title: "Target<br>Row", field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", width: 80, frozen: true },
-      { title: "DNP<br>Index",  field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", width: 80 },
+      { title: "Target Row", field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", width: 200, frozen: true },
+      { title: "DNP Index",  field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", width: 200 },
       bitCol("7", "bit7"),
       bitCol("6", "bit6"),
       bitCol("5", "bit5"),
@@ -868,6 +868,324 @@ function rwDisconnect() {
 }
 
 // ============================================================
+//  INPUT / OUTPUT (I/O) Module
+// ============================================================
+//
+//  Fetches all TAR rows (0–77) just like the Relay Word module,
+//  but keeps only rows whose bit labels start with "IN" or "OUT".
+//  Displays them in a flattened Tabulator table with columns:
+//    Target Row | DNP Index | Bit | Label | Value | Type
+//
+//  Public API (called from onclick in relay.html):
+//    ioFetchAll()    — start fetch, filter, display
+//    ioExportCSV()   — download CSV
+//    ioDisconnect()  — abort & disconnect
+//    ioSetFilter(f)  — filter by 'all' | 'in' | 'out'
+// ============================================================
+
+// ── State ───────────────────────────────────────────────────
+
+let ioTable      = null;   // Tabulator instance
+let ioWs         = null;   // WebSocket connection
+let ioAbort      = false;  // Abort signal
+let _ioAllRows   = [];     // All collected I/O rows (unfiltered)
+let _ioFilter    = "all";  // Current filter: 'all' | 'in' | 'out'
+const IO_TOTAL   = 78;     // TAR 0 through TAR 77
+
+let _ioResolve   = null;
+let _ioReject    = null;
+
+// ── UI Helpers ──────────────────────────────────────────────
+
+function _ioBuildWsUrl() {
+  const h = (document.getElementById("io-ws-host") || {}).value?.trim() || "localhost";
+  const p = (document.getElementById("io-ws-port") || {}).value?.trim() || "8765";
+  return `ws://${h}:${p}`;
+}
+
+function _ioSetStatus(status) {
+  const el = document.getElementById("io-conn-status");
+  if (!el) return;
+  const map = {
+    idle:         { text: "🟡 Idle",           color: "#d97706" },
+    connecting:   { text: "🟡 Connecting…",    color: "#d97706" },
+    fetching:     { text: "🔵 Fetching…",      color: "#2563eb" },
+    done:         { text: "🟢 Done",           color: "#16a34a" },
+    error:        { text: "🔴 Error",          color: "#dc2626" },
+    disconnected: { text: "🔴 Disconnected",   color: "#dc2626" },
+    aborted:      { text: "🟠 Aborted",        color: "#ea580c" }
+  };
+  const info = map[status] || map.idle;
+  el.textContent = info.text;
+  el.style.color = info.color;
+}
+
+function _ioSetProgress(current, total) {
+  const container = document.getElementById("io-progress-container");
+  const bar       = document.getElementById("io-progress-bar");
+  const text      = document.getElementById("io-progress-text");
+  if (!container) return;
+
+  if (current < 0) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "";
+  const pct = Math.min(100, Math.round((current / total) * 100));
+  if (bar)  bar.style.width = pct + "%";
+  if (text) text.textContent = `Scanning TAR ${current} / ${total}  (${pct}%)`;
+}
+
+function _ioSetRowCount(n) {
+  const el = document.getElementById("io-row-count");
+  if (el) el.textContent = n;
+}
+
+function _ioSetFetchBtn(disabled) {
+  const btn = document.getElementById("io-fetch-btn");
+  if (!btn) return;
+  btn.disabled = disabled;
+  btn.style.opacity = disabled ? "0.5" : "1";
+  btn.style.pointerEvents = disabled ? "none" : "";
+}
+
+// ── Tabulator — IO Status Formatter ─────────────────────────
+
+function _ioValueFormatter(cell) {
+  const v = cell.getValue();
+  if (v === null || v === undefined) return '<span style="color:#9ca3af">—</span>';
+  const on = v === 1;
+  const bg  = on ? "background:#dcfce7;border-radius:4px;padding:2px 10px;" : "padding:2px 10px;";
+  const clr = on ? "#16a34a" : "#9ca3af";
+  const txt = on ? "1 (ON)" : "0 (OFF)";
+  return `<span style="font-weight:700;color:${clr};${bg}">${txt}</span>`;
+}
+
+function _ioTypeFormatter(cell) {
+  const v = cell.getValue();
+  if (v === "IN") {
+    return `<span style="color:#2563eb;font-weight:600;">⬇ Input</span>`;
+  }
+  if (v === "OUT") {
+    return `<span style="color:#ea580c;font-weight:600;">⬆ Output</span>`;
+  }
+  return `<span>${v || "—"}</span>`;
+}
+
+// ── Tabulator — Init ────────────────────────────────────────
+
+function initIoTable() {
+  if (ioTable) return;
+
+  ioTable = new Tabulator("#io-table", {
+    data: [],
+    layout: "fitColumns",
+    height: "600px",
+    pagination: true,
+    paginationSize: 50,
+    paginationSizeSelector: [10, 20, 50, 100],
+    movableColumns: true,
+    placeholder: "No I/O Data — click Fetch I/O to scan relay",
+    columns: [
+      { title: "Type",        field: "type",      hozAlign: "center", formatter: _ioTypeFormatter, headerSort: true, headerFilter: "input", width: 120 },
+      { title: "Label",       field: "label",     hozAlign: "left",   headerSort: true, headerFilter: "input", width: 160 },
+      { title: "Value",       field: "value",     hozAlign: "center", formatter: _ioValueFormatter, headerSort: true, headerFilter: "input", width: 120 },
+      { title: "Target Row",  field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", headerFilter: "input", width: 120 },
+      { title: "DNP Index",   field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", headerFilter: "input", width: 120 },
+      { title: "Bit",         field: "bit",       hozAlign: "center", headerSort: true, sorter: "number", headerFilter: "input", width: 80 }
+    ],
+    initialSort: [{ column: "type", dir: "asc" }, { column: "label", dir: "asc" }]
+  });
+}
+
+// ── Tabulator — Filter ──────────────────────────────────────
+
+function ioSetFilter(f) {
+  _ioFilter = f;
+
+  // Update button styles
+  document.querySelectorAll(".io-filter-btn").forEach(btn => {
+    btn.classList.remove("active");
+    btn.classList.replace("btn--primary", "btn--outline");
+  });
+  const activeBtn = document.getElementById("io-filter-" + f);
+  if (activeBtn) {
+    activeBtn.classList.add("active");
+    activeBtn.classList.replace("btn--outline", "btn--primary");
+  }
+
+  _ioApplyFilter();
+}
+
+function _ioApplyFilter() {
+  if (!ioTable) return;
+  let data = _ioAllRows;
+  if (_ioFilter === "in")  data = _ioAllRows.filter(r => r.type === "IN");
+  if (_ioFilter === "out") data = _ioAllRows.filter(r => r.type === "OUT");
+  ioTable.setData(data);
+  _ioSetRowCount(data.length);
+}
+
+// ── WebSocket — Connect ─────────────────────────────────────
+
+function _ioEnsureConnection() {
+  return new Promise((resolve, reject) => {
+    if (ioWs && ioWs.readyState === WebSocket.OPEN) return resolve(ioWs);
+
+    _ioDisconnectRaw();
+    _ioSetStatus("connecting");
+    const url = _ioBuildWsUrl();
+    console.log("[IO] Connecting to", url);
+    ioWs = new WebSocket(url);
+
+    ioWs.onopen = () => { console.log("[IO] Connected"); resolve(ioWs); };
+    ioWs.onerror = (err) => { console.error("[IO] Connection error:", err); reject(new Error("WebSocket connection failed")); };
+    ioWs.onclose = () => {
+      console.log("[IO] Closed");
+      if (_ioReject) { _ioReject(new Error("WebSocket closed unexpectedly")); _ioResolve = null; _ioReject = null; }
+    };
+    ioWs.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      if (_ioResolve) { const res = _ioResolve; _ioResolve = null; _ioReject = null; res(event.data); }
+    };
+  });
+}
+
+// ── WebSocket — Send command, wait for response ─────────────
+
+async function _ioSendCommand(cmd) {
+  const ws = await _ioEnsureConnection();
+  if (ws.readyState !== WebSocket.OPEN) throw new Error("WebSocket is not open");
+
+  return new Promise((resolve, reject) => {
+    _ioResolve = resolve;
+    _ioReject  = reject;
+
+    const timer = setTimeout(() => {
+      _ioResolve = null; _ioReject = null;
+      reject(new Error(`Timeout waiting for response to "${cmd}"`));
+    }, 30_000);
+
+    const origResolve = resolve;
+    const origReject  = reject;
+    _ioResolve = (data) => { clearTimeout(timer); origResolve(data); };
+    _ioReject  = (err)  => { clearTimeout(timer); origReject(err);   };
+
+    console.log("[IO] Sending:", cmd);
+    ws.send(cmd);
+  });
+}
+
+// ── Core — fetchAllIO() ─────────────────────────────────────
+
+/**
+ * Fetch all TAR rows, collect only bits whose labels start with
+ * "IN" or "OUT", build a flat table of individual I/O points.
+ */
+async function fetchAllIO() {
+  _ioSetFetchBtn(true);
+  ioAbort = false;
+  _ioAllRows = [];
+
+  try {
+    await _ioEnsureConnection();
+    _ioSetStatus("fetching");
+    _ioSetProgress(0, IO_TOTAL);
+    _ioSetRowCount(0);
+
+    for (let i = 0; i < IO_TOTAL; i++) {
+      if (ioAbort) {
+        console.log("[IO] Aborted by user at TAR", i);
+        _ioSetStatus("aborted");
+        break;
+      }
+
+      _ioSetProgress(i, IO_TOTAL);
+
+      const cmd      = "TAR " + i;
+      const response = await _ioSendCommand(cmd);
+      const parsed   = parseTarResponse(response);
+
+      if (!parsed) {
+        console.warn(`[IO] Failed to parse response for ${cmd}`);
+        continue;   // skip unparseable rows instead of throwing
+      }
+
+      // Extract individual bits that are IN or OUT
+      for (let b = 0; b < 8; b++) {
+        const lbl = (parsed.labels[b] || "").trim();
+        if (!lbl) continue;
+        const upper = lbl.toUpperCase();
+        let type = null;
+        if (upper.startsWith("OUT")) type = "OUT";
+        else if (upper.startsWith("IN"))  type = "IN";
+        if (!type) continue;
+
+        _ioAllRows.push({
+          type:      type,
+          label:     lbl,
+          value:     parsed.values[b],
+          targetRow: parsed.targetRow,
+          dnpIndex:  parsed.dnpIndex,
+          bit:       7 - b       // labels[0] = bit 7, labels[7] = bit 0
+        });
+      }
+
+      // Live-update table as rows arrive
+      _ioApplyFilter();
+      console.log(`[IO] TAR ${i} scanned — ${_ioAllRows.length} I/O points so far`);
+    }
+
+    if (!ioAbort) {
+      _ioSetProgress(-1);
+      _ioSetStatus("done");
+      _ioApplyFilter();
+      console.log(`[IO] Scan complete — ${_ioAllRows.length} I/O points found`);
+    }
+
+  } catch (err) {
+    console.error("[IO] fetchAllIO error:", err);
+    _ioSetStatus("error");
+    _ioSetProgress(-1);
+    if (typeof showToast === "function") {
+      showToast(`I/O fetch failed: ${err.message}`, "error");
+    }
+  } finally {
+    _ioSetFetchBtn(false);
+  }
+}
+
+// ── Disconnect helpers ──────────────────────────────────────
+
+function _ioDisconnectRaw() {
+  if (ioWs) {
+    ioWs.onopen = null; ioWs.onclose = null; ioWs.onerror = null; ioWs.onmessage = null;
+    try { ioWs.close(); } catch (_) {}
+    ioWs = null;
+  }
+  _ioResolve = null;
+  _ioReject  = null;
+}
+
+// ── Public Actions ──────────────────────────────────────────
+
+function ioFetchAll() {
+  fetchAllIO();   // fire-and-forget (async)
+}
+
+function ioExportCSV() {
+  if (ioTable) ioTable.download("csv", "relay_io_points.csv");
+}
+
+function ioDisconnect() {
+  ioAbort = true;
+  _ioDisconnectRaw();
+  _ioSetStatus("idle");
+  _ioSetProgress(-1);
+  _ioSetFetchBtn(false);
+}
+
+// ============================================================
 //  Section Loader
 // ============================================================
 
@@ -902,6 +1220,11 @@ document.addEventListener("DOMContentLoaded", function () {
     _rwDisconnectRaw();
   }
 
+  function teardownIO() {
+    ioAbort = true;
+    _ioDisconnectRaw();
+  }
+
   // --- References to SER section (static HTML in relay.html) ---
   const serSection   = document.getElementById("ser-section");
   const serHostInput  = document.getElementById("ser-ws-host");
@@ -913,6 +1236,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const rwHostInput  = document.getElementById("rw-ws-host");
   const rwPortInput  = document.getElementById("rw-ws-port");
 
+  // --- References to IO section (static HTML in relay.html) ---
+  const ioSection    = document.getElementById("io-section");
+  const ioHostInput  = document.getElementById("io-ws-host");
+  const ioPortInput  = document.getElementById("io-ws-port");
+
   // Pre-fill SER config inputs from relay context
   if (serHostInput) serHostInput.value = defaultHost;
   if (serPortInput) serPortInput.value = defaultPort;
@@ -920,6 +1248,10 @@ document.addEventListener("DOMContentLoaded", function () {
   // Pre-fill Relay Word config inputs from relay context
   if (rwHostInput) rwHostInput.value = defaultHost;
   if (rwPortInput) rwPortInput.value = defaultPort;
+
+  // Pre-fill IO config inputs from relay context
+  if (ioHostInput) ioHostInput.value = defaultHost;
+  if (ioPortInput) ioPortInput.value = defaultPort;
 
   // Poll-rate live update
   if (serPollInput) {
@@ -968,6 +1300,24 @@ document.addEventListener("DOMContentLoaded", function () {
     container.style.display = "";
   }
 
+  function showIOSection() {
+    if (ioSection) ioSection.style.display = "";
+    container.style.display = "none";
+
+    requestAnimationFrame(() => {
+      if (!ioTable) {
+        initIoTable();
+      } else {
+        ioTable.redraw(true);
+      }
+    });
+  }
+
+  function hideIOSection() {
+    if (ioSection) ioSection.style.display = "none";
+    container.style.display = "";
+  }
+
   function loadSection(section) {
 
     // Clean up previous SER resources when switching away
@@ -980,6 +1330,12 @@ document.addEventListener("DOMContentLoaded", function () {
     if (section !== "relayword") {
       teardownRelayWord();
       hideRelayWordSection();
+    }
+
+    // Clean up previous IO resources when switching away
+    if (section !== "io") {
+      teardownIO();
+      hideIOSection();
     }
 
     switch (section) {
@@ -1006,10 +1362,7 @@ document.addEventListener("DOMContentLoaded", function () {
         break;
 
       case "io":
-        container.innerHTML = `
-          <h2>🔌 Inputs / Outputs</h2>
-          <p>INxxx / OUTxxx real-time state monitoring.</p>
-        `;
+        showIOSection();
         break;
 
       case "relayword":

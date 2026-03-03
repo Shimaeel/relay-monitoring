@@ -191,6 +191,57 @@
           </div>
           <!-- ===== END RELAY WORD SECTION ===== -->
 
+          <!-- ===== INPUT / OUTPUT SECTION (static, toggled by sections.js) ===== -->
+          <div id="io-section" class="section-card" style="display:none;">
+            <h2>🔌 Inputs / Outputs</h2>
+
+            <!-- IO Toolbar -->
+            <div class="ser-toolbar">
+              <div class="ser-toolbar__left">
+                <span>I/O Rows: <strong id="io-row-count" class="record-count">0</strong></span>
+                <span class="ser-toolbar__sep">|</span>
+                <span id="io-conn-status" style="font-weight:700">🟡 Idle</span>
+              </div>
+              <div class="ser-toolbar__right">
+                <button class="btn btn--outline btn--sm" onclick="ioExportCSV()">📥 Export CSV</button>
+                <button id="io-fetch-btn" class="btn btn--primary btn--sm" onclick="ioFetchAll()">🔄 Fetch I/O</button>
+                <button class="btn btn--danger btn--sm" onclick="ioDisconnect()">⏹ Stop</button>
+              </div>
+            </div>
+
+            <!-- Connection Config -->
+            <div class="ser-config">
+              <div class="ser-config__field">
+                <label>IP Address</label>
+                <input id="io-ws-host" type="text" value="localhost" placeholder="192.168.1.10" />
+              </div>
+              <div class="ser-config__field">
+                <label>WebSocket Port</label>
+                <input id="io-ws-port" type="number" min="1" max="65535" value="8765" />
+              </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div id="io-progress-container" style="display:none; margin: 12px 0;">
+              <div style="background: var(--surface-2, #e5e7eb); border-radius: 6px; overflow: hidden; height: 8px;">
+                <div id="io-progress-bar" style="background: var(--accent, #2563eb); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+              </div>
+              <small id="io-progress-text" style="color: var(--text-secondary, #6b7280); margin-top: 4px; display: inline-block;">Scanning TAR rows for I/O…</small>
+            </div>
+
+            <!-- Filter Toggle -->
+            <div style="margin: 10px 0; display: flex; gap: 10px; align-items: center;">
+              <label style="font-weight: 600; font-size: .85em;">Show:</label>
+              <button id="io-filter-all"    class="btn btn--primary btn--sm io-filter-btn active" onclick="ioSetFilter('all')">All I/O</button>
+              <button id="io-filter-in"     class="btn btn--outline btn--sm io-filter-btn"        onclick="ioSetFilter('in')">Inputs Only</button>
+              <button id="io-filter-out"    class="btn btn--outline btn--sm io-filter-btn"        onclick="ioSetFilter('out')">Outputs Only</button>
+            </div>
+
+            <!-- Tabulator Table -->
+            <div id="io-table"></div>
+          </div>
+          <!-- ===== END INPUT / OUTPUT SECTION ===== -->
+
         </div>
 
         <!-- Right Vertical Sidebar -->
