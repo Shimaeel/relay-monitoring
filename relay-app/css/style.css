@@ -1477,3 +1477,71 @@ ul, ol { list-style: none; }
   font-size: .82rem;
   color: var(--color-text-muted);
 }
+
+/* ============================================================
+   SETTINGS (SHOSET) Cards
+   ============================================================ */
+
+.set-content {
+  margin-top: var(--sp-3, 12px);
+}
+
+.set-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--color-text-muted, #6b7280);
+  font-size: .9rem;
+}
+
+.set-group {
+  margin-bottom: var(--sp-4, 16px);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-lg, 10px);
+  overflow: hidden;
+  background: var(--color-surface, #fff);
+}
+
+.set-group__title {
+  margin: 0;
+  padding: 10px 16px;
+  font-size: .88rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--color-primary, #2563eb);
+  background: var(--color-primary-subtle, rgba(37,99,235,.06));
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.set-group__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0;
+}
+
+.set-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border-light, #f3f4f6);
+  font-size: .84rem;
+  transition: background .15s ease;
+}
+
+.set-kv:hover {
+  background: var(--color-primary-subtle, rgba(37,99,235,.04));
+}
+
+.set-kv__key {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: var(--color-text, #111827);
+  min-width: 100px;
+}
+
+.set-kv__val {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--color-text-muted, #6b7280);
+  text-align: right;
+}

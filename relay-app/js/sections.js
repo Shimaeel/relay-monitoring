@@ -1188,6 +1188,213 @@ function ioDisconnect() {
 }
 
 // ============================================================
+//  SETTINGS (SHOSET) Module
+// ============================================================
+//
+//  Sends the SHOSET command over WebSocket, parses the
+//  section-header + key := value response, and renders it
+//  as grouped cards inside #set-content.
+//
+//  Public API:
+//    setFetchSettings()  — fetch via SHOSET
+//    setClearSettings()  — clear and disconnect
+// ============================================================
+
+let setWs       = null;
+let _setResolve  = null;
+let _setReject   = null;
+
+function _setBuildWsUrl() {
+  const h = (document.getElementById("ser-ws-host") || {}).value?.trim() || "localhost";
+  const p = (document.getElementById("ser-ws-port") || {}).value?.trim() || "8765";
+  return `ws://${h}:${p}`;
+}
+
+function _setSetStatus(status) {
+  const el = document.getElementById("set-conn-status");
+  if (!el) return;
+  const map = {
+    idle:       { text: "🟡 Idle",        color: "#d97706" },
+    connecting: { text: "🟡 Connecting…", color: "#d97706" },
+    fetching:   { text: "🔵 Fetching…",   color: "#2563eb" },
+    done:       { text: "🟢 Done",        color: "#16a34a" },
+    error:      { text: "🔴 Error",       color: "#dc2626" }
+  };
+  const info = map[status] || map.idle;
+  el.textContent = info.text;
+  el.style.color = info.color;
+}
+
+function _setSetFetchBtn(disabled) {
+  const btn = document.getElementById("set-fetch-btn");
+  if (!btn) return;
+  btn.disabled = disabled;
+  btn.style.opacity = disabled ? "0.5" : "1";
+  btn.style.pointerEvents = disabled ? "none" : "";
+}
+
+function _setEnsureConnection() {
+  return new Promise((resolve, reject) => {
+    if (setWs && setWs.readyState === WebSocket.OPEN) return resolve(setWs);
+    _setDisconnectRaw();
+    _setSetStatus("connecting");
+    const url = _setBuildWsUrl();
+    console.log("[SET] Connecting to", url);
+    setWs = new WebSocket(url);
+
+    setWs.onopen = () => { console.log("[SET] Connected"); resolve(setWs); };
+    setWs.onerror = (err) => { console.error("[SET] Error", err); reject(new Error("WebSocket connection failed")); };
+    setWs.onclose = () => {
+      console.log("[SET] Closed");
+      if (_setReject) { _setReject(new Error("WebSocket closed")); _setResolve = null; _setReject = null; }
+    };
+    setWs.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      if (_setResolve) { const r = _setResolve; _setResolve = null; _setReject = null; r(event.data); }
+    };
+  });
+}
+
+async function _setSendCommand(cmd) {
+  const ws = await _setEnsureConnection();
+  if (ws.readyState !== WebSocket.OPEN) throw new Error("WebSocket not open");
+  return new Promise((resolve, reject) => {
+    _setResolve = resolve;
+    _setReject  = reject;
+    const timer = setTimeout(() => { _setResolve = null; _setReject = null; reject(new Error("Timeout")); }, 30_000);
+    const origR = resolve, origE = reject;
+    _setResolve = (d) => { clearTimeout(timer); origR(d); };
+    _setReject  = (e) => { clearTimeout(timer); origE(e); };
+    console.log("[SET] Sending:", cmd);
+    ws.send(cmd);
+  });
+}
+
+function _setDisconnectRaw() {
+  if (setWs) {
+    setWs.onopen = null; setWs.onclose = null; setWs.onerror = null; setWs.onmessage = null;
+    try { setWs.close(); } catch (_) {}
+    setWs = null;
+  }
+  _setResolve = null; _setReject = null;
+}
+
+/**
+ * Parse the SHOSET text response into structured groups.
+ *
+ * Format:
+ *   Section Header (standalone line, no :=)
+ *   KEY1 := VALUE1   KEY2 := VALUE2   ...
+ *   Another Section Header
+ *   KEY3 := VALUE3
+ *
+ * Returns: [{ title: "Section", entries: [{key, value}, ...] }, ...]
+ */
+function parseShosetResponse(text) {
+  const lines   = text.split(/\r?\n/);
+  const groups  = [];
+  let current   = { title: "General", entries: [] };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/^\s*=>\s*$/.test(line)) continue;
+    if (/^\s*SHOSET\s*$/i.test(line)) continue;
+
+    // Lines containing := are key-value pairs
+    if (line.includes(":=")) {
+      // There can be multiple key := value pairs on the same line
+      const pairs = line.split(/\s{2,}/).filter(Boolean);
+      for (const pair of pairs) {
+        const m = pair.match(/^([A-Za-z0-9_]+)\s*:=\s*(.*)$/);
+        if (m) {
+          current.entries.push({ key: m[1].trim(), value: m[2].trim() });
+        }
+      }
+    } else {
+      // This is a section header — start a new group
+      if (current.entries.length > 0 || groups.length === 0) {
+        if (current.entries.length > 0) groups.push(current);
+        current = { title: line, entries: [] };
+      } else {
+        current.title = line;
+      }
+    }
+  }
+  if (current.entries.length > 0) groups.push(current);
+
+  return groups;
+}
+
+/**
+ * Render parsed SHOSET groups into #set-content as styled cards.
+ */
+function renderShosetSettings(groups) {
+  const container = document.getElementById("set-content");
+  if (!container) return;
+
+  if (groups.length === 0) {
+    container.innerHTML = '<div class="set-empty">No settings found in SHOSET response.</div>';
+    return;
+  }
+
+  let html = '';
+  for (const group of groups) {
+    html += '<div class="set-group">';
+    html += `<h3 class="set-group__title">${_escHtml(group.title)}</h3>`;
+    html += '<div class="set-group__grid">';
+    for (const entry of group.entries) {
+      html += `<div class="set-kv">`;
+      html += `<span class="set-kv__key">${_escHtml(entry.key)}</span>`;
+      html += `<span class="set-kv__val">${_escHtml(entry.value)}</span>`;
+      html += `</div>`;
+    }
+    html += '</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+function _escHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function setFetchSettings() {
+  _setSetFetchBtn(true);
+  try {
+    await _setEnsureConnection();
+    _setSetStatus("fetching");
+    const response = await _setSendCommand("SHOSET");
+    const groups   = parseShosetResponse(response);
+    renderShosetSettings(groups);
+    _setSetStatus("done");
+    console.log("[SET] SHOSET fetched —", groups.length, "groups");
+  } catch (err) {
+    console.error("[SET] SHOSET error:", err);
+    _setSetStatus("error");
+    if (typeof showToast === "function") showToast(`Settings fetch failed: ${err.message}`, "error");
+  } finally {
+    _setSetFetchBtn(false);
+  }
+}
+
+function setClearSettings() {
+  _setDisconnectRaw();
+  const container = document.getElementById("set-content");
+  if (container) container.innerHTML = '<div class="set-empty">Click <strong>Fetch Settings</strong> to retrieve relay configuration via SHOSET.</div>';
+  _setSetStatus("idle");
+  _setSetFetchBtn(false);
+  console.log("[SET] Cleared");
+}
+
+function setDisconnect() {
+  _setDisconnectRaw();
+  _setSetStatus("idle");
+  _setSetFetchBtn(false);
+}
+
+// ============================================================
 //  EVENT REPORT Module
 // ============================================================
 //
@@ -1624,6 +1831,10 @@ document.addEventListener("DOMContentLoaded", function () {
     _evDisconnectRaw();
   }
 
+  function teardownSettings() {
+    _setDisconnectRaw();
+  }
+
   // --- References to SER section (static HTML in relay.html) ---
   const serSection   = document.getElementById("ser-section");
   const serHostInput  = document.getElementById("ser-ws-host");
@@ -1642,6 +1853,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // --- References to Event Report section (static HTML in relay.html) ---
   const evSection    = document.getElementById("event-section");
+
+  // --- References to Settings section (static HTML in relay.html) ---
+  const setSection   = document.getElementById("settings-section");
 
   // Pre-fill SER config inputs from relay context
   if (serHostInput) serHostInput.value = defaultHost;
@@ -1738,6 +1952,16 @@ document.addEventListener("DOMContentLoaded", function () {
     container.style.display = "";
   }
 
+  function showSettingsSection() {
+    if (setSection) setSection.style.display = "";
+    container.style.display = "none";
+  }
+
+  function hideSettingsSection() {
+    if (setSection) setSection.style.display = "none";
+    container.style.display = "";
+  }
+
   function loadSection(section) {
 
     // Clean up previous SER resources when switching away
@@ -1764,13 +1988,16 @@ document.addEventListener("DOMContentLoaded", function () {
       hideEventSection();
     }
 
+    // Clean up previous Settings resources when switching away
+    if (section !== "settings") {
+      teardownSettings();
+      hideSettingsSection();
+    }
+
     switch (section) {
 
       case "settings":
-        container.innerHTML = `
-          <h2>⚙ Device Configuration</h2>
-          <p>Edit relay configuration parameters here.</p>
-        `;
+        showSettingsSection();
         break;
 
       case "comtrade":
