@@ -1188,6 +1188,429 @@ function ioDisconnect() {
 }
 
 // ============================================================
+//  EVENT REPORT Module
+// ============================================================
+//
+//  Sends EVE <n> commands sequentially over WebSocket for a
+//  user-specified range, parses the text response, and populates
+//  a Tabulator table with the fetched event records.
+//
+//  Public API (called from onclick in relay.html):
+//    evFetchReports()  — start sequential event fetch
+//    evExportCSV()     — download CSV
+//    evClearRecords()  — clear table and disconnect
+// ============================================================
+
+// ── State ───────────────────────────────────────────────────
+
+let evTable    = null;   // Tabulator instance
+let evWs       = null;   // WebSocket connection
+let evAbort    = false;  // Abort signal
+let _evAllRows = [];     // Accumulated event rows
+
+// ── Promise queue for request-response over WebSocket ───────
+
+let _evResolve = null;
+let _evReject  = null;
+
+// ── UI Helpers ──────────────────────────────────────────────
+
+function _evBuildWsUrl() {
+  const h = (document.getElementById("ev-ws-host") || {}).value?.trim() || "localhost";
+  const p = (document.getElementById("ev-ws-port") || {}).value?.trim() || "8765";
+  return `ws://${h}:${p}`;
+}
+
+function _evSetStatus(status) {
+  const el = document.getElementById("ev-conn-status");
+  if (!el) return;
+  const map = {
+    idle:         { text: "🟡 Idle",           color: "#d97706" },
+    connecting:   { text: "🟡 Connecting…",    color: "#d97706" },
+    fetching:     { text: "🔵 Fetching…",      color: "#2563eb" },
+    done:         { text: "🟢 Done",           color: "#16a34a" },
+    error:        { text: "🔴 Error",          color: "#dc2626" },
+    disconnected: { text: "🔴 Disconnected",   color: "#dc2626" },
+    aborted:      { text: "🟠 Aborted",        color: "#ea580c" }
+  };
+  const info = map[status] || map.idle;
+  el.textContent = info.text;
+  el.style.color = info.color;
+}
+
+function _evSetProgress(current, total) {
+  const container = document.getElementById("ev-progress-container");
+  const bar       = document.getElementById("ev-progress-bar");
+  const text      = document.getElementById("ev-progress-text");
+  if (!container) return;
+
+  if (current < 0) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "";
+  const pct = Math.min(100, Math.round((current / total) * 100));
+  if (bar)  bar.style.width = pct + "%";
+  if (text) text.textContent = `Fetching EVE ${current} / ${total}  (${pct}%)`;
+}
+
+function _evSetRecordCount(n) {
+  const el = document.getElementById("ev-record-count");
+  if (el) el.textContent = n;
+}
+
+function _evSetFetchBtn(disabled) {
+  const btn = document.getElementById("ev-fetch-btn");
+  if (!btn) return;
+  btn.disabled = disabled;
+  btn.style.opacity = disabled ? "0.5" : "1";
+  btn.style.pointerEvents = disabled ? "none" : "";
+}
+
+// ── Tabulator Initialisation ────────────────────────────────
+
+function initEvTable() {
+  if (evTable) { evTable.redraw(true); return; }
+  evTable = new Tabulator("#ev-table", {
+    data: [],
+    layout: "fitColumns",
+    pagination: true,
+    paginationSize: 50,
+    paginationSizeSelector: [10, 20, 50, 100],
+    movableColumns: true,
+    placeholder: "No Event Records — Enter an event number and click Fetch",
+    height: "500px",
+    columns: [
+      {
+        title: "Eve #",
+        field: "eveNum",
+        width: 90,
+        hozAlign: "center",
+        headerSort: true,
+        sorter: "number",
+        headerFilter: "input"
+      },
+      {
+        title: "Date",
+        field: "date",
+        width: 140,
+        hozAlign: "center",
+        headerSort: true,
+        headerFilter: "input"
+      },
+      {
+        title: "Time",
+        field: "time",
+        width: 160,
+        hozAlign: "center",
+        headerSort: true,
+        headerFilter: "input"
+      },
+      {
+        title: "Element",
+        field: "element",
+        widthGrow: 2,
+        headerSort: true,
+        headerFilter: "input"
+      },
+      {
+        title: "State",
+        field: "state",
+        width: 140,
+        hozAlign: "center",
+        headerSort: true,
+        headerFilter: "input"
+      },
+      {
+        title: "Details",
+        field: "details",
+        widthGrow: 3,
+        headerSort: true,
+        headerFilter: "input"
+      }
+    ],
+    initialSort: [{ column: "eveNum", dir: "desc" }]
+  });
+}
+
+// ── WebSocket — Ensure connection ───────────────────────────
+
+function _evEnsureConnection() {
+  return new Promise((resolve, reject) => {
+    if (evWs && evWs.readyState === WebSocket.OPEN) {
+      return resolve(evWs);
+    }
+
+    // Clean up any previous socket
+    _evDisconnectRaw();
+
+    _evSetStatus("connecting");
+    const url = _evBuildWsUrl();
+    console.log("[EVE] Connecting to", url);
+    evWs = new WebSocket(url);
+
+    evWs.onopen = () => {
+      console.log("[EVE] Connected");
+      resolve(evWs);
+    };
+
+    evWs.onerror = (err) => {
+      console.error("[EVE] Connection error:", err);
+      reject(new Error("WebSocket connection failed"));
+    };
+
+    evWs.onclose = () => {
+      console.log("[EVE] Closed");
+      if (_evReject) {
+        _evReject(new Error("WebSocket closed unexpectedly"));
+        _evResolve = null;
+        _evReject  = null;
+      }
+    };
+
+    evWs.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      if (_evResolve) {
+        const res = _evResolve;
+        _evResolve = null;
+        _evReject  = null;
+        res(event.data);
+      }
+    };
+  });
+}
+
+// ── Send one command and wait for response ──────────────────
+
+async function _evSendCommand(cmd) {
+  const ws = await _evEnsureConnection();
+
+  if (ws.readyState !== WebSocket.OPEN) {
+    throw new Error("WebSocket is not open");
+  }
+
+  return new Promise((resolve, reject) => {
+    _evResolve = resolve;
+    _evReject  = reject;
+
+    const timer = setTimeout(() => {
+      _evResolve = null;
+      _evReject  = null;
+      reject(new Error(`Timeout waiting for response to "${cmd}"`));
+    }, 30_000);
+
+    const origResolve = resolve;
+    const origReject  = reject;
+    _evResolve = (data) => { clearTimeout(timer); origResolve(data); };
+    _evReject  = (err)  => { clearTimeout(timer); origReject(err); };
+
+    console.log("[EVE] Sending:", cmd);
+    ws.send(cmd);
+  });
+}
+
+// ── Parse EVE response ──────────────────────────────────────
+
+/**
+ * Parse the raw text response of an EVE command.
+ *
+ * The response typically contains date/time, element names and
+ * their states. This parser extracts meaningful rows from the
+ * relay's event report output.
+ */
+function parseEveResponse(text, eveNum) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const rows = [];
+
+  let date = "—";
+  let time = "—";
+
+  // Try to find date/time from the response
+  for (const line of lines) {
+    // Common SEL date patterns: MM/DD/YY, YYYY-MM-DD, etc.
+    const dtMatch = line.match(/(?:Date|DATE)[:\s]+([\d\/\-]+)/i);
+    if (dtMatch) { date = dtMatch[1]; }
+    const tmMatch = line.match(/(?:Time|TIME)[:\s]+([\d:\.]+)/i);
+    if (tmMatch) { time = tmMatch[1]; }
+  }
+
+  // Try to extract element/state pairs from the response
+  // Pattern 1: Lines with element names followed by values (tabular)
+  let foundElements = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Skip header/command echo lines
+    if (/^\s*EVE\s+\d+/i.test(line)) continue;
+    if (/^\s*=>\s*$/.test(line)) continue;
+    if (/^-+$/.test(line)) continue;
+
+    // Look for "ELEMENT = VALUE" or "ELEMENT : VALUE" patterns
+    const kvMatch = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*[=:]\s*(.+)$/);
+    if (kvMatch) {
+      rows.push({
+        eveNum:  eveNum,
+        date:    date,
+        time:    time,
+        element: kvMatch[1].trim(),
+        state:   kvMatch[2].trim(),
+        details: ""
+      });
+      foundElements = true;
+      continue;
+    }
+
+    // Look for tabular data: label rows followed by value rows
+    // (like TAR output — labels on one line, 0/1 values on next)
+    const tokens = line.split(/\s+/).filter(Boolean);
+    if (tokens.length >= 2 && i + 1 < lines.length) {
+      const nextTokens = lines[i + 1].split(/\s+/).filter(Boolean);
+      if (nextTokens.length === tokens.length &&
+          nextTokens.every(t => /^[\d.]+$/.test(t) || /^(Asserted|Deasserted|ON|OFF|0|1|Trip|Close|Open|Closed)$/i.test(t))) {
+        for (let j = 0; j < tokens.length; j++) {
+          rows.push({
+            eveNum:  eveNum,
+            date:    date,
+            time:    time,
+            element: tokens[j],
+            state:   nextTokens[j],
+            details: ""
+          });
+        }
+        foundElements = true;
+        i++; // skip the value line
+        continue;
+      }
+    }
+  }
+
+  // If we couldn't parse structured elements, push the whole
+  // response as a single record so the user still sees the data
+  if (!foundElements) {
+    rows.push({
+      eveNum:  eveNum,
+      date:    date,
+      time:    time,
+      element: "Event Report",
+      state:   "—",
+      details: text.replace(/\n/g, " ").substring(0, 500)
+    });
+  }
+
+  return rows;
+}
+
+// ── Main Fetch Logic (sequential) ───────────────────────────
+
+async function evFetchReports() {
+  const startInput = document.getElementById("ev-event-num");
+  const countInput = document.getElementById("ev-num-records");
+
+  const startNum = parseInt(startInput?.value, 10) || 1;
+  const count    = parseInt(countInput?.value, 10) || 1;
+
+  if (count < 1 || startNum < 1) {
+    if (typeof showToast === "function") showToast("Enter valid Eve and Num values", "error");
+    return;
+  }
+
+  evAbort = false;
+  _evSetFetchBtn(true);
+  _evAllRows = [];
+
+  try {
+    await _evEnsureConnection();
+    _evSetStatus("fetching");
+
+    for (let i = 0; i < count; i++) {
+      if (evAbort) {
+        console.log("[EVE] Aborted by user at event", startNum + i);
+        _evSetStatus("aborted");
+        break;
+      }
+
+      const eveNum = startNum + i;
+      _evSetProgress(i + 1, count);
+
+      const cmd      = "EVE " + eveNum;
+      const response = await _evSendCommand(cmd);
+      const parsed   = parseEveResponse(response, eveNum);
+
+      if (parsed.length > 0) {
+        _evAllRows.push(...parsed);
+        _evUpdateTable();
+      }
+
+      console.log(`[EVE] EVE ${eveNum} fetched — ${_evAllRows.length} rows total`);
+    }
+
+    if (!evAbort) {
+      _evSetProgress(-1);
+      _evSetStatus("done");
+      console.log(`[EVE] Fetch complete — ${_evAllRows.length} rows`);
+    }
+
+  } catch (err) {
+    console.error("[EVE] fetch error:", err);
+    _evSetStatus("error");
+    _evSetProgress(-1);
+    if (typeof showToast === "function") {
+      showToast(`Event fetch failed: ${err.message}`, "error");
+    }
+  } finally {
+    _evSetFetchBtn(false);
+  }
+}
+
+function _evUpdateTable() {
+  if (evTable) {
+    evTable.setData(_evAllRows);
+  } else {
+    initEvTable();
+    if (evTable) evTable.setData(_evAllRows);
+  }
+  _evSetRecordCount(_evAllRows.length);
+}
+
+// ── Disconnect helpers ──────────────────────────────────────
+
+function _evDisconnectRaw() {
+  if (evWs) {
+    evWs.onopen = null; evWs.onclose = null; evWs.onerror = null; evWs.onmessage = null;
+    try { evWs.close(); } catch (_) {}
+    evWs = null;
+  }
+  _evResolve = null;
+  _evReject  = null;
+}
+
+// ── Public Actions ──────────────────────────────────────────
+
+function evExportCSV() {
+  if (evTable) evTable.download("csv", "event_reports.csv");
+}
+
+function evClearRecords() {
+  evAbort = true;
+  _evDisconnectRaw();
+  _evAllRows = [];
+  if (evTable) evTable.setData([]);
+  _evSetRecordCount(0);
+  _evSetStatus("idle");
+  _evSetProgress(-1);
+  _evSetFetchBtn(false);
+  console.log("[EVE] Records cleared");
+}
+
+function evDisconnect() {
+  evAbort = true;
+  _evDisconnectRaw();
+  _evSetStatus("idle");
+  _evSetProgress(-1);
+  _evSetFetchBtn(false);
+}
+
+// ============================================================
 //  Section Loader
 // ============================================================
 
@@ -1227,6 +1650,11 @@ document.addEventListener("DOMContentLoaded", function () {
     _ioDisconnectRaw();
   }
 
+  function teardownEvent() {
+    evAbort = true;
+    _evDisconnectRaw();
+  }
+
   // --- References to SER section (static HTML in relay.html) ---
   const serSection   = document.getElementById("ser-section");
   const serHostInput  = document.getElementById("ser-ws-host");
@@ -1243,6 +1671,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const ioHostInput  = document.getElementById("io-ws-host");
   const ioPortInput  = document.getElementById("io-ws-port");
 
+  // --- References to Event Report section (static HTML in relay.html) ---
+  const evSection    = document.getElementById("event-section");
+  const evHostInput  = document.getElementById("ev-ws-host");
+  const evPortInput  = document.getElementById("ev-ws-port");
+
   // Pre-fill SER config inputs from relay context
   if (serHostInput) serHostInput.value = defaultHost;
   if (serPortInput) serPortInput.value = defaultPort;
@@ -1254,6 +1687,10 @@ document.addEventListener("DOMContentLoaded", function () {
   // Pre-fill IO config inputs from relay context
   if (ioHostInput) ioHostInput.value = defaultHost;
   if (ioPortInput) ioPortInput.value = defaultPort;
+
+  // Pre-fill Event Report config inputs from relay context
+  if (evHostInput) evHostInput.value = defaultHost;
+  if (evPortInput) evPortInput.value = defaultPort;
 
   // Poll-rate live update
   if (serPollInput) {
@@ -1320,6 +1757,24 @@ document.addEventListener("DOMContentLoaded", function () {
     container.style.display = "";
   }
 
+  function showEventSection() {
+    if (evSection) evSection.style.display = "";
+    container.style.display = "none";
+
+    requestAnimationFrame(() => {
+      if (!evTable) {
+        initEvTable();
+      } else {
+        evTable.redraw(true);
+      }
+    });
+  }
+
+  function hideEventSection() {
+    if (evSection) evSection.style.display = "none";
+    container.style.display = "";
+  }
+
   function loadSection(section) {
 
     // Clean up previous SER resources when switching away
@@ -1340,6 +1795,12 @@ document.addEventListener("DOMContentLoaded", function () {
       hideIOSection();
     }
 
+    // Clean up previous Event Report resources when switching away
+    if (section !== "event") {
+      teardownEvent();
+      hideEventSection();
+    }
+
     switch (section) {
 
       case "settings":
@@ -1357,10 +1818,7 @@ document.addEventListener("DOMContentLoaded", function () {
         break;
 
       case "event":
-        container.innerHTML = `
-          <h2>📄 Event Report</h2>
-          <p>Detailed event logs and formatted reports appear here.</p>
-        `;
+        showEventSection();
         break;
 
       case "io":
