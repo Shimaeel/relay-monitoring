@@ -322,6 +322,17 @@ function connectSerWebSocket() {
     serWorkerConnected = true;
     updateSerConnectionStatus("connected");
     startSerAutoRefresh();
+
+    // Start the relay pipeline on the C++ backend (on-demand)
+    const relay = getCurrentRelay();
+    if (relay) {
+      try {
+        const startCmd = JSON.stringify({ action: "start_relay", relay_id: String(relay.id) });
+        serWs.send(startCmd);
+        console.log("[SER] Sent start_relay for relay", relay.id);
+      } catch (_) { /* ignore */ }
+    }
+
     // Request an immediate snapshot to populate the table on connect
     try {
       serWs.send("getData");
@@ -455,6 +466,14 @@ function serExportCSV() {
 
 function serSendQuit() {
   if (serWs && serWs.readyState === WebSocket.OPEN) {
+    // Stop the relay pipeline on the C++ backend
+    const relay = getCurrentRelay();
+    if (relay) {
+      try {
+        serWs.send(JSON.stringify({ action: "stop_relay", relay_id: String(relay.id) }));
+        console.log("[SER] Sent stop_relay for relay", relay.id);
+      } catch (_) { /* ignore */ }
+    }
     serWs.send("QUIT");
     serWs.close();
     stopSerAutoRefresh();
