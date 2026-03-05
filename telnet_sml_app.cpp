@@ -57,6 +57,9 @@
 #include "client.hpp"
 #include "asn_tlv_codec.hpp"
 #include "raw_data_ring_buffer.hpp"
+#include "relay_config.hpp"
+#include "relay_manager.hpp"
+#include "relay_pipeline.hpp"
 #include "relay_service.hpp"
 #include "ser_database.hpp"
 #include "ser_json_writer.hpp"
@@ -73,512 +76,9 @@ using namespace sml;
 namespace
 {
 
-/**
- * @class ReceptionWorker
- * @brief Non-blocking reception thread that manages relay communication.
- *
- * @details The ReceptionWorker runs as Thread 1 in the application architecture.
- * It handles all Telnet communication with the substation relay device and
- * immediately pushes responses to the SPSC ring buffer without blocking.
- *
- * ## Responsibilities
- * - Establish and maintain TCP connection to relay (port 23)
- * - Execute login sequence (Level 1 authentication)
- * - Process command queue and execute sequentially
- * - Push command/response pairs to RawDataRingBuffer (MPMC)
- *
- * ## Thread Safety
- * - Uses mutex-protected command queue
- * - Condition variable for efficient waiting
- * - Atomic stop flag for clean shutdown
- *
- * ## Data Flow
- * @dot
- * digraph Reception {
- *     rankdir=LR;
- *     Relay [shape=ellipse, label="Relay Device"];
- *     Client [label="TelnetClient"];
- *     Ring [label="RawDataRingBuffer\n(SPSC)"];
- *
- *     Relay -> Client [label="TCP:23"];
- *     Client -> Ring [label="push\n(non-blocking)"];
- * }
- * @enddot
- *
- * @note This class is internal to the implementation file.
- * @see ProcessingWorker Consumer of ring buffer data
- * @see RawDataRingBuffer SPSC queue for command/response pairs
- */
-class ReceptionWorker
-{
-    std::atomic<bool> stop_flag_{false};       ///< Flag to signal worker thread termination
-    std::thread worker_thread_;                 ///< Worker thread handle
-    std::mutex queue_mutex_;                    ///< Mutex protecting command_queue_
-    std::condition_variable queue_cv_;          ///< CV for command queue notification
-    std::deque<std::string> command_queue_;     ///< Queue of commands pending execution
-
-    TelnetClient& client_;                      ///< Reference to Telnet client for I/O
-    ConnectionConfig& conn_;                    ///< Connection configuration (host, port, timeout)
-    LoginConfig& creds_;                        ///< Login credentials (user, password)
-    RawDataRingBuffer& rawBuffer_;              ///< MPMC ring buffer for output
-    std::atomic<bool>& app_running_;            ///< Application running state flag
-
-    bool connected_ = false;                    ///< Current TCP connection state
-    bool logged_in_ = false;                    ///< Current login state
-
-    /**
-     * @brief Ensures connection and login to relay device.
-     *
-     * @details Executes the following sequence if not already connected:
-     * 1. Establish TCP connection to relay
-     * 2. Perform Level 1 login authentication
-     *
-     * Connection state is cached to avoid redundant operations.
-     *
-     * @return true if connected and logged in, false on failure
-     * @note Resets connection state on login failure
-     */
-    bool ensureConnected()
-    {
-        if (connected_ && logged_in_)
-            return true;
-        
-        if (!connected_)
-        {
-            std::cout << "[Reception] Connecting to " << conn_.host << ":" << conn_.port << "...\n";
-            connected_ = client_.connectCheck(conn_.host, conn_.port, conn_.timeout);
-            if (!connected_)
-            {
-                std::cout << "[Reception] Connection failed\n";
-                return false;
-            }
-            std::cout << "[Reception] Connected\n";
-        }
-        
-        if (!logged_in_)
-        {
-            std::cout << "[Reception] Logging in...\n";
-            logged_in_ = client_.LoginLevel1Function(creds_.l1_user, creds_.l1_pass);
-            if (!logged_in_)
-            {
-                std::cout << "[Reception] Login failed\n";
-                connected_ = false;
-                return false;
-            }
-            std::cout << "[Reception] Logged in\n";
-        }
-
-        return true;
-    }
-
-    static constexpr int MAX_RETRIES = 3;           ///< Max retry attempts per command
-    static constexpr int RETRY_DELAY_SEC = 5;        ///< Delay between retries (seconds)
-
-    /**
-     * @brief Executes a command with automatic retry on failure.
-     *
-     * @details This method:
-     * 1. Attempts to connect + login (with retries)
-     * 2. Sends command to relay device
-     * 3. On failure: resets connection, waits, retries (up to MAX_RETRIES)
-     * 4. Pushes command/response pair to RawDataRingBuffer (non-blocking)
-     *
-     * ## Retry Flow
-     * ```
-     * Attempt 1 -> connect -> login -> send cmd
-     *   fail? -> reset connection -> wait 5s
-     * Attempt 2 -> connect -> login -> send cmd
-     *   fail? -> reset connection -> wait 5s
-     * Attempt 3 -> connect -> login -> send cmd
-     *   fail? -> give up (next poller cycle will retry)
-     * ```
-     *
-     * @param cmd The command string to execute (e.g., "SER")
-     *
-     * @note Push is non-blocking; if buffer is full, oldest entry is overwritten
-     * @note Connection is reset on command failure for auto-recovery
-     */
-    void executeCommand(const std::string& cmd)
-    {
-        std::cout << "[Reception] executeCommand called for: " << cmd << "\n";
-
-        for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt)
-        {
-            if (stop_flag_.load())
-                return;
-
-            // --- Connection + Login ---
-            if (!ensureConnected())
-            {
-                std::cout << "[Reception] Connection failed (attempt " << attempt
-                          << "/" << MAX_RETRIES << ")\n";
-                connected_ = false;
-                logged_in_ = false;
-
-                if (attempt < MAX_RETRIES)
-                {
-                    std::cout << "[Reception] Retrying in " << RETRY_DELAY_SEC << "s...\n";
-                    // Interruptible sleep — wake up early if app is stopping
-                    for (int s = 0; s < RETRY_DELAY_SEC && !stop_flag_.load(); ++s)
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-                }
-                continue;
-            }
-
-            // --- Send Command ---
-            std::string response;
-            std::cout << "[Reception] Sending command to relay (attempt " << attempt
-                      << "/" << MAX_RETRIES << ")...\n";
-            bool ok = client_.SendCmdReceiveData(cmd, response);
-
-            std::cout << "[Reception] SendCmdReceiveData returned: " << (ok ? "OK" : "FAIL")
-                      << ", response size: " << response.size() << "\n";
-
-            if (ok && !response.empty())
-            {
-                // Success — push to ring buffer
-                bool pushed = rawBuffer_.push({cmd, response});
-                std::cout << "[Reception] Pushed to ring buffer: " << (pushed ? "OK" : "OVERWRITE")
-                          << ", " << response.size() << " bytes for '" << cmd << "'\n";
-                std::cout << "[Reception] Ring buffer size now: " << rawBuffer_.size() << "\n";
-                return;  // Done — exit retry loop
-            }
-
-            // --- Command failed ---
-            std::cout << "[Reception] Command '" << cmd << "' failed or empty response (attempt "
-                      << attempt << "/" << MAX_RETRIES << ")\n";
-            connected_ = false;
-            logged_in_ = false;
-
-            if (attempt < MAX_RETRIES)
-            {
-                std::cout << "[Reception] Retrying in " << RETRY_DELAY_SEC << "s...\n";
-                for (int s = 0; s < RETRY_DELAY_SEC && !stop_flag_.load(); ++s)
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
-        }
-
-        std::cout << "[Reception] All " << MAX_RETRIES << " attempts failed for '" << cmd
-                  << "', will retry on next poll cycle\n";
-    }
-
-    /**
-     * @brief Main worker thread loop.
-     *
-     * @details Continuously processes commands from the queue:
-     * 1. Wait on condition variable for new commands
-     * 2. Dequeue and execute each command
-     * 3. Exit when stop_flag_ is set
-     *
-     * @note Thread-safe via mutex and condition variable
-     */
-    void runLoop()
-    {
-        std::cout << "[Reception] Worker thread started\n";
-        while (!stop_flag_.load())
-        {
-            std::string cmd;
-            {
-                std::unique_lock<std::mutex> lock(queue_mutex_);
-                std::cout << "[Reception] Waiting for command in queue...\n";
-                queue_cv_.wait(lock, [&]() {
-                    return stop_flag_.load() || !command_queue_.empty();
-                });
-                
-                if (stop_flag_.load())
-                    break;
-                
-                if (command_queue_.empty())
-                    continue;
-                
-                cmd = std::move(command_queue_.front());
-                command_queue_.pop_front();
-                std::cout << "[Reception] Got command from queue: " << cmd << "\n";
-            }
-            
-            executeCommand(cmd);
-        }
-        std::cout << "[Reception] Worker thread exiting\n";
-    }
-
-public:
-    /**
-     * @brief Constructs a ReceptionWorker instance.
-     *
-     * @param client Reference to TelnetClient for relay communication
-     * @param conn Connection configuration (host, port, timeout)
-     * @param creds Login credentials for Level 1 authentication
-     * @param rawBuffer MPMC ring buffer for command/response output
-     * @param app_running Application state flag for coordinated shutdown
-     */
-    ReceptionWorker(TelnetClient& client,
-                    ConnectionConfig& conn,
-                    LoginConfig& creds,
-                    RawDataRingBuffer& rawBuffer,
-                    std::atomic<bool>& app_running)
-        : client_(client)
-        , conn_(conn)
-        , creds_(creds)
-        , rawBuffer_(rawBuffer)
-        , app_running_(app_running)
-    {
-    }
-
-    /**
-     * @brief Starts the worker thread.
-     *
-     * @details Resets stop flag and spawns worker thread running runLoop().
-     */
-    void start()
-    {
-        stop_flag_ = false;
-        worker_thread_ = std::thread([this]() { runLoop(); });
-    }
-
-    void stop()
-    {
-        stop_flag_ = true;
-        queue_cv_.notify_all();
-        rawBuffer_.notifyAll();
-        if (worker_thread_.joinable())
-            worker_thread_.join();
-    }
-
-    /**
-     * @brief Queues a command for asynchronous execution.
-     *
-     * @details Adds command to the queue and notifies worker thread.
-     * This is a non-blocking operation; the command will be executed
-     * asynchronously by the worker thread.
-     *
-     * @param cmd Command string to queue (e.g., "SER", "ACC")
-     *
-     * @note Thread-safe; can be called from any thread
-     */
-    void queueCommand(const std::string& cmd)
-    {
-        std::cout << "[Reception] queueCommand called: " << cmd << "\n";
-        {
-            std::lock_guard<std::mutex> lock(queue_mutex_);
-            command_queue_.push_back(cmd);
-            std::cout << "[Reception] Command queued, queue size: " << command_queue_.size() << "\n";
-        }
-        queue_cv_.notify_one();
-    }
-
-    /**
-     * @brief Resets connection state for reconnection.
-     *
-     * @details Clears connected and logged_in flags, forcing
-     * re-establishment of connection on next command.
-     */
-    void resetConnection()
-    {
-        connected_ = false;
-        logged_in_ = false;
-    }
-};
-
-/**
- * @class ProcessingWorker
- * @brief FSM/Processing thread that processes relay data and persists to storage.
- *
- * @details The ProcessingWorker runs as Thread 2 in the application architecture.
- * It continuously reads from the SPSC ring buffer, processes SER data, and
- * coordinates the sequential pipeline for data persistence and distribution.
- *
- * ## Responsibilities
- * - Read command/response pairs from RawDataRingBuffer (MPMC)
- * - Parse SER response text into structured records
- * - Store validated records in SQLite database
- * - Broadcast new records via WebSocket (only after DB success)
- * - Write to shared memory for JSON file output
- *
- * ## Data Flow (Sequential Pipeline)
- * @code
- * MPMC Ring Buffer
- *       │
- *       ▼
- * Parse SER Response
- *       │
- *       ▼
- * SQLite (insertRecords)
- *       │
- *       ▼ (on success only)
- * WebSocket Broadcast
- *       │
- *       ▼
- * SharedRingBuffer (JSON writer)
- * @endcode
- *
- * ## Thread Safety
- * - Blocking wait on MPMC ring buffer (per-reader cursor)
- * - Atomic stop flag for clean shutdown
- * - Database and WebSocket operations are thread-safe
- *
- * @dot
- * digraph Processing {
- *     rankdir=TB;
- *     Ring [label="SPSC Ring Buffer"];
- *     Parse [label="parseSERResponse()"];
- *     DB [label="SQLite\n(Persistent Storage)"];
- *     WS [label="WebSocket Server"];
- *     SHM [label="SharedRingBuffer"];
- *
- *     Ring -> Parse;
- *     Parse -> DB;
- *     DB -> WS [label="on success"];
- *     WS -> SHM;
- * }
- * @enddot
- *
- * @note This class is internal to the implementation file.
- * @see ReceptionWorker Producer of ring buffer data
- * @see SERDatabase SQLite persistence layer
- * @see SERWebSocketServer WebSocket broadcast server
- */
-class ProcessingWorker
-{
-    std::atomic<bool> stop_flag_{false};       ///< Flag to signal worker thread termination
-    std::thread worker_thread_;                 ///< Worker thread handle
-
-    RawDataRingBuffer& rawBuffer_;              ///< MPMC ring buffer input
-    SERDatabase& db_;                           ///< SQLite database for persistence
-    SERWebSocketServer& wsServer_;              ///< WebSocket server for broadcasting
-    SharedRingBuffer& shmRing_;                 ///< Shared memory ring for JSON output
-    std::atomic<bool>& app_running_;            ///< Application running state flag
-    RawDataRingBuffer::ReaderId readerId_{RawDataRingBuffer::kInvalidReader}; ///< Registered reader ID
-
-    /**
-     * @brief Main worker thread loop.
-     *
-     * @details Continuously processes data from ring buffer:
-     * 1. Wait for data (blocking)
-     * 2. Parse SER response into records
-     * 3. Insert records into SQLite
-     * 4. Broadcast via WebSocket (on success)
-     * 5. Write to shared memory for JSON output
-     */
-    void runLoop()
-    {
-        std::cout << "[Processing] Worker thread started\n";
-        while (!stop_flag_.load() && app_running_.load())
-        {
-            std::cout << "[Processing] Waiting for data from ring buffer...\n";
-            auto msg = rawBuffer_.waitPop(readerId_, stop_flag_);
-            if (!msg)
-            {
-                std::cout << "[Processing] waitPop returned empty (stop signal?)\n";
-                continue;
-            }
-            
-            std::cout << "[Processing] Received message: cmd='" << msg->command 
-                      << "', response size=" << msg->response.size() << " bytes\n";
-            
-            // Only process SER command responses through the SER pipeline
-            if (msg->command != "SER")
-            {
-                // Non-SER command (e.g. FIL DIR) — broadcast raw text response to all WS clients
-                std::cout << "[Processing] Non-SER command '" << msg->command 
-                          << "', broadcasting text response (" << msg->response.size() << " bytes)\n";
-                wsServer_.broadcastText(msg->response);
-                continue;
-            }
-            
-            // Parse SER response
-            std::cout << "[Processing] Parsing SER response...\n";
-            auto records = parseSERResponse(msg->response);
-            if (records.empty())
-            {
-                std::cout << "[Processing] No records parsed from response. First 200 chars:\n";
-                std::cout << msg->response.substr(0, 200) << "\n";
-                continue;
-            }
-            
-            std::cout << "[Processing] Parsed " << records.size() << " SER records\n";
-            
-            // Step 1: SQLite (Persistent Storage) — store and get only newly inserted records
-            int inserted = 0;
-            auto newRecords = db_.insertAndGetNewRecords(records, inserted);
-            std::cout << "[Processing] SQLite: Stored " << inserted << " new records\n";
-            
-            // Step 2: WebSocket Server (After DB Write) — broadcast FULL DB to clients
-            // Ensures relay.html shows all stored records after a SER poll
-            wsServer_.broadcastAll();
-            
-            // Write to shared memory for JSON file writer (only on new data)
-            if (inserted > 0)
-            {
-                auto payload = asn_tlv::encodeSerRecordsToTlv(newRecords);
-                if (!payload.empty())
-                {
-                    shmRing_.write(payload.data(), payload.size());
-                }
-            }
-        }
-        std::cout << "[Processing] Worker thread exiting\n";
-    }
-
-public:
-    /**
-     * @brief Constructs a ProcessingWorker instance.
-     *
-     * @param rawBuffer MPMC ring buffer for command/response input
-     * @param db SQLite database for record persistence
-     * @param wsServer WebSocket server for broadcasting to clients
-     * @param shmRing Shared ring buffer for JSON file writer output
-     * @param app_running Application state flag for coordinated shutdown
-     */
-    ProcessingWorker(RawDataRingBuffer& rawBuffer,
-                     SERDatabase& db,
-                     SERWebSocketServer& wsServer,
-                     SharedRingBuffer& shmRing,
-                     std::atomic<bool>& app_running)
-        : rawBuffer_(rawBuffer)
-        , db_(db)
-        , wsServer_(wsServer)
-        , shmRing_(shmRing)
-        , app_running_(app_running)
-    {
-    }
-
-    /**
-     * @brief Starts the worker thread.
-     *
-     * @details Registers as a reader on the MPMC ring buffer, resets stop
-     * flag, and spawns worker thread running runLoop().
-     */
-    void start()
-    {
-        stop_flag_ = false;
-        readerId_ = rawBuffer_.registerReader();
-        if (readerId_ == RawDataRingBuffer::kInvalidReader)
-        {
-            std::cerr << "[Processing] Failed to register reader — max readers reached\n";
-            return;
-        }
-        worker_thread_ = std::thread([this]() { runLoop(); });
-    }
-
-    /**
-     * @brief Stops the worker thread gracefully.
-     *
-     * @details Sets stop flag, notifies ring buffer, joins worker thread,
-     * and unregisters the reader.
-     */
-    void stop()
-    {
-        stop_flag_ = true;
-        rawBuffer_.notifyAll();
-        if (worker_thread_.joinable())
-            worker_thread_.join();
-        if (readerId_ != RawDataRingBuffer::kInvalidReader)
-        {
-            rawBuffer_.unregisterReader(readerId_);
-            readerId_ = RawDataRingBuffer::kInvalidReader;
-        }
-    }
-};
+// ReceptionWorker and ProcessingWorker have been moved to relay_pipeline.hpp
+// as PipelineReceptionWorker and PipelineProcessingWorker, used per-relay
+// by RelayPipeline and coordinated by RelayManager.
 
 }  // namespace
 
@@ -700,141 +200,100 @@ public:
  * @class TelnetSmlApp::Impl
  * @brief Private implementation (PIMPL) of TelnetSmlApp.
  *
- * @details This class contains the actual implementation of the Telnet-SML
- * application, following the PIMPL idiom for ABI stability and compilation
- * firewall.
+ * @details Contains the multi-relay on-demand architecture.  Shared
+ * resources (DB, WS server, SHM ring) are owned here.  Per-relay
+ * resources (TelnetClient, workers, ring buffer) live inside
+ * RelayPipeline objects managed by RelayManager.
  *
- * ## Architecture
- * The implementation manages the complete multi-threaded pipeline:
+ * ## Architecture (Multi-Relay, On-Demand)
+ *
  * @code
- * Relay Device (TCP:23)
+ * Browser Dashboard
+ *       │ "start_relay" / "stop_relay"
+ *       ▼
+ * SERWebSocketServer (shared, port 8765)
  *       │
  *       ▼
- * TelnetClient Thread (ReceptionWorker)
+ * RelayManager
  *       │
- *       ▼
- * C++ MPMC Ring Buffer (RawDataRingBuffer)
+ *       ├── RelayPipeline[1] (SEL-751)
+ *       │      TelnetClient → RingBuffer → ProcessingWorker
+ *       │                                    │
+ *       │                          ┌─────────┼─────────┐
+ *       │                          ▼         ▼         ▼
+ *       │                    SharedDB   WS broadcast  SHM ring
  *       │
- *       ▼
- * FSM/Processing Thread (ProcessingWorker)
+ *       ├── RelayPipeline[2] (SEL-421)   ... same ...
  *       │
- *       ├──▶ SQLite (Persistent Storage)
- *       │
- *       ├──▶ WebSocket Server (After DB Write)
- *       │
- *       └──▶ SharedRingBuffer → JSON File
+ *       └── RelayPipeline[3] (SEL-451)   ... same ...
  * @endcode
  *
  * ## Component Ownership
- * | Component | Type | Purpose |
- * |-----------|------|----------|
- * | client | TelnetClient | Relay communication |
- * | serDb | SERDatabase | SQLite persistence |
- * | wsServer | SERWebSocketServer | WebSocket broadcast |
- * | rawBuffer | RawDataRingBuffer | MPMC queue (100 slots) |
- * | shmRing | SharedRingBuffer | JSON output (500KB) |
- * | threadMgr | ThreadManager | 2-min polling |
  *
- * @see TelnetSmlApp Public interface
+ * | Component       | Type                 | Ownership |
+ * |-----------------|----------------------|-----------|
+ * | serDb           | SERDatabase          | Impl      |
+ * | wsServer        | SERWebSocketServer   | Impl      |
+ * | shmRing         | SharedRingBuffer     | Impl      |
+ * | threadMgr       | ThreadManager        | Impl      |
+ * | relayMgr        | RelayManager         | Impl      |
+ * | shmReader       | SharedSerReader      | Impl      |
+ * | per-relay stuff | RelayPipeline        | relayMgr  |
+ *
+ * @see TelnetSmlApp      Public interface
+ * @see RelayManager       Pipeline lifecycle coordination
+ * @see RelayPipeline      Per-relay component bundle
+ * @see relay_config.hpp   Static relay configurations
  */
 class TelnetSmlApp::Impl
 {
 public:
     std::atomic<bool> app_running{true};                 ///< Global application running flag
-    TelnetClient client;                                 ///< Telnet client for relay I/O
 
-    /// @brief Connection configuration for relay
-    ConnectionConfig conn{
-        "192.168.0.2",                                   ///< Relay IP address
-        23,                                              ///< Telnet port
-        std::chrono::milliseconds(2000)                  ///< Connection timeout
-    };
-
-    /// @brief Login credentials for Level 1 authentication
-    LoginConfig creds{
-        "acc",                                           ///< Username
-        "OTTER"                                          ///< Password
-    };
-
-    RetryState retry{3, 0, std::chrono::seconds(30)};    ///< Retry configuration
-    SERDatabase serDb{"ser_records.db"};                 ///< SQLite database (persistent storage)
-    SERWebSocketServer wsServer{serDb, 8765};            ///< WebSocket server (port 8765)
-    std::unique_ptr<WSDBServer> dbApiServer;                ///< Generic DB WebSocket API (port 8766)
-    ThreadManager threadMgr{serDb, std::chrono::seconds(120)}; ///< Poller (2 min interval)
-
-    // Architecture components
-    RawDataRingBuffer rawBuffer{100};                    ///< MPMC ring buffer (100 slots)
+    // ─── Shared resources (owned by Impl) ───────────────────────────
+    SERDatabase serDb{"ser_records.db"};                 ///< Single shared SQLite database
+    SERWebSocketServer wsServer{serDb, 8765};            ///< Single shared WebSocket server
+    std::unique_ptr<WSDBServer> dbApiServer;             ///< Generic DB WebSocket API (port 8766)
     SharedRingBuffer shmRing{"TelnetSmlShmRing", 500U * 1024U}; ///< Shared ring buffer (500KB)
 
-    std::unique_ptr<ReceptionWorker> receptionWorker;    ///< Thread 1: Reception worker
-    std::unique_ptr<ProcessingWorker> processingWorker;  ///< Thread 2: Processing worker
+    ThreadManager threadMgr{serDb, std::chrono::seconds(120)};   ///< Poller (2 min interval)
+    SharedSerReader shmReader{shmRing, "ui/data.json"};          ///< JSON file writer thread
 
-    RelayService relayService{client};                   ///< Thread-safe relay command service
-    TimeSyncManager timeSyncMgr{relayService};           ///< DATE synchronization orchestrator
-    PasswordManager passwordMgr{relayService};           ///< Password change orchestrator
-
-    SharedSerReader shmReader{shmRing, "ui/data.json"}; ///< Thread 5: JSON file writer
+    // ─── Multi-relay management ─────────────────────────────────────
+    std::unique_ptr<RelayManager> relayMgr;              ///< On-demand pipeline coordinator
 
     bool running = false;                                ///< Application running state
 
-    /**
-     * @brief Seed database with test SER records when empty (relay unavailable).
-     *
-     * @details Inserts realistic dummy records so the UI pipeline can be
-     * verified end-to-end without a live relay connection.  Records are
-     * only inserted when the database is empty (getRecordCount() == 0).
-     *
-     * @return Number of test records inserted (0 if DB already had data)
-     */
-    // int seedTestData()
-    // {
-    //     if (serDb.getRecordCount() > 0)
-    //         return 0;  // DB already has data, skip seeding
-
-    //     std::cout << "[Seed] Database empty — injecting test SER records...\n";
-
-    //     std::vector<SERRecord> testRecords = {
-    //         {"1",  "02/14/22 12:47:19.970", "AssertedD",   "Power loss Phase-A"},
-    //         {"2",  "02/14/22 12:47:20.100", "AssertedD",   "Power loss Phase-B"},
-    //         {"3",  "02/14/22 12:47:20.250", "AssertedD",   "Power loss Phase-C"},
-    //         {"4",  "02/14/22 12:48:05.430", "Deasserted", "Power loss Phase-A"},
-    //         {"5",  "02/14/22 12:48:05.580", "Deasserted", "Power loss Phase-B"},
-    //         {"6",  "02/14/22 12:48:05.710", "Deasserted", "Power loss Phase-C"},
-    //         {"7",  "03/10/22 09:15:32.000", "Asserted",   "Overcurrent Trip Relay 1"},
-    //         {"8",  "03/10/22 09:15:32.150", "Asserted",   "Breaker Failure"},
-    //         {"9",  "03/10/22 09:16:01.800", "Deasserted", "Overcurrent Trip Relay 1"},
-    //         {"10", "03/10/22 09:16:02.000", "Deasserted", "Breaker Failure"},
-    //         {"11", "05/22/23 14:30:00.500", "Asserted",   "Communication Failure"},
-    //         {"12", "05/22/23 14:35:12.200", "Deasserted", "Communication Failure"},
-    //         {"13", "08/01/23 08:00:00.000", "Asserted",   "Undervoltage Phase-A"},
-    //         {"14", "08/01/23 08:00:00.100", "Asserted",   "Undervoltage Phase-B"},
-    //         {"15", "08/01/23 08:00:15.300", "Deasserted", "Undervoltage Phase-A"},
-    //         {"16", "08/01/23 08:00:15.450", "Deasserted", "Undervoltage Phase-B"},
-    //         {"17", "11/15/24 22:10:44.600", "Asserted",   "Earth Fault Relay 2"},
-    //         {"18", "11/15/24 22:11:00.000", "Deasserted", "Earth Fault Relay 2"},
-    //         {"19", "01/05/25 06:30:10.800", "Asserted",   "Over Temperature Alarm"},
-    //         {"20", "01/05/25 06:45:30.200", "Deasserted", "Over Temperature Alarm"}
-    //     };
-
-    //     int inserted = serDb.insertRecords(testRecords);
-    //     std::cout << "[Seed] Inserted " << inserted << " test records into database\n";
-    //     return inserted;
-    // }
+    // ─── Helper: extract a JSON string field ────────────────────────
+    static std::string extractJsonField(const std::string& json, const std::string& fieldName)
+    {
+        const std::string key = "\"" + fieldName + "\"";
+        auto pos = json.find(key);
+        if (pos == std::string::npos) return "";
+        pos = json.find(':', pos + key.size());
+        if (pos == std::string::npos) return "";
+        pos = json.find('"', pos + 1);
+        if (pos == std::string::npos) return "";
+        auto end = json.find('"', pos + 1);
+        if (end == std::string::npos) return "";
+        return json.substr(pos + 1, end - pos - 1);
+    }
 
     /**
      * @brief Starts all application components.
      *
      * @details Initialization sequence:
-     * 1. Open SQLite database
-     * 2. Start WebSocket server
-     * 3. Create and start ReceptionWorker (Thread 1)
-     * 4. Create and start ProcessingWorker (Thread 2)
-     * 5. Configure polling callback
-     * 6. Start SharedSerReader (Thread 5)
-     * 7. Start ThreadManager (Thread 4)
-     * 8. Queue initial SER command
+     * 1. Open shared SQLite database
+     * 2. Export existing data to JSON
+     * 3. Set up WS command & action handlers
+     * 4. Start shared WebSocket server
+     * 5. Start DB API server
+     * 6. Create RelayManager
+     * 7. Start SharedSerReader (JSON writer)
+     * 8. Start ThreadManager (polling)
+     * 9. No relay connections are made until user clicks a relay card
      *
-     * @return true on success, false if any component fails to start
+     * @return true on success, false if any shared component fails
      */
     bool start()
     {
@@ -844,10 +303,11 @@ public:
         app_running = true;
 
         std::cout << "========================================\n";
-        std::cout << "  Telnet-SML Multi-threaded Application\n";
-        std::cout << "  (Decoupled Architecture v2.0)\n";
+        std::cout << "  Telnet-SML Multi-Relay Application\n";
+        std::cout << "  (On-Demand Architecture v3.0)\n";
         std::cout << "========================================\n\n";
 
+        // 1. Open shared database
         if (!serDb.open())
         {
             std::cerr << "Failed to open database: " << serDb.getLastError() << "\n";
@@ -855,9 +315,7 @@ public:
         }
         std::cout << "[DB] Database opened. Existing records: " << serDb.getRecordCount() << "\n";
 
-        // Seed test data disabled: live relay data only
-
-        // Export data.json from existing DB records
+        // 2. Export existing records to data.json
         {
             auto existing = serDb.getAllRecords();
             std::string json = recordsToJsonTable(existing);
@@ -868,55 +326,95 @@ public:
                 std::cerr << "[Init] data.json export failed: " << err << "\n";
         }
 
-        // Set up command handler: queue UI commands (FIL DIR etc.) to ReceptionWorker
-        // Response will be routed by ProcessingWorker via broadcastText
+        // 3. Create RelayManager (no pipelines started yet — on-demand)
+        relayMgr = std::make_unique<RelayManager>(
+            serDb, wsServer, shmRing, app_running);
+        std::cout << "[RelayMgr] Initialized with " << relayMgr->getConfigs().size()
+                  << " relay configurations\n";
+
+        // 4. Set up WS command handler — routes commands to the correct relay pipeline
+        //    Browser sends: "relay_id:command" (e.g. "1:SER", "2:FIL DIR")
+        //    Fallback: if no colon, try to route to ALL active relays
         wsServer.setCommandHandler([this](const std::string& cmd) -> std::string {
-            if (receptionWorker) {
-                std::cout << "[WS→Queue] Queuing UI command: " << cmd << "\n";
-                receptionWorker->queueCommand(cmd);
+            auto colon = cmd.find(':');
+            if (colon != std::string::npos)
+            {
+                std::string relayId = cmd.substr(0, colon);
+                std::string realCmd = cmd.substr(colon + 1);
+                std::cout << "[WS→Relay] Routing '" << realCmd << "' to relay " << relayId << "\n";
+                relayMgr->queueCommand(relayId, realCmd);
+            }
+            else
+            {
+                // No relay prefix — send to all active relays
+                for (const auto& id : relayMgr->getActiveRelayIds())
+                {
+                    std::cout << "[WS→Relay] Broadcasting '" << cmd << "' to relay " << id << "\n";
+                    relayMgr->queueCommand(id, cmd);
+                }
             }
             return "";  // Response comes async via ProcessingWorker
         });
 
-        // Set up action handler: JSON actions dispatched to the appropriate manager
-        // Handler receives the full JSON message so managers can extract extra fields
+        // 5. Set up action handler — relay lifecycle + time sync + password
         wsServer.setActionHandler([this](const std::string& jsonMsg) -> std::string {
-            // Extract "action" field from JSON
-            std::string action;
+            std::string action = extractJsonField(jsonMsg, "action");
+
+            // ── Relay lifecycle management ──
+            if (action == "start_relay")
             {
-                const std::string key = "\"action\"";
-                auto pos = jsonMsg.find(key);
-                if (pos != std::string::npos) {
-                    pos = jsonMsg.find(':', pos + key.size());
-                    if (pos != std::string::npos) {
-                        pos = jsonMsg.find('"', pos + 1);
-                        if (pos != std::string::npos) {
-                            auto end = jsonMsg.find('"', pos + 1);
-                            if (end != std::string::npos)
-                                action = jsonMsg.substr(pos + 1, end - pos - 1);
-                        }
-                    }
-                }
+                std::string relayId = extractJsonField(jsonMsg, "relay_id");
+                std::cout << "[WS->Action] Starting relay " << relayId << "\n";
+                bool ok = relayMgr->startRelay(relayId);
+                return ok
+                    ? "{\"action\":\"start_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"success\"}"
+                    : "{\"action\":\"start_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"failed\",\"error\":\"Unknown relay or start failed\"}";
             }
 
-            // Route to TimeSyncManager
+            if (action == "stop_relay")
+            {
+                std::string relayId = extractJsonField(jsonMsg, "relay_id");
+                std::cout << "[WS->Action] Stopping relay " << relayId << "\n";
+                bool ok = relayMgr->stopRelay(relayId);
+                return ok
+                    ? "{\"action\":\"stop_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"success\"}"
+                    : "{\"action\":\"stop_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
+            }
+
+            if (action == "relay_status")
+            {
+                std::string result = "{\"action\":\"relay_status\",\"active\":[";
+                auto ids = relayMgr->getActiveRelayIds();
+                for (size_t i = 0; i < ids.size(); ++i)
+                {
+                    if (i > 0) result += ",";
+                    result += "\"" + ids[i] + "\"";
+                }
+                result += "]}";
+                return result;
+            }
+
+            // ── Time sync (requires relay_id to know which relay) ──
+            // TODO: Route to per-relay RelayService when available
             if (action == "read_time" || action == "sync_time")
             {
-                std::cout << "[WS->Action] Routing to TimeSyncManager: " << action << "\n";
-                return timeSyncMgr.handleAction(action);
+                std::cout << "[WS->Action] TimeSyncManager not yet per-relay: " << action << "\n";
+                return "{\"action\":\"" + action + "\",\"status\":\"failed\",\"error\":\"Time sync requires per-relay support (coming soon)\"}";
             }
 
-            // Route to PasswordManager (password values are NOT logged)
+            // ── Password change (requires relay_id to know which relay) ──
+            // TODO: Route to per-relay PasswordManager when available
             if (action == "change_password")
             {
-                std::cout << "[WS->Action] Routing to PasswordManager\n";
-                return passwordMgr.handleAction(jsonMsg);
+                std::cout << "[WS->Action] PasswordManager not yet per-relay\n";
+                return "{\"action\":\"change_password\",\"status\":\"failed\",\"error\":\"Password change requires per-relay support (coming soon)\"}";
             }
 
             std::cout << "[WS->Action] Unknown action: " << action << "\n";
             return "{\"status\":\"failed\",\"error\":\"Unknown action\"}";
         });
 
+        // 6. Start WebSocket server
         if (!wsServer.start())
         {
             std::cerr << "Failed to start WebSocket server\n";
@@ -924,76 +422,47 @@ public:
             return false;
         }
 
-        // Generic database WebSocket API on port 8766
+        // 7. Generic database WebSocket API on port 8766
         dbApiServer = std::make_unique<WSDBServer>(serDb.getDbHandle(), 8766);
         if (!dbApiServer->start())
             std::cerr << "[WSDB] Warning: DB API server failed to start\n";
 
-        // Architecture: TelnetClient Thread -> SPSC Ring Buffer -> Processing Thread
-        
-        // 1. TelnetClient Thread (C++) - handles Telnet I/O, pushes to ring buffer
-        receptionWorker = std::make_unique<ReceptionWorker>(
-            client, conn, creds, rawBuffer, app_running);
-        receptionWorker->start();
-        
-        // 2. FSM / Processing Thread - reads from ring buffer, writes to DB, then WebSocket
-        processingWorker = std::make_unique<ProcessingWorker>(
-            rawBuffer, serDb, wsServer, shmRing, app_running);
-        processingWorker->start();
-        
-        // Polling callback requests SER data from TelnetClient Thread
+        // 8. Polling callback — queue SER to ALL active relays
         threadMgr.setPollingCallback([this]() {
             if (!app_running.load())
                 return;
-            std::cout << "[Poller] Requesting SER data...\n";
-            receptionWorker->queueCommand("SER");
+
+            auto ids = relayMgr->getActiveRelayIds();
+            if (ids.empty())
+                return;
+
+            std::cout << "[Poller] Requesting SER from " << ids.size() << " active relay(s)...\n";
+            for (const auto& id : ids)
+                relayMgr->queueCommand(id, "SER");
         });
 
+        // 9. Start support threads
         shmReader.start();
         threadMgr.startAll();
 
-        // Initial data request to start the pipeline
-        std::cout << "\n[Main] Starting initial SER retrieval...\n";
-        receptionWorker->queueCommand("SER");
-
+        // ─── Summary ─────────────────────────────────────────────
         std::cout << "\n========================================\n";
-        std::cout << "  Active Threads (Architecture):\n";
-        std::cout << "  - TelnetClient Thread: Relay communication\n";
-        std::cout << "  - FSM/Processing Thread: Parse + DB + WebSocket\n";
-        std::cout << "  - WebSocket Server Thread: port 8765\n";
-        std::cout << "  - DB API Server Thread:    port 8766\n";
-        std::cout << "  - Poller Thread: 2 min interval\n";
-        std::cout << "  - JSON Writer Thread: SharedRingBuffer consumer\n";
-        std::cout << "========================================\n";
-        std::cout << "\n[Architecture] C++ Process Data Flow:\n";
-        std::cout << "  Relay Device\n";
-        std::cout << "       |\n";
-        std::cout << "       v\n";
-        std::cout << "  TelnetClient Thread (C++)\n";
-        std::cout << "       |\n";
-        std::cout << "       v\n";
-        std::cout << "  C++ SPSC Ring Buffer\n";
-        std::cout << "       |\n";
-        std::cout << "       v\n";
-        std::cout << "  FSM / Processing Thread\n";
-        std::cout << "       |\n";
-        std::cout << "       v\n";
-        std::cout << "  SQLite (Persistent Storage)\n";
-        std::cout << "       |\n";
-        std::cout << "       v\n";
-        std::cout << "  WebSocket Server (After DB Write)\n";
-        std::cout << "========================================\n";
-        std::cout << "\n[Architecture] Browser Data Flow:\n";
-        std::cout << "  WebSocket Client\n";
-        std::cout << "       |\n";
-        std::cout << "       v\n";
-        std::cout << "  JS Worker (Optional)\n";
-        std::cout << "       |\n";
-        std::cout << "       v\n";
-        std::cout << "  Main JS Thread (DOM Access)\n";
-        std::cout << "       |\n";
-        std::cout << "       v\n";
-        std::cout << "  Tabulator / JSON Export\n";
+        std::cout << "  Multi-Relay On-Demand Architecture\n";
+        std::cout << "  Configured relays: " << relayMgr->getConfigs().size() << "\n";
+        for (const auto& cfg : relayMgr->getConfigs())
+        {
+            std::cout << "    [" << cfg.id << "] " << cfg.name
+                      << " @ " << cfg.host << ":" << cfg.port
+                      << " (" << cfg.substation << " / " << cfg.bay << ")\n";
+        }
+        std::cout << "\n  Shared Services:\n";
+        std::cout << "    - WebSocket Server: ws://localhost:8765\n";
+        std::cout << "    - DB API Server:    ws://localhost:8766\n";
+        std::cout << "    - SQLite Database:  ser_records.db\n";
+        std::cout << "    - Poller:           2 min interval\n";
+        std::cout << "    - JSON Writer:      ui/data.json\n";
+        std::cout << "\n  No relays active - waiting for browser commands.\n";
+        std::cout << "  Send {\"action\":\"start_relay\",\"relay_id\":\"1\"} to connect.\n";
         std::cout << "========================================\n";
 
         running = true;
@@ -1002,8 +471,6 @@ public:
 
     /**
      * @brief Blocks until user requests exit.
-     *
-     * @details Waits for Enter key press to signal shutdown.
      */
     void waitForExit()
     {
@@ -1015,11 +482,11 @@ public:
      * @brief Stops all application components gracefully.
      *
      * @details Shutdown sequence:
-     * 1. Set app_running flag to false
-     * 2. Stop ThreadManager (polling)
-     * 3. Stop ReceptionWorker
-     * 4. Stop ProcessingWorker
-     * 5. Stop SharedSerReader
+     * 1. app_running = false
+     * 2. Stop all relay pipelines (via RelayManager)
+     * 3. Stop ThreadManager (polling)
+     * 4. Stop SharedSerReader
+     * 5. Stop DB API server
      * 6. Stop WebSocket server
      * 7. Close database
      */
@@ -1031,13 +498,11 @@ public:
         std::cout << "\n[Main] Shutting down...\n";
         app_running = false;
 
+        // Stop all relay pipelines first
+        if (relayMgr)
+            relayMgr->stopAll();
+
         threadMgr.stopAll();
-        
-        if (receptionWorker)
-            receptionWorker->stop();
-        if (processingWorker)
-            processingWorker->stop();
-        
         shmReader.stop();
         if (dbApiServer) dbApiServer->stop();
         wsServer.stop();

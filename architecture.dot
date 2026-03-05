@@ -1,0 +1,244 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  Telnet-SML  —  Architecture (Graphviz DOT)
+//  Copyright (C) 2026 Eureka Power Solutions (www.PowerEureka.com)
+//  Updated: 2026-03-04
+//
+//  Render with:  dot -Tpng architecture.dot -o architecture.png
+//         or:    dot -Tsvg architecture.dot -o architecture.svg
+// ═══════════════════════════════════════════════════════════════════════════
+
+digraph TelnetSmlArchitecture {
+    rankdir=TB;
+    fontname="Segoe UI";
+    node [fontname="Segoe UI", fontsize=10, shape=box, style="filled,rounded"];
+    edge [fontname="Segoe UI", fontsize=8];
+    compound=true;
+    newrank=true;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  EXTERNAL
+    // ═══════════════════════════════════════════════════════════════════════
+    subgraph cluster_external {
+        label="External — Substation";
+        style=filled; fillcolor="#fce4ec"; color="#e91e63";
+        relay [label="Relay Device\n(Telnet Server)\nTCP Port 23", shape=cylinder, fillcolor="#ffcdd2"];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  C++ PROCESS
+    // ═══════════════════════════════════════════════════════════════════════
+    subgraph cluster_cpp {
+        label="C++ Process  (telnet_sml_app)";
+        style=filled; fillcolor="#fafafa"; color="#424242";
+
+        // ── Application Controller ──────────────────────────────────────
+        subgraph cluster_app {
+            label="Application Controller";
+            style=filled; fillcolor="#fff8e1"; color="#f9a825";
+            main      [label="main.cpp\n(entry point)", fillcolor="#fff9c4"];
+            app       [label="TelnetSmlApp\n(Facade / PIMPL)", fillcolor="#fff9c4"];
+            impl      [label="TelnetSmlApp::Impl\n(Orchestrator)\n— owns every component —", fillcolor="#ffe082"];
+        }
+        main -> app [label="creates"];
+        app  -> impl [label="owns\n(unique_ptr)"];
+
+        // ── Thread 1: Reception ─────────────────────────────────────────
+        subgraph cluster_t1 {
+            label="Thread 1 — ReceptionWorker";
+            style=filled; fillcolor="#e3f2fd"; color="#1565c0";
+            recvWorker [label="ReceptionWorker\n· queueCommand(cmd)\n· ensureConnected()\n· executeCommand(cmd)\n· runLoop()", fillcolor="#bbdefb"];
+            client     [label="TelnetClient\n· connectCheck(host,port,timeout)\n· LoginLevel1Function(user,pass)\n· SendCmdReceiveData(cmd,buf)\n· isConnected()", fillcolor="#90caf9"];
+        }
+        recvWorker -> client [label="uses"];
+
+        // ── MPMC Ring Buffer ────────────────────────────────────────────
+        rawRing [label="RawDataRingBuffer\n(MPMC, 100 slots)\n· push(RawDataMessage)\n· waitPop(readerId, stop)\n· registerReader()",
+                 shape=parallelogram, fillcolor="#fffde7", color="#fbc02d", style="filled"];
+
+        // ── Thread 2: Processing ────────────────────────────────────────
+        subgraph cluster_t2 {
+            label="Thread 2 — ProcessingWorker";
+            style=filled; fillcolor="#e8f5e9"; color="#2e7d32";
+            procWorker [label="ProcessingWorker\n· runLoop()", fillcolor="#c8e6c9"];
+            parser     [label="parseSERResponse(text)\n→ vector<SERRecord>", shape=component, fillcolor="#a5d6a7"];
+            codec      [label="asn_tlv namespace\n· encodeSerRecordsToTlv()\n· decodeSerRecordsFromTlv()", shape=component, fillcolor="#a5d6a7"];
+        }
+        procWorker -> parser [label="1. parse"];
+        procWorker -> codec  [label="4. encode for SHM"];
+
+        // ── Data Layer ──────────────────────────────────────────────────
+        subgraph cluster_data {
+            label="Data Layer";
+            style=filled; fillcolor="#fff3e0"; color="#ef6c00";
+            db [label="SERDatabase\n(SQLite: ser_records.db)\n· open() / close()\n· insertAndGetNewRecords()\n· getAllRecords()\n· getRecordCount()\n· exportToJSON()",
+                shape=cylinder, fillcolor="#ffe0b2"];
+        }
+
+        // ── Shared Memory Pipeline ──────────────────────────────────────
+        shmRing [label="SharedRingBuffer\n(IPC MPMC, 500 KB)\n· write(data, len)\n· waitRead(readerId, out, stop)",
+                 shape=parallelogram, fillcolor="#fffde7", color="#fbc02d", style="filled"];
+
+        // ── Thread 5: JSON Writer ───────────────────────────────────────
+        subgraph cluster_t5 {
+            label="Thread 5 — SharedSerReader";
+            style=filled; fillcolor="#fce4ec"; color="#c62828";
+            shmReader [label="SharedSerReader\n· runLoop()\n· ASN.1 TLV decode\n· recordsToJsonTable()\n· writeJsonToFile()", fillcolor="#f8bbd0"];
+            dataJson  [label="ui/data.json\n(file output)", shape=note, fillcolor="#f48fb1"];
+        }
+        shmReader -> dataJson [label="writes"];
+
+        // ── Thread 3: SER WebSocket Server ──────────────────────────────
+        subgraph cluster_t3 {
+            label="Thread 3 — SERWebSocketServer (port 8765)";
+            style=filled; fillcolor="#f3e5f5"; color="#7b1fa2";
+            wsServer [label="SERWebSocketServer\n· start() / stop()\n· broadcastAll()\n· broadcastText()\n· setCommandHandler(cb)\n· setActionHandler(cb)", fillcolor="#e1bee7"];
+            sessMgr  [label="SessionManager\n· add() / remove()\n· forEach()", fillcolor="#ce93d8"];
+            wsSess   [label="WebSocketSession[]\n· sendData() · sendText()\n· onRead()", fillcolor="#ce93d8"];
+        }
+        wsServer -> sessMgr  [label="owns"];
+        sessMgr  -> wsSess   [label="manages N"];
+
+        // ── Thread 3b: DB API WebSocket ─────────────────────────────────
+        subgraph cluster_t3b {
+            label="Thread 3b — WSDBServer (port 8766)";
+            style=filled; fillcolor="#e0f2f1"; color="#00695c";
+            dbApiSrv  [label="WSDBServer\n· start() / stop()", fillcolor="#b2dfdb"];
+            dbApiSess [label="WSDBSession\n· onRead() dispatches", fillcolor="#80cbc4"];
+            dbOps     [label="wsdb_ops namespace\n· dbGetAll()  · dbGetIncremental()\n· dbQuery()   · dbExec()\n· dbTables()  · dbSchema()\n· dbDefine()", shape=component, fillcolor="#80cbc4"];
+        }
+        dbApiSrv  -> dbApiSess [label="creates\nper client"];
+        dbApiSess -> dbOps     [label="dispatches"];
+
+        // ── Thread 4: Poller ────────────────────────────────────────────
+        subgraph cluster_t4 {
+            label="Thread 4 — ThreadManager (120 s)";
+            style=filled; fillcolor="#efebe9"; color="#795548";
+            threadMgr [label="ThreadManager\n· startAll() / stopAll()\n· setPollingCallback(fn)\n· 120-second interval", fillcolor="#d7ccc8"];
+        }
+
+        // ── Service Managers ────────────────────────────────────────────
+        subgraph cluster_services {
+            label="Service Managers (via WS actions)";
+            style=filled; fillcolor="#eceff1"; color="#546e7a";
+            relayService [label="RelayService\n(mutex-protected)\n· readRelayTime()\n· writeRelayTime()", fillcolor="#cfd8dc"];
+            timeSyncMgr  [label="TimeSyncManager\n· handleAction(action)\n· getLocalPCTime()\n· compareTime()", fillcolor="#cfd8dc"];
+            passwordMgr  [label="PasswordManager\n· handleAction(jsonMsg)\n· validatePassword()\n· changePassword()", fillcolor="#cfd8dc"];
+        }
+        timeSyncMgr  -> relayService [label="calls"];
+        passwordMgr  -> relayService [label="calls"];
+        relayService -> client       [label="locked I/O"];
+
+        // ── Config ──────────────────────────────────────────────────────
+        subgraph cluster_config {
+            label="Configuration";
+            style=filled; fillcolor="#f3e5f5"; color="#9c27b0";
+            connCfg  [label="ConnectionConfig\n{host, port, timeout}", shape=record, fillcolor="#e1bee7"];
+            loginCfg [label="LoginConfig\n{l1_user, l1_pass}", shape=record, fillcolor="#e1bee7"];
+            retryCfg [label="RetryState\n{max_retries, attempt, delay}", shape=record, fillcolor="#e1bee7"];
+        }
+
+        // ── FSM (reference) ────────────────────────────────────────────
+        subgraph cluster_fsm {
+            label="TelnetFSM (Boost.SML)";
+            style=filled; fillcolor="#e8eaf6"; color="#283593";
+            fsm [label="States: Idle → Connecting → Login_L1\n  → WaitingRetry ↺  → Operational\n  → Polling → Done | Error\n\nGuards: ConnectOk, LoginComplete,\n  CanRetry, MaxRetries, SerComplete\n\nActions: ConnectAction, Login1Action,\n  RetryWaitAction, PollSerAction",
+                 shape=record, fillcolor="#c5cae9"];
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  BROWSER
+    // ═══════════════════════════════════════════════════════════════════════
+    subgraph cluster_browser {
+        label="Browser";
+        style=filled; fillcolor="#e8f5e9"; color="#2e7d32";
+        wsClient   [label="WebSocket Client\nws://localhost:8765", fillcolor="#c8e6c9"];
+        wsDbClient [label="DB WS Client\nws://localhost:8766\n(db_client.js)", fillcolor="#c8e6c9"];
+        jsWorker   [label="JS Worker\n(shm_worker.js)", fillcolor="#a5d6a7"];
+        mainJS     [label="Main JS Thread\n(DOM Access)", fillcolor="#a5d6a7"];
+        tabulator  [label="Tabulator / JSON\n(relay.html / index.html)", fillcolor="#81c784"];
+        uiPages    [label="ui.html / status.html\nTimeSyncManager + PasswordManager", fillcolor="#81c784"];
+    }
+    wsClient   -> jsWorker  [label="onmessage"];
+    jsWorker   -> mainJS    [label="postMessage"];
+    mainJS     -> tabulator [label="render"];
+    wsDbClient -> mainJS    [label="JSON responses"];
+
+    httpSrv [label="serve.ps1\n(HTTP static)\nPort 8080", shape=house, fillcolor="#e0f7fa"];
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  DATA FLOW EDGES
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Reception path
+    client     -> relay   [label="Telnet TCP:23\ncmds", dir=both, color="#c62828", penwidth=2];
+    recvWorker -> rawRing [label="push(cmd, response)", color="#1565c0", penwidth=2];
+
+    // Processing pipeline (sequential)
+    rawRing    -> procWorker [label="waitPop\n(blocking)", color="#2e7d32", penwidth=2];
+    procWorker -> db         [label="2. insertAndGetNewRecords()", color="#ef6c00", penwidth=2];
+    procWorker -> wsServer   [label="3. broadcastAll()\n(after DB success)", color="#7b1fa2", penwidth=2];
+    procWorker -> shmRing    [label="4. write(TLV)", color="#fbc02d", penwidth=2];
+
+    // SHM → JSON writer
+    shmRing -> shmReader [label="waitRead\n(blocking)", color="#c62828"];
+
+    // Poller → Reception
+    threadMgr -> recvWorker [label="queueCommand(\"SER\")\nevery 120 s", style=dashed, color="#795548"];
+
+    // WebSocket ↔ Browser
+    wsServer  -> wsClient   [label="ASN.1 BER/TLV\n+ JSON", dir=both, color="#7b1fa2"];
+    dbApiSrv  -> wsDbClient [label="JSON CRUD", dir=both, color="#00695c"];
+    dbOps     -> db         [label="SQL via sqlite3*", color="#ef6c00"];
+    wsSess    -> db         [label="getAllRecords()", style=dashed, color="#ef6c00"];
+
+    // WS action routing
+    wsServer  -> timeSyncMgr [label="action:\nread_time\nsync_time", style=dashed, color="#546e7a"];
+    wsServer  -> passwordMgr [label="action:\nchange_password", style=dashed, color="#546e7a"];
+    wsServer  -> recvWorker  [label="UI cmds\n(FIL DIR etc.)", style=dashed, color="#546e7a"];
+
+    // Browser actions
+    uiPages   -> wsClient   [label="action JSON", color="#2e7d32"];
+
+    // HTTP static
+    httpSrv   -> tabulator  [label="static files", style=dashed, color="#00838f"];
+
+    // Impl ownership (dotted)
+    impl -> recvWorker  [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> procWorker  [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> wsServer    [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> dbApiSrv    [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> threadMgr   [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> shmReader   [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> db          [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> rawRing     [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> shmRing     [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> relayService[style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> timeSyncMgr [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> passwordMgr [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+    impl -> fsm         [style=dotted, arrowhead=diamond, color="#9e9e9e"];
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  LEGEND
+    // ═══════════════════════════════════════════════════════════════════════
+    subgraph cluster_legend {
+        label="Legend";
+        style=filled; fillcolor="white"; color="#bdbdbd";
+        node [shape=plaintext, fillcolor=white];
+        legend [label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+                <TR><TD BGCOLOR="#bbdefb">Thread 1</TD><TD>ReceptionWorker — Telnet I/O</TD></TR>
+                <TR><TD BGCOLOR="#c8e6c9">Thread 2</TD><TD>ProcessingWorker — Parse + DB + WS</TD></TR>
+                <TR><TD BGCOLOR="#e1bee7">Thread 3</TD><TD>SERWebSocketServer — push to browser</TD></TR>
+                <TR><TD BGCOLOR="#b2dfdb">Thread 3b</TD><TD>WSDBServer — generic DB API</TD></TR>
+                <TR><TD BGCOLOR="#d7ccc8">Thread 4</TD><TD>ThreadManager — 120 s poller</TD></TR>
+                <TR><TD BGCOLOR="#f8bbd0">Thread 5</TD><TD>SharedSerReader — JSON file writer</TD></TR>
+                <TR><TD BGCOLOR="#fffde7">Buffers</TD><TD>MPMC Ring Buffers (decoupling)</TD></TR>
+                <TR><TD BGCOLOR="#ffe0b2">Data</TD><TD>SQLite + file storage</TD></TR>
+                <TR><TD>→ solid</TD><TD>Runtime data flow</TD></TR>
+                <TR><TD>- - → dashed</TD><TD>Control / routing</TD></TR>
+                <TR><TD>··· → dotted</TD><TD>Ownership (composition)</TD></TR>
+            </TABLE>
+        >];
+    }
+}

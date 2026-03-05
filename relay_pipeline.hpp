@@ -1,0 +1,576 @@
+// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+
+/**
+ * @file relay_pipeline.hpp
+ * @brief Per-relay processing pipeline for on-demand relay connections.
+ *
+ * @details Bundles all per-relay components (TelnetClient, workers, ring
+ * buffer) into a single RelayPipeline object.  The pipeline is created
+ * on demand when the user clicks a relay card in the browser, and torn
+ * down when the relay is disconnected.
+ *
+ * ## Architecture (per pipeline)
+ *
+ * @code
+ * Relay Device (TCP:23)
+ *       │
+ *       ▼
+ * TelnetClient (owned)
+ *       │
+ *       ▼
+ * ReceptionWorker → RawDataRingBuffer → ProcessingWorker
+ *                                              │
+ *                                  ┌───────────┼───────────┐
+ *                                  ▼           ▼           ▼
+ *                         SharedDB (ref)  WS broadcast  SHM ring
+ * @endcode
+ *
+ * ## Shared vs. Owned Resources
+ *
+ * | Resource             | Ownership  | Notes                       |
+ * |----------------------|------------|-----------------------------|
+ * | TelnetClient         | Owned      | One per relay               |
+ * | RawDataRingBuffer    | Owned      | One per relay               |
+ * | ReceptionWorker      | Owned      | One per relay               |
+ * | ProcessingWorker     | Owned      | One per relay               |
+ * | SERDatabase          | **Shared** | Single DB, relay_id column  |
+ * | SERWebSocketServer   | **Shared** | Single WS server, port 8765 |
+ * | SharedRingBuffer     | **Shared** | Single SHM ring             |
+ *
+ * @see relay_config.hpp   Relay configuration definitions
+ * @see relay_manager.hpp  Coordinates multiple pipelines
+ * @see telnet_sml_app.cpp Uses RelayManager to start/stop pipelines
+ *
+ * @author Telnet-SML Development Team
+ * @version 1.0.0
+ * @date 2026
+ */
+
+#pragma once
+
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+
+#include "client.hpp"
+#include "relay_config.hpp"
+#include "raw_data_ring_buffer.hpp"
+#include "ser_database.hpp"
+#include "ser_record.hpp"
+#include "asn_tlv_codec.hpp"
+#include "shared_memory/shared_ring_buffer.hpp"
+#include "telnet_fsm.hpp"
+#include "ws_server.hpp"
+
+// ============================================================================
+//                     PER-RELAY RECEPTION WORKER
+// ============================================================================
+
+/**
+ * @class PipelineReceptionWorker
+ * @brief Non-blocking Telnet I/O worker for a single relay pipeline.
+ *
+ * @details Handles TCP connection, login, command execution with retries,
+ * and pushes responses to relay-owned ring buffer.  Identical in logic
+ * to the original ReceptionWorker but used as part of a RelayPipeline.
+ *
+ * @see RelayPipeline      Owner of this worker
+ * @see PipelineProcessingWorker  Consumer of the ring buffer
+ */
+class PipelineReceptionWorker
+{
+    std::atomic<bool> stop_flag_{false};
+    std::thread worker_thread_;
+    std::mutex queue_mutex_;
+    std::condition_variable queue_cv_;
+    std::deque<std::string> command_queue_;
+
+    // ── Dependencies (order matters: fsm_ must be declared after its deps) ──
+    TelnetClient& client_;
+    ConnectionConfig conn_;
+    LoginConfig creds_;
+    RetryState retry_;                                ///< Login retry state (3 max)
+    sml::sm<RelayConnectionFSM> fsm_;                 ///< Connection lifecycle FSM
+
+    RawDataRingBuffer& rawBuffer_;
+    std::atomic<bool>& app_running_;
+    std::string relay_tag_;       ///< Log prefix, e.g. "[Rx:SEL-751]"
+
+    static constexpr int MAX_RETRIES = 3;             ///< Per-command retry limit
+    static constexpr int RETRY_DELAY_SEC = 5;         ///< Interruptible wait (seconds)
+
+    // ─── FSM Driver ─────────────────────────────────────────────────────────
+
+    /**
+     * @brief Drive the RelayConnectionFSM to Operational state.
+     *
+     * @details Repeatedly fires step_event.  When the FSM enters a wait
+     * state (ConnectWait / LoginRetryWait) the worker sleeps in 1-second
+     * chunks so that stop() can interrupt it.
+     *
+     * @return true  FSM reached Operational — ready for commands
+     * @return false FSM reached Error, or stop was requested
+     */
+    bool driveToOperational()
+    {
+        using namespace sml;
+
+        while (!stop_flag_.load())
+        {
+            if (fsm_.is("Operational"_s))
+                return true;
+
+            if (fsm_.is("Error"_s))
+            {
+                std::cout << relay_tag_ << " FSM reached Error state\n";
+                return false;
+            }
+
+            // Interruptible wait for retry states
+            if (fsm_.is("ConnectWait"_s) || fsm_.is("LoginRetryWait"_s))
+            {
+                std::cout << relay_tag_ << " Waiting " << RETRY_DELAY_SEC
+                          << "s before retry...\n";
+                for (int s = 0; s < RETRY_DELAY_SEC && !stop_flag_.load(); ++s)
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                if (stop_flag_.load())
+                    return false;
+            }
+
+            fsm_.process_event(step_event{});
+        }
+        return false;
+    }
+
+    // ─── Command Execution ──────────────────────────────────────────────────
+
+    /**
+     * @brief Execute a Telnet command with FSM-driven reconnection.
+     *
+     * @details Up to MAX_RETRIES attempts.  Each attempt drives the FSM
+     * to Operational, sends the command, and on failure fires
+     * disconnect_event to trigger the reconnection cycle.
+     *
+     * @param cmd  Telnet command string (e.g. "SER", "FIL DIR")
+     */
+    void executeCommand(const std::string& cmd)
+    {
+        for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt)
+        {
+            if (stop_flag_.load())
+                return;
+
+            // Phase 1 — ensure FSM is in Operational state
+            if (!driveToOperational())
+            {
+                std::cout << relay_tag_ << " FSM not operational — aborting '"
+                          << cmd << "'\n";
+                return;
+            }
+
+            // Phase 2 — send command
+            std::string response;
+            bool ok = client_.SendCmdReceiveData(cmd, response);
+
+            if (ok && !response.empty())
+            {
+                rawBuffer_.push({cmd, response});
+                std::cout << relay_tag_ << " Pushed " << response.size()
+                          << " bytes for '" << cmd << "'\n";
+                return;
+            }
+
+            // Phase 3 — command failed → trigger FSM reconnect cycle
+            std::cout << relay_tag_ << " Command '" << cmd << "' failed (attempt "
+                      << attempt << "/" << MAX_RETRIES << ")\n";
+            fsm_.process_event(disconnect_event{});
+        }
+
+        std::cout << relay_tag_ << " All retries failed for '" << cmd << "'\n";
+    }
+
+    // ─── Worker Thread ──────────────────────────────────────────────────────
+
+    void runLoop()
+    {
+        std::cout << relay_tag_ << " Worker thread started (FSM-driven)\n";
+
+        // Kick the FSM out of Idle → Connecting (ConnectAction runs)
+        fsm_.process_event(start_event{});
+
+        while (!stop_flag_.load())
+        {
+            std::string cmd;
+            {
+                std::unique_lock<std::mutex> lock(queue_mutex_);
+                queue_cv_.wait(lock, [&]() {
+                    return stop_flag_.load() || !command_queue_.empty();
+                });
+
+                if (stop_flag_.load())
+                    break;
+
+                if (command_queue_.empty())
+                    continue;
+
+                cmd = std::move(command_queue_.front());
+                command_queue_.pop_front();
+            }
+
+            executeCommand(cmd);
+        }
+        std::cout << relay_tag_ << " Worker thread exiting\n";
+    }
+
+public:
+    /**
+     * @brief Construct a PipelineReceptionWorker with FSM-driven lifecycle.
+     *
+     * @param client       TelnetClient (owned by RelayPipeline)
+     * @param conn         Connection parameters (host, port, timeout)
+     * @param creds        Level-1 credentials
+     * @param rawBuffer    Per-relay ring buffer (producer side)
+     * @param app_running  Global running flag
+     * @param relayName    Display name for log tagging
+     */
+    PipelineReceptionWorker(TelnetClient& client,
+                            const ConnectionConfig& conn,
+                            const LoginConfig& creds,
+                            RawDataRingBuffer& rawBuffer,
+                            std::atomic<bool>& app_running,
+                            const std::string& relayName)
+        : client_(client)
+        , conn_(conn)
+        , creds_(creds)
+        , retry_{3, 0, std::chrono::seconds(5)}
+        , fsm_{client_, conn_, creds_, retry_}
+        , rawBuffer_(rawBuffer)
+        , app_running_(app_running)
+        , relay_tag_("[Rx:" + relayName + "]")
+    {
+    }
+
+    void start()
+    {
+        stop_flag_ = false;
+        worker_thread_ = std::thread([this]() { runLoop(); });
+    }
+
+    void stop()
+    {
+        stop_flag_ = true;
+        queue_cv_.notify_all();
+        rawBuffer_.notifyAll();
+        if (worker_thread_.joinable())
+            worker_thread_.join();
+    }
+
+    void queueCommand(const std::string& cmd)
+    {
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            command_queue_.push_back(cmd);
+        }
+        queue_cv_.notify_one();
+    }
+
+    /**
+     * @brief Trigger FSM reconnection from external code.
+     *
+     * @details Fires disconnect_event so the FSM transitions from
+     * Operational back to Connecting on the next step.
+     */
+    void resetConnection()
+    {
+        fsm_.process_event(disconnect_event{});
+    }
+};
+
+// ============================================================================
+//                    PER-RELAY PROCESSING WORKER
+// ============================================================================
+
+/**
+ * @class PipelineProcessingWorker
+ * @brief Processing thread for a single relay pipeline.
+ *
+ * @details Reads from the relay's RawDataRingBuffer, parses SER responses,
+ * stamps each record with the relay's identity (relay_id + relay_name),
+ * inserts into the shared SQLite database, and broadcasts via the shared
+ * WebSocket server.
+ *
+ * The key difference from the original ProcessingWorker is the relay_id /
+ * relay_name stamping on every parsed SERRecord before DB insertion.
+ *
+ * @see PipelineReceptionWorker  Producer of the ring buffer data
+ * @see RelayPipeline            Owner of this worker
+ */
+class PipelineProcessingWorker
+{
+    std::atomic<bool> stop_flag_{false};
+    std::thread worker_thread_;
+
+    RawDataRingBuffer& rawBuffer_;
+    SERDatabase& db_;
+    SERWebSocketServer& wsServer_;
+    SharedRingBuffer& shmRing_;
+    std::atomic<bool>& app_running_;
+    RawDataRingBuffer::ReaderId readerId_{RawDataRingBuffer::kInvalidReader};
+
+    std::string relay_id_;       ///< Relay identifier to stamp on records
+    std::string relay_name_;     ///< Relay display name to stamp on records
+    std::string relay_tag_;      ///< Log prefix
+
+    void runLoop()
+    {
+        std::cout << relay_tag_ << " Worker thread started\n";
+        while (!stop_flag_.load() && app_running_.load())
+        {
+            auto msg = rawBuffer_.waitPop(readerId_, stop_flag_);
+            if (!msg)
+                continue;
+
+            // Non-SER command — broadcast raw text to all WS clients
+            if (msg->command != "SER")
+            {
+                std::cout << relay_tag_ << " Non-SER command '" << msg->command
+                          << "', broadcasting text (" << msg->response.size() << " bytes)\n";
+                wsServer_.broadcastText(msg->response);
+                continue;
+            }
+
+            // Parse SER response
+            auto records = parseSERResponse(msg->response);
+            if (records.empty())
+            {
+                std::cout << relay_tag_ << " No records parsed\n";
+                continue;
+            }
+
+            // *** STAMP relay identity on every record ***
+            for (auto& rec : records)
+            {
+                rec.relay_id   = relay_id_;
+                rec.relay_name = relay_name_;
+            }
+
+            std::cout << relay_tag_ << " Parsed " << records.size() << " SER records\n";
+
+            // Step 1: SQLite insert (shared DB, relay_id prevents cross-relay duplicates)
+            int inserted = 0;
+            auto newRecords = db_.insertAndGetNewRecords(records, inserted);
+            std::cout << relay_tag_ << " SQLite: " << inserted << " new records\n";
+
+            // Step 2: WebSocket broadcast — full DB refresh for all clients
+            wsServer_.broadcastAll();
+
+            // Step 3: Shared memory ring for JSON file writer
+            if (inserted > 0)
+            {
+                auto payload = asn_tlv::encodeSerRecordsToTlv(newRecords);
+                if (!payload.empty())
+                    shmRing_.write(payload.data(), payload.size());
+            }
+        }
+        std::cout << relay_tag_ << " Worker thread exiting\n";
+    }
+
+public:
+    PipelineProcessingWorker(RawDataRingBuffer& rawBuffer,
+                             SERDatabase& db,
+                             SERWebSocketServer& wsServer,
+                             SharedRingBuffer& shmRing,
+                             std::atomic<bool>& app_running,
+                             const std::string& relayId,
+                             const std::string& relayName)
+        : rawBuffer_(rawBuffer)
+        , db_(db)
+        , wsServer_(wsServer)
+        , shmRing_(shmRing)
+        , app_running_(app_running)
+        , relay_id_(relayId)
+        , relay_name_(relayName)
+        , relay_tag_("[Proc:" + relayName + "]")
+    {
+    }
+
+    void start()
+    {
+        stop_flag_ = false;
+        readerId_ = rawBuffer_.registerReader();
+        if (readerId_ == RawDataRingBuffer::kInvalidReader)
+        {
+            std::cerr << relay_tag_ << " Failed to register reader\n";
+            return;
+        }
+        worker_thread_ = std::thread([this]() { runLoop(); });
+    }
+
+    void stop()
+    {
+        stop_flag_ = true;
+        rawBuffer_.notifyAll();
+        if (worker_thread_.joinable())
+            worker_thread_.join();
+        if (readerId_ != RawDataRingBuffer::kInvalidReader)
+        {
+            rawBuffer_.unregisterReader(readerId_);
+            readerId_ = RawDataRingBuffer::kInvalidReader;
+        }
+    }
+};
+
+// ============================================================================
+//                         RELAY PIPELINE
+// ============================================================================
+
+/**
+ * @class RelayPipeline
+ * @brief Complete processing pipeline for a single relay device.
+ *
+ * @details Owns a TelnetClient, RawDataRingBuffer, ReceptionWorker, and
+ * ProcessingWorker.  Holds references to the shared SERDatabase,
+ * SERWebSocketServer, and SharedRingBuffer.
+ *
+ * Created on demand by RelayManager when the user activates a relay
+ * from the dashboard.  Destroyed when the user deactivates the relay
+ * or the application shuts down.
+ *
+ * ## Lifecycle
+ *
+ * @code
+ * auto pipeline = std::make_unique<RelayPipeline>(config, db, ws, shm, running);
+ * pipeline->start();       // Connects + starts polling
+ * pipeline->queueCommand("SER");
+ * // ...
+ * pipeline->stop();        // Graceful shutdown
+ * @endcode
+ *
+ * @see RelayConfig          Configuration for the relay
+ * @see relay_manager.hpp    Manages pipeline lifecycle
+ */
+class RelayPipeline
+{
+    RelayConfig config_;
+    SERDatabase& db_;
+    SERWebSocketServer& wsServer_;
+    SharedRingBuffer& shmRing_;
+    std::atomic<bool>& app_running_;
+
+    // Owned per-relay resources
+    TelnetClient client_;
+    RawDataRingBuffer rawBuffer_{100};
+
+    std::unique_ptr<PipelineReceptionWorker>  rxWorker_;
+    std::unique_ptr<PipelineProcessingWorker> procWorker_;
+
+    bool running_ = false;
+
+public:
+    /**
+     * @brief Construct a pipeline for a specific relay.
+     *
+     * @param config     Relay configuration (host, port, creds, etc.)
+     * @param db         Shared SQLite database reference
+     * @param wsServer   Shared WebSocket server reference
+     * @param shmRing    Shared ring buffer for JSON file writer
+     * @param app_running Global application running flag
+     */
+    RelayPipeline(const RelayConfig& config,
+                  SERDatabase& db,
+                  SERWebSocketServer& wsServer,
+                  SharedRingBuffer& shmRing,
+                  std::atomic<bool>& app_running)
+        : config_(config)
+        , db_(db)
+        , wsServer_(wsServer)
+        , shmRing_(shmRing)
+        , app_running_(app_running)
+    {
+    }
+
+    /// Non-copyable, non-movable (owns threads)
+    RelayPipeline(const RelayPipeline&) = delete;
+    RelayPipeline& operator=(const RelayPipeline&) = delete;
+
+    /**
+     * @brief Start the pipeline (connect, start workers).
+     *
+     * @details Creates and starts the ReceptionWorker and ProcessingWorker
+     * threads.  The ReceptionWorker connects to the relay on the first
+     * queued command.
+     *
+     * @return true on success, false if already running
+     */
+    bool start()
+    {
+        if (running_)
+            return true;
+
+        ConnectionConfig conn{config_.host, config_.port, config_.timeout};
+        LoginConfig creds{config_.username, config_.password};
+
+        rxWorker_ = std::make_unique<PipelineReceptionWorker>(
+            client_, conn, creds, rawBuffer_, app_running_, config_.name);
+        rxWorker_->start();
+
+        procWorker_ = std::make_unique<PipelineProcessingWorker>(
+            rawBuffer_, db_, wsServer_, shmRing_, app_running_,
+            config_.id, config_.name);
+        procWorker_->start();
+
+        running_ = true;
+        std::cout << "[Pipeline:" << config_.name << "] Started\n";
+
+        // Queue initial SER command to start data flow
+        queueCommand("SER");
+
+        return true;
+    }
+
+    /**
+     * @brief Stop the pipeline (disconnect, stop workers).
+     */
+    void stop()
+    {
+        if (!running_)
+            return;
+
+        if (rxWorker_)
+            rxWorker_->stop();
+        if (procWorker_)
+            procWorker_->stop();
+
+        running_ = false;
+        std::cout << "[Pipeline:" << config_.name << "] Stopped\n";
+    }
+
+    /**
+     * @brief Queue a command for execution by this relay's ReceptionWorker.
+     *
+     * @param cmd Telnet command string (e.g. "SER", "ACC", "FIL DIR")
+     */
+    void queueCommand(const std::string& cmd)
+    {
+        if (rxWorker_)
+            rxWorker_->queueCommand(cmd);
+    }
+
+    /// @return true if pipeline is currently running
+    bool isRunning() const { return running_; }
+
+    /// @return Relay configuration for this pipeline
+    const RelayConfig& config() const { return config_; }
+
+    /// @return Relay identifier
+    const std::string& relayId() const { return config_.id; }
+
+    /// @return Relay display name
+    const std::string& relayName() const { return config_.name; }
+};

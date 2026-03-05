@@ -158,13 +158,16 @@ bool SERDatabase::createTable()
     const char* sql = R"(
         CREATE TABLE IF NOT EXISTS ser_records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            relay_id TEXT NOT NULL DEFAULT '',
+            relay_name TEXT NOT NULL DEFAULT '',
             record_id TEXT NOT NULL,
             timestamp TEXT NOT NULL,
             status TEXT NOT NULL,
             description TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(record_id, timestamp)
+            UNIQUE(relay_id, record_id, timestamp)
         );
+        CREATE INDEX IF NOT EXISTS idx_relay_id ON ser_records(relay_id);
         CREATE INDEX IF NOT EXISTS idx_record_id ON ser_records(record_id);
         CREATE INDEX IF NOT EXISTS idx_status ON ser_records(status);
         CREATE INDEX IF NOT EXISTS idx_timestamp ON ser_records(timestamp);
@@ -179,6 +182,14 @@ bool SERDatabase::createTable()
         sqlite3_free(errMsg);
         return false;
     }
+
+    // Migration: add relay columns to existing databases that don't have them
+    sqlite3_exec(db_, "ALTER TABLE ser_records ADD COLUMN relay_id TEXT NOT NULL DEFAULT '';",
+                 nullptr, nullptr, nullptr);
+    sqlite3_exec(db_, "ALTER TABLE ser_records ADD COLUMN relay_name TEXT NOT NULL DEFAULT '';",
+                 nullptr, nullptr, nullptr);
+    sqlite3_exec(db_, "CREATE INDEX IF NOT EXISTS idx_relay_id ON ser_records(relay_id);",
+                 nullptr, nullptr, nullptr);
 
     return true;
 }
@@ -214,13 +225,13 @@ bool SERDatabase::insertRecord(const SERRecord& record)
     }
 
     // Skip if record already exists
-    if (recordExists(record.record_id, record.timestamp))
+    if (recordExists(record.relay_id, record.record_id, record.timestamp))
     {
         return true; // Not an error, just skip duplicate
     }
 
-    const char* sql = "INSERT INTO ser_records (record_id, timestamp, status, description) "
-                      "VALUES (?, ?, ?, ?);";
+    const char* sql = "INSERT INTO ser_records (relay_id, relay_name, record_id, timestamp, status, description) "
+                      "VALUES (?, ?, ?, ?, ?, ?);";
 
     sqlite3_stmt* stmt;
     int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
@@ -231,10 +242,12 @@ bool SERDatabase::insertRecord(const SERRecord& record)
         return false;
     }
 
-    sqlite3_bind_text(stmt, 1, record.record_id.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, record.timestamp.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, record.status.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 4, record.description.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 1, record.relay_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, record.relay_name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, record.record_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, record.timestamp.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, record.status.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, record.description.c_str(), -1, SQLITE_TRANSIENT);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -324,7 +337,7 @@ std::vector<SERRecord> SERDatabase::insertAndGetNewRecords(
     for (const auto& record : records)
     {
         // Check if already exists BEFORE inserting
-        if (recordExists(record.record_id, record.timestamp))
+        if (recordExists(record.relay_id, record.record_id, record.timestamp))
             continue;   // duplicate — skip
 
         if (insertRecord(record))
@@ -365,7 +378,7 @@ std::vector<SERRecord> SERDatabase::getAllRecords()
         return records;
     }
 
-    const char* sql = "SELECT record_id, timestamp, status, description FROM ser_records "
+    const char* sql = "SELECT relay_id, relay_name, record_id, timestamp, status, description FROM ser_records "
                       "ORDER BY timestamp DESC;";
 
     sqlite3_stmt* stmt;
@@ -380,11 +393,13 @@ std::vector<SERRecord> SERDatabase::getAllRecords()
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         SERRecord record;
-        record.record_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        record.timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        record.status = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        record.relay_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        record.relay_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        record.record_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        record.timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        record.status = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
         
-        const char* desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        const char* desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
         record.description = desc ? desc : "";
         
         records.push_back(record);
@@ -417,7 +432,7 @@ std::vector<SERRecord> SERDatabase::getRecordsByStatus(const std::string& status
         return records;
     }
 
-    const char* sql = "SELECT record_id, timestamp, status, description FROM ser_records "
+    const char* sql = "SELECT relay_id, relay_name, record_id, timestamp, status, description FROM ser_records "
                       "WHERE status = ? ORDER BY timestamp DESC;";
 
     sqlite3_stmt* stmt;
@@ -434,13 +449,71 @@ std::vector<SERRecord> SERDatabase::getRecordsByStatus(const std::string& status
     while (sqlite3_step(stmt) == SQLITE_ROW)
     {
         SERRecord record;
-        record.record_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        record.timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        record.status = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        record.relay_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        record.relay_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        record.record_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        record.timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        record.status = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
         
-        const char* desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        const char* desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
         record.description = desc ? desc : "";
         
+        records.push_back(record);
+    }
+
+    sqlite3_finalize(stmt);
+    return records;
+}
+
+/**
+ * @brief Retrieve SER records filtered by relay identifier.
+ *
+ * @details Executes a parameterised query with `WHERE relay_id = ?`
+ *          and returns results in descending timestamp order.
+ *
+ * @param relayId  Relay identifier to match (e.g. "1", "2").
+ *
+ * @return std::vector<SERRecord>  Matching records, newest first.
+ *         Empty if none match, database is closed, or query fails.
+ *
+ * @pre isOpen() == true
+ */
+std::vector<SERRecord> SERDatabase::getRecordsByRelay(const std::string& relayId)
+{
+    std::vector<SERRecord> records;
+
+    if (!db_)
+    {
+        last_error_ = "Database not open";
+        return records;
+    }
+
+    const char* sql = "SELECT relay_id, relay_name, record_id, timestamp, status, description FROM ser_records "
+                      "WHERE relay_id = ? ORDER BY timestamp DESC;";
+
+    sqlite3_stmt* stmt;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+
+    if (rc != SQLITE_OK)
+    {
+        last_error_ = "Failed to prepare statement: " + std::string(sqlite3_errmsg(db_));
+        return records;
+    }
+
+    sqlite3_bind_text(stmt, 1, relayId.c_str(), -1, SQLITE_TRANSIENT);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        SERRecord record;
+        record.relay_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        record.relay_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        record.record_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        record.timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        record.status = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+
+        const char* desc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+        record.description = desc ? desc : "";
+
         records.push_back(record);
     }
 
@@ -534,9 +607,9 @@ bool SERDatabase::clearAllRecords()
  * @return true   A matching row exists.
  * @return false  No match found, or the query failed.
  */
-bool SERDatabase::recordExists(const std::string& recordId, const std::string& timestamp)
+bool SERDatabase::recordExists(const std::string& relayId, const std::string& recordId, const std::string& timestamp)
 {
-    const char* sql = "SELECT 1 FROM ser_records WHERE record_id = ? AND timestamp = ? LIMIT 1;";
+    const char* sql = "SELECT 1 FROM ser_records WHERE relay_id = ? AND record_id = ? AND timestamp = ? LIMIT 1;";
     
     sqlite3_stmt* stmt;
     int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
@@ -546,8 +619,9 @@ bool SERDatabase::recordExists(const std::string& recordId, const std::string& t
         return false;
     }
 
-    sqlite3_bind_text(stmt, 1, recordId.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, timestamp.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 1, relayId.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, recordId.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, timestamp.c_str(), -1, SQLITE_TRANSIENT);
 
     bool exists = (sqlite3_step(stmt) == SQLITE_ROW);
     sqlite3_finalize(stmt);
@@ -626,6 +700,8 @@ bool SERDatabase::exportToJSON(const std::string& filePath)
         
         file << "  {\n";
         file << "    \"sno\": " << sno++ << ",\n";
+        file << "    \"relay_id\": \"" << rec.relay_id << "\",\n";
+        file << "    \"relay_name\": \"" << rec.relay_name << "\",\n";
         file << "    \"date\": \"" << date << "\",\n";
         file << "    \"time\": \"" << time << "\",\n";
         file << "    \"element\": \"" << element << "\",\n";

@@ -1,4 +1,4 @@
-// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
+﻿// COPYRIGHT (C) 2026 EUREKA POWER SOLUTIONS (www.PowerEureka.com)
 
 /**
  * @file telnet_fsm.hpp
@@ -147,6 +147,15 @@ struct step_event {};
  * Triggers safety transition to Error state.
  */
 struct unhandled_event {};
+
+/**
+ * @brief Event to signal connection loss from Operational state
+ *
+ * @details Triggers reconnection cycle when the active Telnet session
+ * drops (command failure, timeout, etc.).  Used by RelayConnectionFSM
+ * inside PipelineReceptionWorker.
+ */
+struct disconnect_event {};
 
 // ================= CONFIG =================
 
@@ -382,6 +391,40 @@ struct ResetRetryAction
     void operator()(const Event&, RetryState& retry) const
     {
         retry.reset();
+    }
+};
+
+/**
+ * @brief FSM Action: Log connection-wait state entry (no counter increment)
+ *
+ * @details Called on entry to ConnectWait state in RelayConnectionFSM.
+ * Connection failures are always retried without limit, so no retry
+ * counter is modified here.
+ */
+struct ConnectWaitLogAction
+{
+    template <class Event>
+    void operator()(const Event&) const
+    {
+        std::cout << "[FSM] Connection failed \xe2\x80\x94 waiting before retry\n";
+    }
+};
+
+/**
+ * @brief FSM Action: Increment login retry counter
+ *
+ * @details Called on entry to LoginRetryWait state after explicit
+ * login rejection.  Increments the retry counter so that
+ * CanRetryGuard / MaxRetriesReachedGuard can limit attempts.
+ */
+struct LoginRetryIncrAction
+{
+    template <class Event>
+    void operator()(const Event&, RetryState& retry) const
+    {
+        retry.increment();
+        std::cout << "[FSM] Login retry " << retry.current_attempt
+                  << "/" << retry.max_retries << "\n";
     }
 };
 
@@ -742,6 +785,113 @@ struct TelnetFSM
 
             // Done state - stay here (no more polling)
             "Done"_s + event<step_event> = "Done"_s,
+
+            // Safety
+            state<_> + event<unhandled_event> / on_unhandled = "Error"_s,
+            state<_> + unexpected_event<_> / on_unexpected = "Error"_s
+        );
+    }
+};
+
+// ================= RELAY CONNECTION FSM =================
+
+/**
+ * @brief Boost.SML State Machine for per-relay connection lifecycle.
+ *
+ * @details Used by PipelineReceptionWorker (relay_pipeline.hpp).
+ * Manages connect \xe2\x86\x92 login \xe2\x86\x92 operational cycle with automatic
+ * reconnection on disconnect and separate retry handling for
+ * connection failures (unlimited) vs. login failures (limited).
+ *
+ * ## State Diagram
+ *
+ * @code
+ *                     \xe2\x94\x8c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80 disconnect_event \xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x90
+ *    start_event      \xe2\x96\xbc                               \xe2\x94\x82
+ *   *Idle \xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x96\xba Connecting                          \xe2\x94\x82
+ *                     \xe2\x94\x82                               \xe2\x94\x82
+ *              \xe2\x94\x8c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\xb4\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x90                        \xe2\x94\x82
+ *         [ConnectOk]    [ConnectFail]                 \xe2\x94\x82
+ *              \xe2\x94\x82              \xe2\x94\x82                        \xe2\x94\x82
+ *              \xe2\x96\xbc              \xe2\x96\xbc                        \xe2\x94\x82
+ *          Login_L1    ConnectWait \xe2\x94\x80step\xe2\x94\x80\xe2\x96\xba Connecting  \xe2\x94\x82
+ *              \xe2\x94\x82                                      \xe2\x94\x82
+ *     \xe2\x94\x8c\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\xbc\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\xac\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x90              \xe2\x94\x82
+ * [Complete] [CanRetry] [MaxRetries] [Fail]       \xe2\x94\x82
+ *     \xe2\x94\x82        \xe2\x94\x82          \xe2\x94\x82          \xe2\x94\x82          \xe2\x94\x82
+ *     \xe2\x96\xbc        \xe2\x96\xbc          \xe2\x96\xbc          \xe2\x96\xbc          \xe2\x94\x82
+ * Operational  LoginRetryWait  Error  ConnectWait  \xe2\x94\x82
+ *     \xe2\x94\x82  \xe2\x96\xb2       \xe2\x94\x82                              \xe2\x94\x82
+ *     \xe2\x94\x82  \xe2\x94\x94\xe2\x94\x80step  \xe2\x94\x94\xe2\x94\x80step\xe2\x94\x80\xe2\x96\xba Connecting              \xe2\x94\x82
+ *     \xe2\x94\x82                                          \xe2\x94\x82
+ *     \xe2\x94\x94\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\xe2\x94\x98
+ * @endcode
+ *
+ * ## States
+ *
+ * | State           | Description                                  |
+ * |-----------------|----------------------------------------------|
+ * | Idle            | Initial — waiting for start_event            |
+ * | Connecting      | TCP connect attempt (ConnectAction on entry)  |
+ * | ConnectWait     | Pause before connect retry (no counter incr) |
+ * | Login_L1        | Level-1 authentication (Login1Action on entry)|
+ * | LoginRetryWait  | Pause before login retry (counter increments) |
+ * | Operational     | Ready for command execution                   |
+ * | Error           | Terminal — login retries exhausted             |
+ *
+ * ## Differences from TelnetFSM
+ *
+ * | Aspect           | TelnetFSM        | RelayConnectionFSM       |
+ * |------------------|------------------|--------------------------|
+ * | ConnectFail      | \xe2\x86\x92 Error           | \xe2\x86\x92 ConnectWait (unlimited)  |
+ * | Polling/Done     | Present          | Removed (pipeline handles)|
+ * | Operational      | \xe2\x86\x92 Polling         | Self-loop (ready)         |
+ * | Disconnect       | N/A              | \xe2\x86\x92 Connecting (reconnect)  |
+ * | Retry wait       | Blocking (30 s)  | Non-blocking (worker loop)|
+ *
+ * ## Dependencies (injected via sml::sm constructor)
+ * - TelnetClient&       — network communication
+ * - ConnectionConfig&   — host, port, timeout
+ * - LoginConfig&        — username, password
+ * - RetryState&         — login retry counter
+ *
+ * @see PipelineReceptionWorker  Uses this FSM for connection lifecycle
+ * @see TelnetFSM                Original single-shot FSM (retained)
+ */
+struct RelayConnectionFSM
+{
+    auto operator()() const
+    {
+        using namespace sml;
+
+        return make_transition_table(
+            // Entry actions
+            "Connecting"_s     + on_entry<_> / ConnectAction{},
+            "Login_L1"_s       + on_entry<_> / Login1Action{},
+            "ConnectWait"_s    + on_entry<_> / ConnectWaitLogAction{},
+            "LoginRetryWait"_s + on_entry<_> / LoginRetryIncrAction{},
+            "Operational"_s    + on_entry<_> / ResetRetryAction{},
+
+            // Idle -> start
+            *"Idle"_s + event<start_event> = "Connecting"_s,
+
+            // Connection
+            "Connecting"_s + event<step_event> [ ConnectOkGuard{} ]   = "Login_L1"_s,
+            "Connecting"_s + event<step_event> [ ConnectFailGuard{} ] = "ConnectWait"_s,
+
+            "ConnectWait"_s + event<step_event> = "Connecting"_s,
+
+            // Authentication (evaluated in declaration order)
+            "Login_L1"_s + event<step_event> [ Login1CompleteGuard{} ]      = "Operational"_s,
+            "Login_L1"_s + event<step_event> [ CanRetryGuard{} ]            = "LoginRetryWait"_s,
+            "Login_L1"_s + event<step_event> [ MaxRetriesReachedGuard{} ]   = "Error"_s,
+            "Login_L1"_s + event<step_event> [ Login1FailGuard{} ]          = "ConnectWait"_s,
+
+            "LoginRetryWait"_s + event<step_event> = "Connecting"_s,
+
+            // Operational (self-loop; disconnect triggers reconnect)
+            "Operational"_s + event<step_event>       = "Operational"_s,
+            "Operational"_s + event<disconnect_event>  = "Connecting"_s,
 
             // Safety
             state<_> + event<unhandled_event> / on_unhandled = "Error"_s,

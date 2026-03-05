@@ -286,6 +286,8 @@ inline void berAppendString(std::vector<uint8_t>& out, uint8_t tag, const std::s
  *     0x81 [len] timestamp
  *     0x82 [len] status
  *     0x83 [len] description
+ *     0x84 [len] relay_id
+ *     0x85 [len] relay_name
  *   }
  *   ... (more records)
  * }
@@ -306,6 +308,8 @@ inline std::vector<uint8_t> encodeSerRecordsToTlv(const std::vector<SERRecord>& 
         berAppendString(recordValue, 0x81U, rec.timestamp);
         berAppendString(recordValue, 0x82U, rec.status);
         berAppendString(recordValue, 0x83U, rec.description);
+        berAppendString(recordValue, 0x84U, rec.relay_id);
+        berAppendString(recordValue, 0x85U, rec.relay_name);
 
         std::vector<uint8_t> recordTlv;
         berAppendTlv(recordTlv, 0x30U, recordValue.data(), recordValue.size());
@@ -391,6 +395,10 @@ inline bool decodeSerRecordsFromTlv(const uint8_t* data, std::size_t size,
                 rec.status = value;
             else if (field.tag == 0x83U)
                 rec.description = value;
+            else if (field.tag == 0x84U)
+                rec.relay_id = value;
+            else if (field.tag == 0x85U)
+                rec.relay_name = value;
 
             fieldOffset = field.nextOffset;
         }

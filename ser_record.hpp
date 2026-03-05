@@ -75,6 +75,8 @@
  * 
  * | Field | Source | Example |
  * |-------|--------|---------|
+ * | relay_id | Pipeline config | "1" |
+ * | relay_name | Pipeline config | "SEL-751" |
  * | record_id | Event # | "45" |
  * | timestamp | Date + Time | "02/14/22 12:47:19.970" |
  * | status | State | "Asserted" or "" |
@@ -82,9 +84,12 @@
  * 
  * @note record_id is stored as string to preserve original relay numbering
  * @note status may be empty for events without assertion state
+ * @note relay_id and relay_name identify which relay produced this record
  */
 struct TELNET_SML_API SERRecord
 {
+    std::string relay_id;     ///< Relay identifier (e.g., "1", "2") — set by pipeline
+    std::string relay_name;   ///< Relay display name (e.g., "SEL-751") — set by pipeline
     std::string record_id;    ///< Record identifier (e.g., "45", "SER-001")
     std::string timestamp;    ///< Event timestamp (e.g., "02/14/22 12:47:19.970")
     std::string status;       ///< Event state ("Asserted", "Deasserted", or empty)
@@ -97,7 +102,7 @@ struct TELNET_SML_API SERRecord
     SERRecord() = default;
 
     /**
-     * @brief Parameterized constructor.
+     * @brief Legacy parameterized constructor (no relay info).
      *
      * @param id Record identifier
      * @param ts Timestamp string
@@ -107,6 +112,24 @@ struct TELNET_SML_API SERRecord
     SERRecord(const std::string& id, const std::string& ts,
               const std::string& stat, const std::string& desc)
         : record_id(id), timestamp(ts), status(stat), description(desc)
+    {
+    }
+
+    /**
+     * @brief Full parameterized constructor with relay identification.
+     *
+     * @param rid  Relay identifier (e.g., "1")
+     * @param rname Relay display name (e.g., "SEL-751")
+     * @param id   Record identifier
+     * @param ts   Timestamp string
+     * @param stat Status/state string
+     * @param desc Description/element string
+     */
+    SERRecord(const std::string& rid, const std::string& rname,
+              const std::string& id, const std::string& ts,
+              const std::string& stat, const std::string& desc)
+        : relay_id(rid), relay_name(rname)
+        , record_id(id), timestamp(ts), status(stat), description(desc)
     {
     }
 };

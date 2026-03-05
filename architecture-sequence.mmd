@@ -1,0 +1,237 @@
+%% ═══════════════════════════════════════════════════════════════════════════
+%%  Telnet-SML  —  Control-Flow Sequence Diagrams
+%%  Copyright (C) 2026 Eureka Power Solutions (www.PowerEureka.com)
+%%  Updated: 2026-03-04
+%% ═══════════════════════════════════════════════════════════════════════════
+%%
+%%  Two sequence diagrams:
+%%    1. Startup & Shutdown Control Flow
+%%    2. Runtime SER Poll Cycle (data flow through the pipeline)
+%%
+%%  Render each block separately in a Mermaid tool.
+%%
+%% ═══════════════════════════════════════════════════════════════════════════
+
+
+%% ╔═══════════════════════════════════════════════════════════════════════╗
+%% ║  DIAGRAM A — STARTUP & SHUTDOWN CONTROL FLOW                        ║
+%% ╚═══════════════════════════════════════════════════════════════════════╝
+
+sequenceDiagram
+    autonumber
+    participant main as main.cpp
+    participant App as TelnetSmlApp
+    participant Impl as Impl (Orchestrator)
+    participant DB as SERDatabase
+    participant WS as SERWebSocketServer<br/>(port 8765)
+    participant WSDB as WSDBServer<br/>(port 8766)
+    participant RW as ReceptionWorker<br/>(Thread 1)
+    participant PW as ProcessingWorker<br/>(Thread 2)
+    participant SHM as SharedSerReader<br/>(Thread 5)
+    participant TM as ThreadManager<br/>(Thread 4)
+
+    Note over main,TM: ═══ STARTUP PHASE ═══
+
+    main->>App: create TelnetSmlApp()
+    App->>Impl: make_unique<Impl>()
+    main->>App: start()
+    App->>Impl: start()
+
+    rect rgb(232, 245, 233)
+        Note right of Impl: Database init
+        Impl->>DB: open()
+        DB-->>Impl: true (records: N)
+        Impl->>DB: getAllRecords()
+        DB-->>Impl: existing records
+        Impl->>Impl: writeJsonToFile("ui/data.json")
+    end
+
+    rect rgb(227, 242, 253)
+        Note right of Impl: WebSocket servers
+        Impl->>WS: setCommandHandler(lambda)
+        Impl->>WS: setActionHandler(lambda)
+        Impl->>WS: start()
+        WS-->>Impl: true (listening :8765)
+        Impl->>WSDB: make_unique + start()
+        WSDB-->>Impl: true (listening :8766)
+    end
+
+    rect rgb(255, 243, 224)
+        Note right of Impl: Worker threads
+        Impl->>RW: create(client, conn, creds, rawBuffer)
+        Impl->>RW: start()
+        Note right of RW: Thread 1 spawned — runLoop()
+        Impl->>PW: create(rawBuffer, db, ws, shmRing)
+        Impl->>PW: start()
+        Note right of PW: Thread 2 spawned — runLoop()
+    end
+
+    rect rgb(243, 229, 245)
+        Note right of Impl: Supporting threads
+        Impl->>TM: setPollingCallback(lambda)
+        Impl->>SHM: start()
+        Note right of SHM: Thread 5 spawned — runLoop()
+        Impl->>TM: startAll()
+        Note right of TM: Thread 4 spawned — 120s poll loop
+    end
+
+    Impl->>RW: queueCommand("SER")
+    Note right of RW: Initial pipeline kick-off
+    Impl-->>App: true
+    App-->>main: true
+
+    main->>App: waitForExit()
+    App->>Impl: waitForExit()
+    Note right of Impl: Blocks on cin.get()<br/>...application running...
+
+    Note over main,TM: ═══ SHUTDOWN PHASE ═══
+
+    main->>App: stop()
+    App->>Impl: stop()
+    Impl->>Impl: app_running = false
+
+    Impl->>TM: stopAll()
+    Note right of TM: Thread 4 joined
+
+    Impl->>RW: stop()
+    RW->>RW: stop_flag = true
+    RW->>RW: notify queue CV
+    Note right of RW: Thread 1 joined
+
+    Impl->>PW: stop()
+    PW->>PW: stop_flag = true
+    PW->>PW: rawBuffer.notifyAll()
+    Note right of PW: Thread 2 joined
+
+    Impl->>SHM: stop()
+    Note right of SHM: Thread 5 joined
+
+    Impl->>WSDB: stop()
+    Impl->>WS: stop()
+    Impl->>DB: close()
+
+    Impl-->>App: (shutdown complete)
+    App-->>main: return
+    main->>main: return 0
+
+
+%% ═══════════════════════════════════════════════════════════════════════════
+
+
+%% ╔═══════════════════════════════════════════════════════════════════════╗
+%% ║  DIAGRAM B — RUNTIME SER POLL CYCLE  (data flow through pipeline)    ║
+%% ╚═══════════════════════════════════════════════════════════════════════╝
+
+sequenceDiagram
+    autonumber
+    participant TM as ThreadManager<br/>(Thread 4)
+    participant RW as ReceptionWorker<br/>(Thread 1)
+    participant TC as TelnetClient
+    participant Relay as Relay Device<br/>(TCP:23)
+    participant Ring as RawDataRingBuffer<br/>(MPMC 100 slots)
+    participant PW as ProcessingWorker<br/>(Thread 2)
+    participant Parser as parseSERResponse()
+    participant DB as SERDatabase
+    participant WS as SERWebSocketServer
+    participant Codec as asn_tlv
+    participant SHMRing as SharedRingBuffer<br/>(IPC 500KB)
+    participant SHMRdr as SharedSerReader<br/>(Thread 5)
+    participant File as ui/data.json
+    participant Browser as Browser
+
+    Note over TM,Browser: ═══ POLLING TRIGGER (every 120s) ═══
+
+    TM->>RW: pollingCallback() → queueCommand("SER")
+    RW->>RW: push "SER" to command_queue_
+    RW->>RW: queue_cv_.notify_one()
+
+    Note over TM,Browser: ═══ RECEPTION (Thread 1) ═══
+
+    RW->>RW: runLoop(): dequeue "SER"
+    RW->>RW: ensureConnected()
+
+    alt Not connected
+        RW->>TC: connectCheck(host, 23, 2000ms)
+        TC->>Relay: TCP SYN
+        Relay-->>TC: TCP ACK
+        TC-->>RW: true
+        RW->>TC: LoginLevel1Function(user, pass)
+        TC->>Relay: credentials
+        Relay-->>TC: prompt
+        TC-->>RW: true
+    end
+
+    RW->>TC: SendCmdReceiveData("SER", buffer)
+    TC->>Relay: "SER\r\n"
+    Relay-->>TC: SER text response (event records)
+    TC-->>RW: true + response data
+
+    RW->>Ring: push({cmd:"SER", response: data})
+    Ring-->>RW: OK (or OVERWRITE if full)
+
+    Note over TM,Browser: ═══ PROCESSING (Thread 2) ═══
+
+    Ring->>PW: waitPop(readerId) → RawDataMessage
+    Note right of PW: Blocking wait returns
+
+    PW->>Parser: parseSERResponse(response_text)
+    Parser-->>PW: vector<SERRecord> (N records)
+
+    rect rgb(232, 245, 233)
+        Note right of PW: Step 1: Database (must succeed first)
+        PW->>DB: insertAndGetNewRecords(records)
+        DB->>DB: BEGIN TRANSACTION
+        DB->>DB: INSERT OR IGNORE each record
+        DB->>DB: COMMIT
+        DB-->>PW: newRecords[] + inserted count
+    end
+
+    rect rgb(227, 242, 253)
+        Note right of PW: Step 2: WebSocket broadcast (after DB success)
+        PW->>WS: broadcastAll()
+        WS->>DB: getAllRecords()
+        DB-->>WS: all records
+        WS->>Codec: encodeSerRecordsToTlv(records)
+        Codec-->>WS: binary TLV payload
+        WS->>Browser: send(TLV) to all connected sessions
+        Browser->>Browser: ASN.1 decode → render table
+    end
+
+    rect rgb(255, 243, 224)
+        Note right of PW: Step 3: Shared memory (only if new data)
+        alt inserted > 0
+            PW->>Codec: encodeSerRecordsToTlv(newRecords)
+            Codec-->>PW: TLV payload
+            PW->>SHMRing: write(payload)
+        end
+    end
+
+    Note over TM,Browser: ═══ JSON WRITER (Thread 5) ═══
+
+    SHMRing->>SHMRdr: waitRead(readerId) → TLV payload
+    SHMRdr->>Codec: decodeSerRecordsFromTlv(payload)
+    Codec-->>SHMRdr: vector<SERRecord>
+    SHMRdr->>SHMRdr: recordsToJsonTable(records)
+    SHMRdr->>File: writeJsonToFile("ui/data.json")
+
+    Note over TM,Browser: ═══ BROWSER ACTION FLOW ═══
+
+    Browser->>WS: WebSocket message: {"action":"read_time"}
+    WS->>WS: actionHandler_(jsonMsg)
+    WS->>WS: extract action = "read_time"
+    WS->>WS: route to TimeSyncManager
+    Note right of WS: TimeSyncManager.handleAction()
+    WS-->>Browser: JSON: {"relay_time":"...", "pc_time":"..."}
+
+    Browser->>WS: WebSocket message: "FIL DIR"
+    WS->>WS: commandHandler_("FIL DIR")
+    WS->>RW: queueCommand("FIL DIR")
+    RW->>TC: SendCmdReceiveData("FIL DIR", buf)
+    TC->>Relay: "FIL DIR\r\n"
+    Relay-->>TC: directory listing
+    TC-->>RW: response
+    RW->>Ring: push({cmd:"FIL DIR", response})
+    Ring->>PW: waitPop → message
+    PW->>PW: cmd != "SER" → broadcastText
+    PW->>WS: broadcastText(response)
+    WS->>Browser: send text to all sessions

@@ -16,18 +16,22 @@
  *     
  *     ser_records [label="{ser_records|
  *         id : INTEGER PRIMARY KEY\l
+ *         relay_id : TEXT NOT NULL\l
+ *         relay_name : TEXT NOT NULL\l
  *         record_id : TEXT NOT NULL\l
  *         timestamp : TEXT NOT NULL\l
  *         status : TEXT NOT NULL\l
  *         description : TEXT\l
  *         created_at : DATETIME\l
- *         |UNIQUE(record_id, timestamp)\l
+ *         |UNIQUE(relay_id, record_id, timestamp)\l
  *     }"];
  *     
+ *     idx0 [label="idx_relay_id", shape=ellipse, fillcolor=lightblue];
  *     idx1 [label="idx_record_id", shape=ellipse, fillcolor=lightblue];
  *     idx2 [label="idx_status", shape=ellipse, fillcolor=lightblue];
  *     idx3 [label="idx_timestamp", shape=ellipse, fillcolor=lightblue];
  *     
+ *     ser_records -> idx0;
  *     ser_records -> idx1;
  *     ser_records -> idx2;
  *     ser_records -> idx3;
@@ -263,6 +267,17 @@ public:
     std::vector<SERRecord> getRecordsByStatus(const std::string& status);
 
     /**
+     * @brief Retrieve records filtered by relay identifier.
+     *
+     * @param relayId Relay ID to filter by (e.g., "1", "2")
+     *
+     * @return std::vector<SERRecord> Matching records ordered by timestamp
+     *
+     * @pre isOpen() == true
+     */
+    std::vector<SERRecord> getRecordsByRelay(const std::string& relayId);
+
+    /**
      * @brief Get total count of records in the database.
      *
      * @return int Number of records, or 0 if error
@@ -335,13 +350,16 @@ private:
      *
      * @details Creates table with schema:
      * - id: Auto-increment primary key
+     * - relay_id: Relay identifier (e.g., "1")
+     * - relay_name: Relay display name (e.g., "SEL-751")
      * - record_id: Event number from relay
      * - timestamp: Event date and time
      * - status: Event state (Asserted/Deasserted/empty)
      * - description: Event element/description
      * - created_at: When record was stored
      *
-     * Also creates indexes on record_id, status, and timestamp.
+     * Also creates indexes on relay_id, record_id, status, and timestamp.
+     * Includes migration logic for existing databases without relay columns.
      *
      * @return true if table was created or already exists
      * @return false if creation failed
@@ -351,13 +369,14 @@ private:
     /**
      * @brief Check if a record already exists in the database.
      *
+     * @param relayId  Relay identifier
      * @param recordId Record ID to check
      * @param timestamp Timestamp to check
      *
-     * @return true if record with same ID and timestamp exists
+     * @return true if record with same relay_id + record_id + timestamp exists
      * @return false if record not found
      */
-    bool recordExists(const std::string& recordId, const std::string& timestamp);
+    bool recordExists(const std::string& relayId, const std::string& recordId, const std::string& timestamp);
 
 private:
     std::string db_path_;      ///< Path to SQLite database file

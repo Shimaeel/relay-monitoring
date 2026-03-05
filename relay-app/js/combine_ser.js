@@ -3,9 +3,10 @@
  *  combine_ser.js — Combined SER Table for Dashboard
  * ============================================================
  *
- *  Connects to every relay's WebSocket server and aggregates
- *  all SER records into a single Tabulator table with a
- *  "Relay" column to identify the source device.
+ *  Connects to the single shared WebSocket server (port 8765)
+ *  and aggregates all SER records into a single Tabulator table.
+ *  Each record carries relay_id / relay_name from the server,
+ *  so a "Relay" column is populated from the TLV payload itself.
  *
  *  Dependencies: data.js (getRelays), Tabulator (CDN)
  */
@@ -14,8 +15,8 @@
 //  State
 // ============================================================
 let cserTable          = null;   // Tabulator instance
-let cserConnections    = {};     // relayId → WebSocket
-let cserAutoRefreshes  = {};     // relayId → interval handle
+let cserWs             = null;   // Single WebSocket connection
+let cserAutoRefresh    = null;   // Polling interval handle
 let cserLastMessageAt  = 0;
 let cserDataReceived   = false;
 
@@ -43,7 +44,7 @@ function _cserReadTlv(buffer, offset) {
   return { tag, constructed, valueStart, length: lengthInfo.length, nextOffset: valueStart + lengthInfo.length };
 }
 
-function _cserDecodeTlv(arrayBuffer, relayName) {
+function _cserDecodeTlv(arrayBuffer) {
   const buffer = new Uint8Array(arrayBuffer);
   let offset = 0;
   const topLevel = _cserReadTlv(buffer, offset);
@@ -68,6 +69,8 @@ function _cserDecodeTlv(arrayBuffer, relayName) {
       if (fTlv.tag === 0x81) fields.timestamp   = val;
       if (fTlv.tag === 0x82) fields.status      = val;
       if (fTlv.tag === 0x83) fields.description = val;
+      if (fTlv.tag === 0x84) fields.relayId     = val;
+      if (fTlv.tag === 0x85) fields.relayName   = val;
       rOff = fTlv.nextOffset;
     }
 
@@ -77,6 +80,7 @@ function _cserDecodeTlv(arrayBuffer, relayName) {
     const sp = ts.indexOf(" ");
     if (sp !== -1) { date = ts.slice(0, sp); time = ts.slice(sp + 1); }
 
+    const relayName = fields.relayName || "Unknown";
     const snoVal = Number.parseInt(fields.recordId, 10);
     const sno = Number.isNaN(snoVal) ? (fields.recordId || "-") : snoVal;
     records.push({
@@ -203,45 +207,38 @@ function _cserUpdateStats() {
 function _cserUpdateConnectionStatus() {
   const el = document.getElementById("cser-conn-status");
   if (!el) return;
-  const relays = getRelays();
-  const connectedCount = Object.values(cserConnections).filter(ws => ws && ws.readyState === WebSocket.OPEN).length;
-  if (connectedCount === 0) {
+  if (cserWs && cserWs.readyState === WebSocket.OPEN) {
+    el.textContent = "🟢 Connected";
+    el.style.color = "#16a34a";
+  } else {
     el.textContent = "🔴 Disconnected";
     el.style.color = "#dc2626";
-  } else if (connectedCount < relays.length) {
-    el.textContent = `🟡 ${connectedCount}/${relays.length} Connected`;
-    el.style.color = "#d97706";
-  } else {
-    el.textContent = `🟢 ${connectedCount}/${relays.length} Connected`;
-    el.style.color = "#16a34a";
   }
 }
 
 // ============================================================
-//  WebSocket per Relay
+//  Single Shared WebSocket Connection
 // ============================================================
 
-function _cserConnectRelay(relay) {
-  const id = relay.id;
-  if (cserConnections[id] && cserConnections[id].readyState === WebSocket.OPEN) return;
+function _cserConnect() {
+  if (cserWs && cserWs.readyState === WebSocket.OPEN) return;
 
   const host = "localhost";
-  const port = relay.wsPort || 8765;
+  const port = 8765;
   const url  = `ws://${host}:${port}`;
 
-  console.log(`[CSER] Connecting to ${relay.name} at ${url}`);
-  const ws = new WebSocket(url);
-  ws.binaryType = "arraybuffer";
-  cserConnections[id] = ws;
+  console.log("[CSER] Connecting to shared WS at", url);
+  cserWs = new WebSocket(url);
+  cserWs.binaryType = "arraybuffer";
 
-  ws.onopen = () => {
-    console.log(`[CSER] Connected to ${relay.name}`);
+  cserWs.onopen = () => {
+    console.log("[CSER] Connected");
     _cserUpdateConnectionStatus();
-    _cserStartAutoRefresh(relay);
-    try { ws.send("getData"); } catch (_) {}
+    _cserStartAutoRefresh();
+    try { cserWs.send("getData"); } catch (_) {}
   };
 
-  ws.onmessage = async (event) => {
+  cserWs.onmessage = async (event) => {
     try {
       let bytes;
       if (event.data instanceof Blob) {
@@ -254,7 +251,11 @@ function _cserConnectRelay(relay) {
         try {
           const json = JSON.parse(event.data);
           if (Array.isArray(json)) {
-            const enriched = json.map(r => ({ ...r, _uid: relay.name + "_" + r.sno, relay: relay.name }));
+            const enriched = json.map(r => ({
+              ...r,
+              _uid:  (r.relay_name || "Unknown") + "_" + r.sno,
+              relay: r.relay_name || "Unknown"
+            }));
             _cserUpdateTable(enriched);
             cserLastMessageAt = Date.now();
           }
@@ -264,46 +265,45 @@ function _cserConnectRelay(relay) {
       if (!bytes || bytes.length === 0) return;
 
       const exactBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-      const records = _cserDecodeTlv(exactBuffer, relay.name);
+      const records = _cserDecodeTlv(exactBuffer);
       if (records.length > 0) {
         _cserUpdateTable(records);
         cserLastMessageAt = Date.now();
       }
     } catch (err) {
-      console.error(`[CSER] Decode error (${relay.name}):`, err);
+      console.error("[CSER] Decode error:", err);
     }
   };
 
-  ws.onclose = () => {
-    console.log(`[CSER] Disconnected from ${relay.name}`);
-    _cserStopAutoRefresh(relay);
+  cserWs.onclose = () => {
+    console.log("[CSER] Disconnected");
+    _cserStopAutoRefresh();
     _cserUpdateConnectionStatus();
     // Auto-reconnect after 5 s
     setTimeout(() => {
-      if (document.getElementById("combine-ser-table")) _cserConnectRelay(relay);
+      if (document.getElementById("combine-ser-table")) _cserConnect();
     }, 5000);
   };
 
-  ws.onerror = (err) => {
-    console.error(`[CSER] WebSocket error (${relay.name}):`, err);
+  cserWs.onerror = (err) => {
+    console.error("[CSER] WebSocket error:", err);
     _cserUpdateConnectionStatus();
   };
 }
 
-function _cserStartAutoRefresh(relay) {
-  _cserStopAutoRefresh(relay);
+function _cserStartAutoRefresh() {
+  _cserStopAutoRefresh();
   const rateEl = document.getElementById("cser-poll-rate");
   const rate = rateEl ? (parseInt(rateEl.value, 10) || 2000) : 2000;
-  cserAutoRefreshes[relay.id] = setInterval(() => {
-    const ws = cserConnections[relay.id];
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send("getData");
+  cserAutoRefresh = setInterval(() => {
+    if (cserWs && cserWs.readyState === WebSocket.OPEN) cserWs.send("getData");
   }, rate);
 }
 
-function _cserStopAutoRefresh(relay) {
-  if (cserAutoRefreshes[relay.id]) {
-    clearInterval(cserAutoRefreshes[relay.id]);
-    delete cserAutoRefreshes[relay.id];
+function _cserStopAutoRefresh() {
+  if (cserAutoRefresh) {
+    clearInterval(cserAutoRefresh);
+    cserAutoRefresh = null;
   }
 }
 
@@ -312,29 +312,22 @@ function _cserStopAutoRefresh(relay) {
 // ============================================================
 
 function cserConnectAll() {
-  const relays = getRelays();
-  relays.forEach(r => _cserConnectRelay(r));
+  _cserConnect();
 }
 
 function cserDisconnectAll() {
-  const relays = getRelays();
-  relays.forEach(r => {
-    _cserStopAutoRefresh(r);
-    const ws = cserConnections[r.id];
-    if (ws) {
-      ws.onclose = null;
-      ws.onerror = null;
-      ws.close();
-    }
-    delete cserConnections[r.id];
-  });
+  _cserStopAutoRefresh();
+  if (cserWs) {
+    cserWs.onclose = null;
+    cserWs.onerror = null;
+    cserWs.close();
+    cserWs = null;
+  }
   _cserUpdateConnectionStatus();
 }
 
 function cserRefreshAll() {
-  Object.values(cserConnections).forEach(ws => {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send("getData");
-  });
+  if (cserWs && cserWs.readyState === WebSocket.OPEN) cserWs.send("getData");
 }
 
 function cserExportCSV() {
@@ -346,17 +339,15 @@ function cserExportCSV() {
 // ============================================================
 document.addEventListener("DOMContentLoaded", () => {
   _cserInitTable([]);
-  cserConnectAll();
+  _cserConnect();
 
   // Update poll rate on change
   const pollEl = document.getElementById("cser-poll-rate");
   if (pollEl) {
     pollEl.addEventListener("change", () => {
-      getRelays().forEach(r => {
-        if (cserConnections[r.id] && cserConnections[r.id].readyState === WebSocket.OPEN) {
-          _cserStartAutoRefresh(r);
-        }
-      });
+      if (cserWs && cserWs.readyState === WebSocket.OPEN) {
+        _cserStartAutoRefresh();
+      }
     });
   }
 });

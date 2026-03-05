@@ -22,7 +22,7 @@ const RELAYS = [
     bay: "Bay 1",
     pse: "Transformer T1",
     breaker: "CB-101",
-    status: "online",
+    status: "offline",
     wsPort: 8765
   },
   {
@@ -33,8 +33,19 @@ const RELAYS = [
     bay: "Bay 2",
     pse: "Feeder F3",
     breaker: "CB-102",
-    status: "online",
-    wsPort: 8766
+    status: "offline",
+    wsPort: 8765
+  },
+  {
+    id: "3",
+    name: "SEL-451",
+    ip: "192.168.0.3",
+    substation: "Substation Alpha",
+    bay: "Bay 3",
+    pse: "Feeder F5",
+    breaker: "CB-103",
+    status: "offline",
+    wsPort: 8765
   }
 ];
 

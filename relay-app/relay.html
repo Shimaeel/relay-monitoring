@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Relay Details — Relay Monitor</title>
+  <title>SEL-751 · Substation Alpha · Bay 1</title>
 
   <!-- Tabulator -->
   <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_modern.min.css" />
@@ -33,49 +33,50 @@
         <div class="detail-header__top">
           <div class="detail-header__left">
             <div class="relay-image-container">
-              <img src="images/SEL-relay.svg" alt="SEL Relay Device" class="relay-image" />
+              <img src="images/SEL-735.svg" alt="SEL Relay Device" class="relay-image" />
             </div>
             <div>
-              <h1 id="relay-name">—</h1>
-              <p id="relay-subtitle">Loading relay information…</p>
+              <h1 id="relay-name">SEL-751</h1>
+              <p id="relay-subtitle">Substation Alpha · Bay 1</p>
             </div>
           </div>
+
+          <!-- User Configuration Fields -->
+          <div class="detail-header__config">
+            <div class="header-field">
+              <label class="header-field__label">Substation</label>
+              <input id="cfg-substation" class="header-field__input" type="text" value="Substation Alpha" placeholder="—" />
+            </div>
+            <div class="header-field">
+              <label class="header-field__label">Bay</label>
+              <input id="cfg-bay" class="header-field__input" type="text" value="Bay 1" placeholder="—" />
+            </div>
+            <div class="header-field">
+              <label class="header-field__label">Power System Equipment</label>
+              <input id="cfg-pse" class="header-field__input" type="text" value="Transformer T1" placeholder="—" />
+            </div>
+            <div class="header-field">
+              <label class="header-field__label">Breaker</label>
+              <input id="cfg-breaker" class="header-field__input" type="text" value="CB-101" placeholder="—" />
+            </div>
+            <div class="header-field">
+              <label class="header-field__label">IP Address</label>
+              <input id="cfg-ip" class="header-field__input header-field__input--mono" type="text" value="192.168.0.2" placeholder="0.0.0.0" />
+            </div>
+            <div class="header-field">
+              <label class="header-field__label">Password</label>
+              <select id="cfg-pass-type" class="header-field__input header-field__input--select">
+                <option value="acc">acc: default</option>
+                <option value="2ac">2ac: default</option>
+              </select>
+            </div>
+          </div>
+
           <div class="detail-header__right">
             <span id="relay-status-badge"></span>
             <button id="sync-time-btn" class="btn btn--outline btn--sm">
               ⏱ Sync Time
             </button>
-          </div>
-        </div>
-
-        <!-- User Configuration Fields -->
-        <div class="detail-header__config">
-          <div class="header-field">
-            <label class="header-field__label">Substation</label>
-            <input id="cfg-substation" class="header-field__input" type="text" placeholder="—" />
-          </div>
-          <div class="header-field">
-            <label class="header-field__label">Bay</label>
-            <input id="cfg-bay" class="header-field__input" type="text" placeholder="—" />
-          </div>
-          <div class="header-field">
-            <label class="header-field__label">Power System Equipment</label>
-            <input id="cfg-pse" class="header-field__input" type="text" placeholder="—" />
-          </div>
-          <div class="header-field">
-            <label class="header-field__label">Breaker</label>
-            <input id="cfg-breaker" class="header-field__input" type="text" placeholder="—" />
-          </div>
-          <div class="header-field">
-            <label class="header-field__label">IP Address</label>
-            <input id="cfg-ip" class="header-field__input header-field__input--mono" type="text" placeholder="0.0.0.0" />
-          </div>
-          <div class="header-field">
-            <label class="header-field__label">Password</label>
-            <select id="cfg-pass-type" class="header-field__input header-field__input--select">
-              <option value="acc">acc: default</option>
-              <option value="2ac">2ac: default</option>
-            </select>
           </div>
         </div>
       </div>

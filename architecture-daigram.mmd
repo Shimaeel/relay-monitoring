@@ -1,156 +1,187 @@
 flowchart TB
-  %% ===== C++ PROCESS ARCHITECTURE =====
-  %% Relay Device -> TelnetClient Thread -> SPSC Ring Buffer -> FSM/Processing Thread -> SQLite -> WebSocket Server
-  
-  subgraph CPPProcess["C++ Process - Sequential Pipeline"]
+  %% ═══════════════════════════════════════════════════════════════════════
+  %%  Telnet-SML  —  Complete Architecture with Control Flow & Classes
+  %%  Copyright (C) 2026 Eureka Power Solutions (www.PowerEureka.com)
+  %%  Updated: 2026-03-04
+  %% ═══════════════════════════════════════════════════════════════════════
+  %%  DIAGRAM 1 — System-Level Architecture (Threads + Data Pipelines)
+  %% ═══════════════════════════════════════════════════════════════════════
+  %% ── External ──────────────────────────────────────────────────────────
+  subgraph External["External — Substation"]
+    relay["Relay Device\n(Telnet Server)\nTCP Port 23"]
+  end
+
+  %% ── C++ Process ───────────────────────────────────────────────────────
+  subgraph CPP["C++ Process  (telnet_sml_app)"]
     direction TB
-    relay["🔌 Relay Device\n(Telnet Server)\nPort 23"]
-    telnetThread["TelnetClient Thread\n(ReceptionWorker)"]
-    spscRing["C++ SPSC Ring Buffer\n(RawDataRingBuffer)"]
-    fsmThread["FSM / Processing Thread\n(ProcessingWorker)"]
-    sqlite["SQLite\n(Persistent Storage)"]
-    wsServer["WebSocket Server\n(After DB Write)"]
-    
-    relay -->|"TCP"| telnetThread
-    telnetThread -->|"push"| spscRing
-    spscRing -->|"waitPop"| fsmThread
-    fsmThread -->|"insertRecords"| sqlite
-    sqlite -->|"on success"| wsServer
+
+    %% ── Application Controller ──────────────────────────────────────────
+    subgraph AppCtrl["Application Controller"]
+      main["main.cpp\nentry point"]
+      app["TelnetSmlApp\n(Facade / PIMPL)"]
+      impl["TelnetSmlApp::Impl\n(Orchestrator)\nOwns every component"]
+      main -->|"creates"| app
+      app  -->|"owns via unique_ptr"| impl
+    end
+
+    %% ── Thread 1: Reception ─────────────────────────────────────────────
+    subgraph T1["Thread 1 — ReceptionWorker"]
+      direction TB
+      recvWorker["ReceptionWorker\nqueueCommand(cmd)\nensureConnected()\nexecuteCommand(cmd)"]
+      client["TelnetClient\nconnectCheck(host,port,timeout)\nLoginLevel1Function(user,pass)\nSendCmdReceiveData(cmd,buf)\nisConnected()"]
+      recvWorker -->|"uses"| client
+    end
+
+    %% ── MPMC Ring Buffer (decouples T1 from T2) ────────────────────────
+    rawRing[/"RawDataRingBuffer\n(MPMC, 100 slots)\npush(RawDataMessage)\nwaitPop(readerId, stop)\nregisterReader() / unregisterReader()"/]
+
+    %% ── Thread 2: Processing ────────────────────────────────────────────
+    subgraph T2["Thread 2 — ProcessingWorker"]
+      direction TB
+      procWorker["ProcessingWorker\nrunLoop()"]
+      parser["parseSERResponse(text)\nreturns vector of SERRecord"]
+      codec["asn_tlv namespace\nencodeSerRecordsToTlv(records)\ndecodeSerRecordsFromTlv(data,size)"]
+      procWorker -->|"1 parse"| parser
+      procWorker -->|"4 encode for SHM"| codec
+    end
+
+    %% ── Data Layer ──────────────────────────────────────────────────────
+    subgraph DataLayer["Data Layer"]
+      db[("SERDatabase\n(SQLite ser_records.db)\nopen() / close()\ninsertRecords()\ninsertAndGetNewRecords()\ngetAllRecords()\ngetRecordsByStatus()\ngetRecordCount()\nexportToJSON()")]
+    end
+
+    %% ── Shared Memory Pipeline ──────────────────────────────────────────
+    shmRing[/"SharedRingBuffer\n(IPC MPMC, 500 KB)\nwrite(data, len)\nwaitRead(readerId, out, stop)\nregisterReader() / unregisterReader()"/]
+
+    %% ── Thread 5: JSON Writer ───────────────────────────────────────────
+    subgraph T5["Thread 5 — SharedSerReader"]
+      shmReader["SharedSerReader\nrunLoop()\nASN.1 TLV decode\nrecordsToJsonTable()\nwriteJsonToFile()"]
+      dataJson["ui/data.json\n(file output for Tabulator)"]
+      shmReader -->|"writes"| dataJson
+    end
+
+    %% ── Thread 3: SER WebSocket ─────────────────────────────────────────
+    subgraph T3["Thread 3 — SERWebSocketServer  (port 8765)"]
+      direction TB
+      wsServer["SERWebSocketServer\nstart() / stop()\nbroadcastAll()\nbroadcastText(text)\nsetCommandHandler(cb)\nsetActionHandler(cb)"]
+      sessMgr["SessionManager\nadd(session) / remove(session)\nforEach(fn)"]
+      wsSess["WebSocketSession\nsendData() / sendText()\nonRead() handles:\n  refresh → getAllRecords\n  command → queueCommand\n  action JSON → handler"]
+      wsServer -->|"owns"| sessMgr
+      sessMgr -->|"manages N"| wsSess
+    end
+
+    %% ── Thread 3b: DB API WebSocket ─────────────────────────────────────
+    subgraph T3b["Thread 3b — WSDBServer  (port 8766)"]
+      direction TB
+      dbApiSrv["WSDBServer\nstart() / stop()"]
+      dbApiSess["WSDBSession\nonRead() dispatches JSON"]
+      dbOps["wsdb_ops namespace\ndbGetAll(id, db, mtx, table)\ndbGetIncremental(id, db, mtx, table, sinceRowId)\ndbQuery(id, db, mtx, sql, params)\ndbExec(id, db, mtx, sql, params)\ndbTables(id, db, mtx)\ndbSchema(id, db, mtx, table)\ndbDefine(id, db, mtx, table, columns)"]
+      dbApiSrv -->|"creates per client"| dbApiSess
+      dbApiSess -->|"calls"| dbOps
+    end
+
+    %% ── Thread 4: Poller ────────────────────────────────────────────────
+    subgraph T4["Thread 4 — ThreadManager  (120 s interval)"]
+      threadMgr["ThreadManager\nstartAll() / stopAll()\nsetPollingCallback(fn)"]
+    end
+
+    %% ── Service Managers (invoked via WS action JSON) ───────────────────
+    subgraph Services["Service Managers"]
+      relayService["RelayService\n(mutex-protected)\nreadRelayTime() -> DateResult\nwriteRelayTime(datetime)"]
+      timeSyncMgr["TimeSyncManager\nhandleAction(action) -> JSON\ngetLocalPCTime()\ncompareTime()"]
+      passwordMgr["PasswordManager\nhandleAction(jsonMsg) -> JSON\nvalidatePassword()\nchangePassword()"]
+      timeSyncMgr -->|"calls"| relayService
+      passwordMgr -->|"calls"| relayService
+      relayService -->|"uses"| client
+    end
+
+    %% ── Config Structs ──────────────────────────────────────────────────
+    subgraph Config["Configuration Structs"]
+      connCfg["ConnectionConfig\nhost: string\nport: int\ntimeout: ms"]
+      loginCfg["LoginConfig\nl1_user: string\nl1_pass: string"]
+      retryCfg["RetryState\nmax_retries: int\ncurrent_attempt: int\nretry_delay: seconds"]
+    end
   end
 
-  subgraph External["External Systems"]
-    relay2["🔌 Substation Relay\n(Telnet Server)\nPort 23"]
-  end
-
-  subgraph Reception["Reception Layer (TelnetClient Thread)"]
+  %% ── Browser ───────────────────────────────────────────────────────────
+  subgraph Browser["Browser"]
     direction TB
-    client["TelnetClient\n(TCP/Telnet I/O)"]
-    recvWorker["ReceptionWorker\n(Non-blocking)"]
-    rawRing["RawDataRingBuffer\n(SPSC Queue)\n📦 command + response"]
-    
-    recvWorker -->|uses| client
-    client -->|"push\n(immediate)"| rawRing
-  end
-
-  subgraph Processing["Processing Layer (Thread 2)"]
-    direction TB
-    procWorker["ProcessingWorker\n(Validation + Storage)"]
-    parser["parseSERResponse()\n(Text → Records)"]
-    codec["ASN.1 BER/TLV\nCodec"]
-    
-    procWorker -->|calls| parser
-    procWorker -->|encodes| codec
-  end
-
-  subgraph Data["Data Layer"]
-    db["💾 SERDatabase\n(SQLite)\nser_records.db"]
-    shmRing["SharedRingBuffer\n(Lock-free)\n500KB"]
-    json["📄 data.json\n(UI Export)"]
-    shmReader["SharedSerReader\n(Thread 5)"]
-    
-    shmRing -->|waitRead| shmReader
-    shmReader -->|writes| json
-  end
-
-  subgraph Server["WebSocket Server (Thread 3)"]
-    direction TB
-    ws["🌐 SERWebSocketServer\nPort 8765"]
-    sessMgr["SessionManager\n(Client Registry)"]
-    sessions["WebSocketSession[]\n(Per-client)"]
-    http["serve.ps1\n(HTTP Server)\nPort 8080"]
-    
-    ws -->|owns| sessMgr
-    sessMgr -->|manages| sessions
-  end
-
-  subgraph Browser["Browser - Sequential Pipeline"]
-    direction TB
-    wsClient["WebSocket Client\n(ws://localhost:8765)"]
-    jsWorker["JS Worker\n(Optional)\nshm_worker.js"]
+    wsClient["WebSocket Client\nws://localhost:8765"]
+    wsDbClient["DB WS Client\nws://localhost:8766\n(db_client.js)"]
+    jsWorker["JS Worker\n(shm_worker.js)"]
     mainJS["Main JS Thread\n(DOM Access)"]
-    tabulator["Tabulator / JSON Export\n(index.html)"]
-    
+    tabulator["Tabulator / JSON\n(relay.html / index.html)"]
+    uiPages["ui.html / status.html\nTimeSyncManager UI\nPasswordManager UI"]
+
     wsClient -->|"onmessage"| jsWorker
     jsWorker -->|"postMessage"| mainJS
     mainJS -->|"render"| tabulator
+    wsDbClient -->|"JSON responses"| mainJS
   end
 
-  subgraph Polling["Polling Layer (Thread 4)"]
-    threadMgr["ThreadManager\n(2 min interval)"]
-  end
+  httpSrv["serve.ps1\n(HTTP static server)\nPort 8080"]
 
-  subgraph App["Application Controller"]
-    main["main.cpp\n(Entry Point)"]
-    app["TelnetSmlApp\n(Orchestrator)"]
-    
-    main -->|creates| app
-  end
+  %% ═══════════════════════════════════════════════════════════════════════
+  %%  DATA FLOW EDGES  (numbered to show pipeline order)
+  %% ═══════════════════════════════════════════════════════════════════════
 
-  %% ===== DATA FLOW (Reception Path) =====
-  relay -->|"TCP Response\n(SER records)"| client
-  client -->|"Telnet TCP:23\n(SER command)"| relay
+  %% Reception path
+  client <-->|"Telnet TCP:23\ncmds + responses"| relay
+  recvWorker -->|"push(cmd, response)"| rawRing
 
-  %% ===== DATA FLOW (Processing Path) =====
-  rawRing -->|"waitPop\n(blocking)"| procWorker
-  
-  %% Processing outputs (SEQUENTIAL: DB first, then WebSocket)
-  procWorker -->|"1️⃣ insertRecords()"| db
-  db -->|"on success"| ws
-  ws -.->|"2️⃣ broadcast()"| wsClient
-  procWorker -->|"3️⃣ write()"| shmRing
+  %% Processing pipeline (strictly sequential)
+  rawRing -->|"waitPop (blocking)"| procWorker
+  procWorker -->|"2 insertAndGetNewRecords()"| db
+  procWorker -->|"3 broadcastAll()\n(only after DB success)"| wsServer
+  procWorker -->|"4 write(TLV payload)"| shmRing
 
-  %% WebSocket push to browser
-  ws -->|"🚀 PUSH\nASN.1 BER/TLV"| wsClient
-  sessions -->|"on request"| db
+  %% SHM → JSON writer
+  shmRing -->|"waitRead (blocking)"| shmReader
 
-  %% HTTP server
-  http -->|"COOP/COEP\nheaders"| tabulator
+  %% Poller → Reception
+  threadMgr -->|"queueCommand SER\nevery 120 s"| recvWorker
 
-  %% Polling triggers
-  threadMgr -->|"queueCommand('SER')"| recvWorker
-  app -->|starts| threadMgr
-  app -->|starts| recvWorker
-  app -->|starts| procWorker
-  app -->|starts| ws
+  %% WebSocket ↔ Browser
+  wsServer <-->|"ASN.1 BER/TLV\n+ JSON actions"| wsClient
+  dbApiSrv <-->|"JSON CRUD"| wsDbClient
+  dbOps -->|"SQL via sqlite3*"| db
 
-  %% ===== FSM States (Legacy/Reference) =====
-  subgraph FSM["State Machine Flow (Legacy Mode)"]
-    direction LR
-    idle["Idle"] -->|start| connecting["Connecting"]
-    connecting -->|ok| login["Login_L1"]
-    connecting -->|fail| error["Error"]
-    login -->|success| operational["Operational"]
-    login -->|retry| waiting["WaitingRetry"]
-    waiting -->|delay| connecting
-    operational -->|poll| polling["Polling"]
-    polling -->|done| done["Done"]
-    polling -->|fail| error
-  end
+  %% WS action routing (browser → managers)
+  wsServer -->|"action: read_time / sync_time"| timeSyncMgr
+  wsServer -->|"action: change_password"| passwordMgr
+  wsServer -->|"UI commands\n(FIL DIR etc.)"| recvWorker
 
-  %% ===== THREAD LEGEND =====
-  subgraph Legend["Thread Architecture"]
-    direction LR
-    t1["🧵 Thread 1\nReception\n(Non-blocking I/O)"]
-    t2["🧵 Thread 2\nProcessing\n(Parse + Store)"]
-    t3["🧵 Thread 3\nWebSocket\n(Push Server)"]
-    t4["🧵 Thread 4\nPoller\n(2 min interval)"]
-    t5["🧵 Thread 5\nSHM Reader\n(JSON Writer)"]
-    t6["🧵 Thread 6\nDB Writer\n(Async)"]
-  end
+  %% Browser → UI pages send action JSON
+  uiPages -->|"action JSON"| wsClient
 
-  %% Styling
-  classDef external fill:#ffebee,stroke:#c62828
-  classDef reception fill:#e3f2fd,stroke:#1565c0
-  classDef processing fill:#e8f5e9,stroke:#2e7d32
-  classDef data fill:#fff3e0,stroke:#ef6c00
-  classDef server fill:#f3e5f5,stroke:#7b1fa2
-  classDef browser fill:#e0f7fa,stroke:#00838f
-  classDef app fill:#fce4ec,stroke:#ad1457
+  %% HTTP static files
+  httpSrv -->|"static files\n(HTML/JS/CSS)"| Browser
 
-  class relay external
-  class client,recvWorker,rawRing reception
-  class procWorker,parser,codec processing
-  class db,shmRing,json,shmReader data
-  class ws,sessMgr,sessions,http server
-  class wsClient,jsWorker,mainJS,tabulator browser
-  class main,app,threadMgr app
+  %% Impl ownership (dashed for clarity)
+  impl -.->|"owns"| recvWorker
+  impl -.->|"owns"| procWorker
+  impl -.->|"owns"| wsServer
+  impl -.->|"owns"| dbApiSrv
+  impl -.->|"owns"| threadMgr
+  impl -.->|"owns"| shmReader
+  impl -.->|"owns"| db
+  impl -.->|"owns"| rawRing
+  impl -.->|"owns"| shmRing
+  impl -.->|"owns"| relayService
+  impl -.->|"owns"| timeSyncMgr
+  impl -.->|"owns"| passwordMgr
+
+  %% ── Styling ───────────────────────────────────────────────────────────
+  classDef thread   fill:#e6f3ff,stroke:#2196F3,stroke-width:2px
+  classDef data     fill:#fff3e0,stroke:#FF9800,stroke-width:2px
+  classDef external fill:#fce4ec,stroke:#e91e63,stroke-width:2px
+  classDef browser  fill:#e8f5e9,stroke:#4CAF50,stroke-width:2px
+  classDef config   fill:#f3e5f5,stroke:#9C27B0,stroke-width:1px
+  classDef buffer   fill:#fffde7,stroke:#FBC02D,stroke-width:2px
+
+  class T1,T2,T3,T3b,T4,T5 thread
+  class db,dataJson data
+  class rawRing,shmRing buffer
+  class relay,External external
+  class Browser,wsClient,wsDbClient,jsWorker,mainJS,tabulator,uiPages browser
+  class connCfg,loginCfg,retryCfg config

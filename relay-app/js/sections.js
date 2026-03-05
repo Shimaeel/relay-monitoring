@@ -83,6 +83,8 @@ function readTlv(buffer, offset) {
  *     0x81 timestamp  (string)
  *     0x82 status     (string)
  *     0x83 description(string)
+ *     0x84 relay_id   (string)
+ *     0x85 relay_name (string)
  */
 function decodeSerRecordsFromTlv(arrayBuffer) {
   const buffer = new Uint8Array(arrayBuffer);
@@ -114,6 +116,8 @@ function decodeSerRecordsFromTlv(arrayBuffer) {
       if (fTlv.tag === 0x81) fields.timestamp   = val;
       if (fTlv.tag === 0x82) fields.status      = val;
       if (fTlv.tag === 0x83) fields.description = val;
+      if (fTlv.tag === 0x84) fields.relayId     = val;
+      if (fTlv.tag === 0x85) fields.relayName   = val;
       rOff = fTlv.nextOffset;
     }
 
@@ -125,11 +129,13 @@ function decodeSerRecordsFromTlv(arrayBuffer) {
 
     const snoVal = Number.parseInt(fields.recordId, 10);
     records.push({
-      sno:     Number.isNaN(snoVal) ? (fields.recordId || "-") : snoVal,
-      date:    date,
-      time:    time,
-      element: fields.description || "-",
-      state:   fields.status || ""
+      sno:       Number.isNaN(snoVal) ? (fields.recordId || "-") : snoVal,
+      date:      date,
+      time:      time,
+      element:   fields.description || "-",
+      state:     fields.status || "",
+      relayId:   fields.relayId   || "",
+      relayName: fields.relayName || ""
     });
 
     offset = recordTlv.nextOffset;
@@ -362,9 +368,15 @@ function connectSerWebSocket() {
 
       // Slice exact payload region (critical for correct TLV parsing)
       const exactBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-      const records = decodeSerRecordsFromTlv(exactBuffer);
+      let records = decodeSerRecordsFromTlv(exactBuffer);
 
-      console.log("[SER] Decoded", records.length, "records");
+      // Filter to current relay (shared WS sends all relays' records)
+      const relay = getCurrentRelay();
+      if (relay) {
+        records = records.filter(r => !r.relayId || r.relayId === String(relay.id));
+      }
+
+      console.log("[SER] Decoded", records.length, "records (filtered for relay", relay ? relay.id : "all", ")");
 
       if (records.length > 0) {
         updateSerTable(records);
