@@ -620,10 +620,20 @@ private:
         }
         else if (cmdHandler_)
         {
-            // Queue command to ReceptionWorker (async — response comes via broadcastText)
-            std::cout << "[WS] Queuing command via handler: " << msg << "\n";
-            cmdHandler_(msg);
-            do_read();
+            // Forward command to relay and return response to THIS client
+            std::cout << "[WS] Forwarding command via handler: " << msg << "\n";
+            auto self = shared_from_this();
+            auto handler = cmdHandler_;
+            auto cmdMsg = msg;
+            std::thread([self, handler, cmdMsg]() {
+                std::string response = handler(cmdMsg);
+                net::post(self->ws_.get_executor(), [self, response]() {
+                    if (!response.empty())
+                        self->sendTextResponse(response);
+                    else
+                        self->do_read();
+                });
+            }).detach();
         }
         else
         {
