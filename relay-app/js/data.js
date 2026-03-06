@@ -26,17 +26,6 @@ const RELAYS = [
     wsPort: 8765
   },
   {
-    id: "2",
-    name: "SEL-421",
-    ip: "192.168.1.11",
-    substation: "Substation Alpha",
-    bay: "Bay 2",
-    pse: "Feeder F3",
-    breaker: "CB-102",
-    status: "offline",
-    wsPort: 8765
-  },
-  {
     id: "3",
     name: "SEL-451",
     ip: "192.168.0.3",

@@ -288,6 +288,14 @@ inline std::vector<SERRecord> parseSERResponse(const std::string& response)
         if (!(lineStream >> recordNum >> date >> time))
             continue;
 
+        // Validate date format: MM/DD/YY or MM/DD/YYYY (must have slashes at pos 2 and 5)
+        if (date.size() < 8 || date[2] != '/' || date[5] != '/')
+            continue;
+
+        // Validate time format: must contain at least one colon (HH:MM:SS.xxx)
+        if (time.find(':') == std::string::npos)
+            continue;
+
         // Read rest of line as element + optional state
         std::string rest;
         std::getline(lineStream, rest);
