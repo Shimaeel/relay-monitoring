@@ -384,7 +384,7 @@ function connectSerWebSocket() {
       // Filter to current relay (shared WS sends all relays' records)
       const relay = getCurrentRelay();
       if (relay) {
-        records = records.filter(r => !r.relayId || r.relayId === String(relay.id));
+        records = records.filter(r => r.relayId === String(relay.id));
       }
 
       console.log("[SER] Decoded", records.length, "records (filtered for relay", relay ? relay.id : "all", ")");
