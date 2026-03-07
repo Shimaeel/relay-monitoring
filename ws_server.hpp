@@ -630,8 +630,7 @@ private:
                 net::post(self->ws_.get_executor(), [self, response]() {
                     if (!response.empty())
                         self->sendTextResponse(response);
-                    else
-                        self->do_read();
+                    self->do_read();
                 });
             }).detach();
         }
