@@ -383,15 +383,18 @@ public:
                 return false;   // not a streaming command — fall through
 
             std::cout << "[WS→Relay] FETCH_ALL_TAR streaming for relay " << relayId << "\n";
-            static const int MAX_TAR = 500;
             int count = 0;
 
-            for (int i = 0; i < MAX_TAR && !abort.load(); ++i)
+            for (int i = 0; !abort.load(); ++i)
             {
                 std::string response = relayMgr->handleUserCommand(
                     relayId, "TAR " + std::to_string(i));
                 if (response.empty())
                     break;  // no more rows — relay returned nothing
+
+                // Stop when relay reports "Invalid Target"
+                if (response.find("Invalid Target") != std::string::npos)
+                    break;
 
                 // Stream: "TAR_STREAM:<index>\n<response>"
                 sendFn("TAR_STREAM:" + std::to_string(i) + "\n" + response);
