@@ -835,8 +835,8 @@ async function fetchAllTAR() {
 
       _rwSetProgress(i, RW_TOTAL);
 
-      // Send command & wait for response (prefix with relay ID for routing)
-      const cmd      = _prefixCmd("TAR " + i);
+      // Send command & wait for response (sendCommand prefixes with relay ID)
+      const cmd      = "TAR " + i;
       const response = await sendCommand(cmd);
 
       // Parse
