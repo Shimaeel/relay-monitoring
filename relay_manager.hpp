@@ -236,6 +236,25 @@ public:
     }
 
     /**
+     * @brief Execute a user-initiated command via Command FSM and return the response.
+     *
+     * @param relayId Relay identifier
+     * @param cmd     Telnet command (e.g. "SER", "TAR 0", "EVE", "SET ...",
+     *                "CTRL+C", "CTRL+D")
+     * @return Raw relay response text, or empty string if relay not active or command failed
+     */
+    std::string handleUserCommand(const std::string& relayId, const std::string& cmd)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        auto it = active_.find(relayId);
+        if (it == active_.end())
+            return "";
+
+        return it->second->handleUserCommand(cmd);
+    }
+
+    /**
      * @brief Get the list of all known relay configurations.
      *
      * @return const reference to the relay config vector

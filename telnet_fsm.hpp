@@ -157,6 +157,58 @@ struct unhandled_event {};
  */
 struct disconnect_event {};
 
+// ================= COMMAND FSM EVENTS =================
+
+/**
+ * @brief Event: User requested SER data fetch.
+ * @details Fired when user clicks SER/Refresh button in the browser.
+ */
+struct cmd_ser_event {};
+
+/**
+ * @brief Event: User requested TAR (Target) command.
+ * @details Fired when user clicks TAR button. Carries argument string.
+ */
+struct cmd_tar_event { std::string args; };
+
+/**
+ * @brief Event: User requested EVE (Event) command.
+ * @details Fired when user clicks EVE button in the browser.
+ */
+struct cmd_eve_event {};
+
+/**
+ * @brief Event: User requested Ctrl+C (break/interrupt).
+ * @details Sends ASCII 0x03 to the relay device.
+ */
+struct cmd_ctrlc_event {};
+
+/**
+ * @brief Event: User requested Ctrl+D (end-of-transmission).
+ * @details Sends ASCII 0x04 to the relay device.
+ */
+struct cmd_ctrld_event {};
+
+/**
+ * @brief Event: User requested a SET (Settings) command.
+ * @details Fired when user submits a setting change. Carries argument string.
+ */
+struct cmd_set_event { std::string args; };
+
+// ================= COMMAND RESPONSE HOLDER =================
+
+/**
+ * @brief Shared holder for the last command FSM response.
+ *
+ * @details Written by RelayCommandFSM actions, read by the calling
+ * PipelineReceptionWorker method (handleUserCommand / executeCommand).
+ */
+struct CmdResponseHolder
+{
+    std::string response;   ///< Raw relay response text
+    bool success = false;   ///< true if command succeeded
+};
+
 // ================= CONFIG =================
 
 /**
@@ -425,6 +477,114 @@ struct LoginRetryIncrAction
         retry.increment();
         std::cout << "[FSM] Login retry " << retry.current_attempt
                   << "/" << retry.max_retries << "\n";
+    }
+};
+
+// ================= COMMAND FSM ACTIONS =================
+
+/**
+ * @brief Command Action: Send SER command to relay.
+ * @details Stores response in CmdResponseHolder for caller to read.
+ */
+struct CmdSerAction
+{
+    void operator()(const cmd_ser_event&, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string response;
+        bool ok = client.SendCmdReceiveData("SER", response);
+        resp.success = ok && !response.empty();
+        resp.response = std::move(response);
+        std::cout << "[CmdFSM] SER " << (resp.success ? "OK" : "FAIL") << "\n";
+    }
+};
+
+/**
+ * @brief Command Action: Send TAR command to relay.
+ * @details Sends "TAR <args>" and stores response.
+ */
+struct CmdTarAction
+{
+    void operator()(const cmd_tar_event& e, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string cmd = "TAR";
+        if (!e.args.empty()) cmd += " " + e.args;
+        std::string response;
+        bool ok = client.SendCmdReceiveData(cmd, response);
+        resp.success = ok && !response.empty();
+        resp.response = std::move(response);
+        std::cout << "[CmdFSM] TAR " << (resp.success ? "OK" : "FAIL") << "\n";
+    }
+};
+
+/**
+ * @brief Command Action: Send EVE command to relay.
+ * @details Sends "EVE" and stores response.
+ */
+struct CmdEveAction
+{
+    void operator()(const cmd_eve_event&, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string response;
+        bool ok = client.SendCmdReceiveData("EVE", response);
+        resp.success = ok && !response.empty();
+        resp.response = std::move(response);
+        std::cout << "[CmdFSM] EVE " << (resp.success ? "OK" : "FAIL") << "\n";
+    }
+};
+
+/**
+ * @brief Command Action: Send Ctrl+C (0x03) to relay.
+ * @details Used to interrupt a running command on the relay device.
+ */
+struct CmdCtrlCAction
+{
+    void operator()(const cmd_ctrlc_event&, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string response;
+        bool ok = client.SendCmdReceiveData(std::string(1, '\x03'), response);
+        resp.success = ok;
+        resp.response = std::move(response);
+        std::cout << "[CmdFSM] CTRL+C " << (resp.success ? "OK" : "FAIL") << "\n";
+    }
+};
+
+/**
+ * @brief Command Action: Send Ctrl+D (0x04) to relay.
+ * @details Used to signal end-of-transmission / logout on the relay device.
+ */
+struct CmdCtrlDAction
+{
+    void operator()(const cmd_ctrld_event&, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string response;
+        bool ok = client.SendCmdReceiveData(std::string(1, '\x04'), response);
+        resp.success = ok;
+        resp.response = std::move(response);
+        std::cout << "[CmdFSM] CTRL+D " << (resp.success ? "OK" : "FAIL") << "\n";
+    }
+};
+
+/**
+ * @brief Command Action: Send SET (Settings) command to relay.
+ * @details Sends "SET <args>" and stores response.
+ */
+struct CmdSetAction
+{
+    void operator()(const cmd_set_event& e, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string cmd = "SET";
+        if (!e.args.empty()) cmd += " " + e.args;
+        std::string response;
+        bool ok = client.SendCmdReceiveData(cmd, response);
+        resp.success = ok && !response.empty();
+        resp.response = std::move(response);
+        std::cout << "[CmdFSM] SET " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
 
@@ -896,6 +1056,72 @@ struct RelayConnectionFSM
             // Safety
             state<_> + event<unhandled_event> / on_unhandled = "Error"_s,
             state<_> + unexpected_event<_> / on_unexpected = "Error"_s
+        );
+    }
+};
+
+// ================= RELAY COMMAND FSM =================
+
+/**
+ * @brief Boost.SML State Machine for user-initiated relay commands.
+ *
+ * @details Separate from RelayConnectionFSM.  This FSM handles commands
+ * (SER, TAR, EVE, CTRL+C, CTRL+D, SET) that are triggered by user
+ * button clicks in the browser UI.  Each command event fires an action
+ * that sends the command via TelnetClient and stores the result in
+ * CmdResponseHolder.
+ *
+ * The FSM sits in Idle and returns to Idle after every command.
+ * Connection readiness is checked by the worker BEFORE firing the event.
+ *
+ * ## State Diagram
+ *
+ * @code
+ *                   cmd_ser_event / CmdSerAction
+ *                   cmd_tar_event / CmdTarAction
+ *                   cmd_eve_event / CmdEveAction
+ *                   cmd_ctrlc_event / CmdCtrlCAction
+ *   ┌──────────┐    cmd_ctrld_event / CmdCtrlDAction   ┌──────────┐
+ *   │          │    cmd_set_event / CmdSetAction        │          │
+ *   │  *Idle   ├───────────────────────────────────────►│   Idle   │
+ *   │          │                                        │          │
+ *   └──────────┘                                        └──────────┘
+ * @endcode
+ *
+ * ## Dependencies (injected via sml::sm constructor)
+ * - TelnetClient&       — sends commands to the relay
+ * - CmdResponseHolder&  — stores the result for the caller
+ *
+ * @see RelayConnectionFSM   Manages connection lifecycle (FSM #1)
+ * @see PipelineReceptionWorker  Orchestrates both FSMs
+ */
+struct RelayCommandFSM
+{
+    auto operator()() const
+    {
+        using namespace sml;
+
+        return make_transition_table(
+            // SER command
+            *"Idle"_s + event<cmd_ser_event>   / CmdSerAction{}   = "Idle"_s,
+
+            // TAR command
+            "Idle"_s + event<cmd_tar_event>   / CmdTarAction{}   = "Idle"_s,
+
+            // EVE command
+            "Idle"_s + event<cmd_eve_event>   / CmdEveAction{}   = "Idle"_s,
+
+            // Ctrl+C (break)
+            "Idle"_s + event<cmd_ctrlc_event> / CmdCtrlCAction{} = "Idle"_s,
+
+            // Ctrl+D (end-of-transmission)
+            "Idle"_s + event<cmd_ctrld_event> / CmdCtrlDAction{} = "Idle"_s,
+
+            // SET (settings) command
+            "Idle"_s + event<cmd_set_event>   / CmdSetAction{}   = "Idle"_s,
+
+            // Safety — unknown events return to Idle
+            state<_> + unexpected_event<_> / on_unexpected = "Idle"_s
         );
     }
 };

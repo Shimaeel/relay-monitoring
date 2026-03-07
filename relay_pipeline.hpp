@@ -88,6 +88,7 @@ class PipelineReceptionWorker
     std::atomic<bool> stop_flag_{false};
     std::thread worker_thread_;
     std::mutex queue_mutex_;
+    std::mutex sync_cmd_mutex_;          ///< Guards synchronous command execution
     std::condition_variable queue_cv_;
     std::deque<std::string> command_queue_;
 
@@ -97,6 +98,10 @@ class PipelineReceptionWorker
     LoginConfig creds_;
     RetryState retry_;                                ///< Login retry state (3 max)
     sml::sm<RelayConnectionFSM> fsm_;                 ///< Connection lifecycle FSM
+
+    // ── Command FSM (FSM #2 — user-initiated commands) ──
+    CmdResponseHolder cmdResponse_;                   ///< Shared response holder
+    sml::sm<RelayCommandFSM> cmdFsm_;                 ///< Command execution FSM
 
     RawDataRingBuffer& rawBuffer_;
     std::atomic<bool>& app_running_;
@@ -148,14 +153,60 @@ class PipelineReceptionWorker
         return false;
     }
 
+    // ─── Command FSM Event Dispatch ──────────────────────────────────────────
+
+    /**
+     * @brief Parse a command string and fire the corresponding Command FSM event.
+     *
+     * @details Maps string commands to typed FSM events:
+     * - "SER"     → cmd_ser_event
+     * - "TAR ..." → cmd_tar_event{args}
+     * - "EVE"     → cmd_eve_event
+     * - "CTRL+C"  → cmd_ctrlc_event
+     * - "CTRL+D"  → cmd_ctrld_event
+     * - "SET ..." → cmd_set_event{args}
+     *
+     * @param cmd  Command string from queue or user request
+     */
+    void fireCommandEvent(const std::string& cmd)
+    {
+        cmdResponse_.success = false;
+        cmdResponse_.response.clear();
+
+        if (cmd == "SER")
+            cmdFsm_.process_event(cmd_ser_event{});
+        else if (cmd.size() >= 3 && cmd.substr(0, 3) == "TAR")
+            cmdFsm_.process_event(cmd_tar_event{cmd.size() > 4 ? cmd.substr(4) : ""});
+        else if (cmd == "EVE")
+            cmdFsm_.process_event(cmd_eve_event{});
+        else if (cmd == "CTRL+C")
+            cmdFsm_.process_event(cmd_ctrlc_event{});
+        else if (cmd == "CTRL+D")
+            cmdFsm_.process_event(cmd_ctrld_event{});
+        else if (cmd.size() >= 3 && cmd.substr(0, 3) == "SET")
+            cmdFsm_.process_event(cmd_set_event{cmd.size() > 4 ? cmd.substr(4) : ""});
+        else
+        {
+            // Generic / unknown command — send directly via SER-style action
+            client_.clearLastResponse();
+            std::string response;
+            bool ok = client_.SendCmdReceiveData(cmd, response);
+            cmdResponse_.success = ok && !response.empty();
+            cmdResponse_.response = std::move(response);
+            std::cout << "[CmdFSM] Generic '" << cmd << "' "
+                      << (cmdResponse_.success ? "OK" : "FAIL") << "\n";
+        }
+    }
+
     // ─── Command Execution ──────────────────────────────────────────────────
 
     /**
-     * @brief Execute a Telnet command with FSM-driven reconnection.
+     * @brief Execute a Telnet command via Command FSM with reconnection.
      *
-     * @details Up to MAX_RETRIES attempts.  Each attempt drives the FSM
-     * to Operational, sends the command, and on failure fires
-     * disconnect_event to trigger the reconnection cycle.
+     * @details Up to MAX_RETRIES attempts.  Each attempt drives the
+     * Connection FSM to Operational, then fires the command through
+     * the Command FSM.  On failure fires disconnect_event to trigger
+     * the reconnection cycle.
      *
      * @param cmd  Telnet command string (e.g. "SER", "FIL DIR")
      */
@@ -166,7 +217,7 @@ class PipelineReceptionWorker
             if (stop_flag_.load())
                 return;
 
-            // Phase 1 — ensure FSM is in Operational state
+            // Phase 1 — ensure Connection FSM is in Operational state
             if (!driveToOperational())
             {
                 std::cout << relay_tag_ << " FSM not operational — aborting '"
@@ -174,19 +225,18 @@ class PipelineReceptionWorker
                 return;
             }
 
-            // Phase 2 — send command
-            std::string response;
-            bool ok = client_.SendCmdReceiveData(cmd, response);
+            // Phase 2 — send command through Command FSM
+            fireCommandEvent(cmd);
 
-            if (ok && !response.empty())
+            if (cmdResponse_.success)
             {
-                rawBuffer_.push({cmd, response});
-                std::cout << relay_tag_ << " Pushed " << response.size()
+                rawBuffer_.push({cmd, cmdResponse_.response});
+                std::cout << relay_tag_ << " Pushed " << cmdResponse_.response.size()
                           << " bytes for '" << cmd << "'\n";
                 return;
             }
 
-            // Phase 3 — command failed → trigger FSM reconnect cycle
+            // Phase 3 — command failed → trigger Connection FSM reconnect cycle
             std::cout << relay_tag_ << " Command '" << cmd << "' failed (attempt "
                       << attempt << "/" << MAX_RETRIES << ")\n";
             fsm_.process_event(disconnect_event{});
@@ -250,6 +300,7 @@ public:
         , creds_(creds)
         , retry_{3, 0, std::chrono::seconds(5)}
         , fsm_{client_, conn_, creds_, retry_}
+        , cmdFsm_{client_, cmdResponse_}
         , rawBuffer_(rawBuffer)
         , app_running_(app_running)
         , relay_tag_("[Rx:" + relayName + "]")
@@ -278,6 +329,48 @@ public:
             command_queue_.push_back(cmd);
         }
         queue_cv_.notify_one();
+    }
+
+    /**
+     * @brief Execute a user-initiated command via Command FSM and return response.
+     *
+     * @details Grabs the command mutex so it doesn't race with the async
+     * queue loop, drives Connection FSM to Operational, fires the command
+     * through the Command FSM, and returns the raw response text.
+     *
+     * Called when user clicks a button in the browser UI.
+     *
+     * @param cmd Telnet command (e.g. "SER", "TAR 0", "EVE", "SET ...",
+     *            "CTRL+C", "CTRL+D", "FIL DIR")
+     * @return Raw relay response text, or empty string on failure
+     */
+    std::string handleUserCommand(const std::string& cmd)
+    {
+        std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
+
+        for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt)
+        {
+            if (stop_flag_.load())
+                return "";
+
+            if (!driveToOperational())
+                return "";
+
+            // Route through Command FSM
+            fireCommandEvent(cmd);
+
+            if (cmdResponse_.success)
+            {
+                std::cout << relay_tag_ << " User cmd '" << cmd
+                          << "' OK (" << cmdResponse_.response.size() << " bytes)\n";
+                return cmdResponse_.response;
+            }
+
+            std::cout << relay_tag_ << " User cmd '" << cmd << "' failed (attempt "
+                      << attempt << "/" << MAX_RETRIES << ")\n";
+            fsm_.process_event(disconnect_event{});
+        }
+        return "";
     }
 
     /**
@@ -560,6 +653,20 @@ public:
     {
         if (rxWorker_)
             rxWorker_->queueCommand(cmd);
+    }
+
+    /**
+     * @brief Execute a user-initiated command via Command FSM and return response.
+     *
+     * @param cmd Telnet command (e.g. "SER", "TAR 0", "EVE", "SET ...",
+     *            "CTRL+C", "CTRL+D")
+     * @return Raw relay response, or empty string on failure
+     */
+    std::string handleUserCommand(const std::string& cmd)
+    {
+        if (rxWorker_)
+            return rxWorker_->handleUserCommand(cmd);
+        return "";
     }
 
     /// @return true if pipeline is currently running

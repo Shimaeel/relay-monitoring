@@ -333,27 +333,28 @@ public:
                   << " relay configurations\n";
 
         // 4. Set up WS command handler — routes commands to the correct relay pipeline
-        //    Browser sends: "relay_id:command" (e.g. "1:SER", "2:FIL DIR")
-        //    Fallback: if no colon, try to route to ALL active relays
+        //    Browser sends: "relay_id:command" (e.g. "1:SER", "2:TAR 0", "2:EVE")
+        //    Fallback: if no colon, try to route to first active relay
         wsServer.setCommandHandler([this](const std::string& cmd) -> std::string {
             auto colon = cmd.find(':');
             if (colon != std::string::npos)
             {
                 std::string relayId = cmd.substr(0, colon);
                 std::string realCmd = cmd.substr(colon + 1);
-                std::cout << "[WS→Relay] Routing '" << realCmd << "' to relay " << relayId << "\n";
-                relayMgr->queueCommand(relayId, realCmd);
+                std::cout << "[WS→Relay] Routing '" << realCmd << "' to relay " << relayId << " via Command FSM\n";
+                return relayMgr->handleUserCommand(relayId, realCmd);
             }
             else
             {
-                // No relay prefix — send to all active relays
-                for (const auto& id : relayMgr->getActiveRelayIds())
+                // No relay prefix — try first active relay
+                auto ids = relayMgr->getActiveRelayIds();
+                if (!ids.empty())
                 {
-                    std::cout << "[WS→Relay] Broadcasting '" << cmd << "' to relay " << id << "\n";
-                    relayMgr->queueCommand(id, cmd);
+                    std::cout << "[WS→Relay] Routing '" << cmd << "' to relay " << ids.front() << " via Command FSM\n";
+                    return relayMgr->handleUserCommand(ids.front(), cmd);
                 }
+                return "";
             }
-            return "";  // Response comes async via ProcessingWorker
         });
 
         // 5. Set up action handler — relay lifecycle + time sync + password

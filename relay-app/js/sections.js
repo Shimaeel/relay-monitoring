@@ -26,6 +26,15 @@ function getCurrentRelay() {
   return _currentRelayCtx;
 }
 
+/**
+ * Prefix a command with the current relay ID for server-side routing.
+ * e.g. "TAR 0" → "3:TAR 0"
+ */
+function _prefixCmd(cmd) {
+  const relay = getCurrentRelay();
+  return relay ? (relay.id + ":" + cmd) : cmd;
+}
+
 // ============================================================
 //  SER Module State
 // ============================================================
@@ -792,7 +801,7 @@ async function sendCommand(cmd) {
     _rwReject  = (err)  => { clearTimeout(timer); origReject(err);   };
 
     console.log("[RW] Sending:", cmd);
-    ws.send(cmd);
+    ws.send(_prefixCmd(cmd));
   });
 }
 
@@ -827,8 +836,7 @@ async function fetchAllTAR() {
       _rwSetProgress(i, RW_TOTAL);
 
       // Send command & wait for response (prefix with relay ID for routing)
-      const relay = getCurrentRelay();
-      const cmd   = relay ? (relay.id + ":TAR " + i) : ("TAR " + i);
+      const cmd      = _prefixCmd("TAR " + i);
       const response = await sendCommand(cmd);
 
       // Parse
@@ -1107,7 +1115,7 @@ async function _ioSendCommand(cmd) {
     _ioReject  = (err)  => { clearTimeout(timer); origReject(err);   };
 
     console.log("[IO] Sending:", cmd);
-    ws.send(cmd);
+    ws.send(_prefixCmd(cmd));
   });
 }
 
@@ -1300,7 +1308,7 @@ async function _ctrSendCommand(cmd) {
     _ctrResolve = (d) => { clearTimeout(timer); origR(d); };
     _ctrReject  = (e) => { clearTimeout(timer); origE(e); };
     console.log("[CTR] Sending:", cmd);
-    ws.send(cmd);
+    ws.send(_prefixCmd(cmd));
   });
 }
 
@@ -1524,7 +1532,7 @@ async function _setSendCommand(cmd) {
     _setResolve = (d) => { clearTimeout(timer); origR(d); };
     _setReject  = (e) => { clearTimeout(timer); origE(e); };
     console.log("[SET] Sending:", cmd);
-    ws.send(cmd);
+    ws.send(_prefixCmd(cmd));
   });
 }
 
@@ -1887,7 +1895,7 @@ async function _evSendCommand(cmd) {
     _evReject  = (err)  => { clearTimeout(timer); origReject(err); };
 
     console.log("[EVE] Sending:", cmd);
-    ws.send(cmd);
+    ws.send(_prefixCmd(cmd));
   });
 }
 
