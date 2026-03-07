@@ -330,7 +330,6 @@ function connectSerWebSocket() {
   serWs.onopen = () => {
     serWorkerConnected = true;
     updateSerConnectionStatus("connected");
-    startSerAutoRefresh();
 
     // Start the relay pipeline on the C++ backend (on-demand)
     const relay = getCurrentRelay();
@@ -342,12 +341,10 @@ function connectSerWebSocket() {
       } catch (_) { /* ignore */ }
     }
 
-    // Request an immediate snapshot to populate the table on connect
-    try {
-      serWs.send("getData");
-    } catch (_) {
-      // Ignore send errors during handshake edge cases
-    }
+    // Server already sends initial data on connect — no need for explicit getData.
+    // Start polling only after the initial server push arrives.
+    serLastMessageAt = Date.now();
+    startSerAutoRefresh();
     console.log("[SER] WebSocket connected");
   };
 

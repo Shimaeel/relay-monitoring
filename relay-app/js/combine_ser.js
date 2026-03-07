@@ -234,8 +234,9 @@ function _cserConnect() {
   cserWs.onopen = () => {
     console.log("[CSER] Connected");
     _cserUpdateConnectionStatus();
+    // Server sends initial data on connect — set timestamp so first poll doesn't fire immediately
+    cserLastMessageAt = Date.now();
     _cserStartAutoRefresh();
-    try { cserWs.send("getData"); } catch (_) {}
   };
 
   cserWs.onmessage = async (event) => {
