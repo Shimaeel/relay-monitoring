@@ -510,12 +510,18 @@ function serSendQuit() {
 let rwTable     = null;   // Tabulator instance (created once)
 let rwWs        = null;   // WebSocket connection
 let rwAbort     = false;  // Abort signal for in-flight fetch
-const RW_TOTAL  = 78;     // TAR 0 through TAR 77
 
 // ── Promise queue for request-response over WebSocket ───────
 
 let _rwResolve  = null;   // resolve() of current pending sendCommand
 let _rwReject   = null;   // reject()  of current pending sendCommand
+
+// ── Streaming state for FETCH_ALL_TAR ───────────────────────
+
+let _rwStreamResolve = null;   // resolve() for fetchAllTAR streaming
+let _rwStreamReject  = null;   // reject()  for fetchAllTAR streaming
+let _rwStreamHandler = null;   // called for each TAR_STREAM row
+let _rwStreamTotal   = 0;      // estimated total (updated dynamically)
 
 // ── UI Helpers ──────────────────────────────────────────────
 
@@ -753,14 +759,39 @@ function _rwEnsureConnection() {
       }
     };
 
-    // Route incoming text messages to the pending sendCommand promise
+    // Route incoming text messages — streaming TAR or single-response
     rwWs.onmessage = (event) => {
       if (typeof event.data !== "string") return;
+      const msg = event.data;
+
+      // ── Streaming: TAR_STREAM:<index>\n<response> ──
+      if (msg.startsWith("TAR_STREAM:")) {
+        const nl = msg.indexOf("\n");
+        const idx = parseInt(msg.substring(11, nl), 10);
+        const body = msg.substring(nl + 1);
+        if (_rwStreamHandler) _rwStreamHandler(idx, body);
+        return;
+      }
+
+      // ── Streaming end: TAR_STREAM_END:<count> ──
+      if (msg.startsWith("TAR_STREAM_END:")) {
+        const count = parseInt(msg.substring(15), 10);
+        if (_rwStreamResolve) {
+          const res = _rwStreamResolve;
+          _rwStreamResolve = null;
+          _rwStreamReject  = null;
+          _rwStreamHandler = null;
+          res(count);
+        }
+        return;
+      }
+
+      // ── Single command response ──
       if (_rwResolve) {
         const res = _rwResolve;
         _rwResolve = null;
         _rwReject  = null;
-        res(event.data);             // resolve sendCommand()'s promise
+        res(msg);
       }
     };
   });
@@ -805,11 +836,13 @@ async function sendCommand(cmd) {
   });
 }
 
-// ── Core — fetchAllTAR() ────────────────────────────────────
+// ── Core — fetchAllTAR()  (streaming batch) ─────────────────
 
 /**
- * Sequentially sends TAR 0 through TAR 77, waits for each
- * response, parses it, and updates the Tabulator table row-by-row.
+ * Sends a single FETCH_ALL_TAR command to the server. The server
+ * loops TAR 0, 1, 2… internally and streams each response back
+ * as a TAR_STREAM message.  Row count is determined dynamically
+ * by the server (stops when the relay has no more rows).
  */
 async function fetchAllTAR() {
   // Prevent double invocation
@@ -820,44 +853,57 @@ async function fetchAllTAR() {
 
   try {
     // 1. Connect
-    await _rwEnsureConnection();
+    const ws = await _rwEnsureConnection();
     _rwSetStatus("fetching");
-    _rwSetProgress(0, RW_TOTAL);
+    _rwSetProgress(0, 1);    // indeterminate until first row arrives
     _rwSetRowCount(0);
 
-    // 2. Sequential loop
-    for (let i = 0; i < RW_TOTAL; i++) {
-      if (rwAbort) {
-        console.log("[RW] Aborted by user at TAR", i);
-        _rwSetStatus("aborted");
-        break;
-      }
+    // 2. Set up streaming row handler — called for each TAR_STREAM message
+    _rwStreamHandler = (idx, responseText) => {
+      if (rwAbort) return;
 
-      _rwSetProgress(i, RW_TOTAL);
-
-      // Send command & wait for response (sendCommand prefixes with relay ID)
-      const cmd      = "TAR " + i;
-      const response = await sendCommand(cmd);
-
-      // Parse
-      const parsed = parseTarResponse(response);
+      const parsed = parseTarResponse(responseText);
       if (!parsed) {
-        console.warn(`[RW] Failed to parse response for ${cmd}:`, response.substring(0, 200));
-        throw new Error(`Failed to parse response for ${cmd}`);
+        console.warn(`[RW] Failed to parse streamed TAR ${idx}:`, responseText.substring(0, 200));
+        return;
       }
 
-      // Update table
       _rwUpdateRow(parsed);
       completed++;
       _rwSetRowCount(completed);
-      console.log(`[RW] TAR ${i} OK — row ${parsed.targetRow}, DNP ${parsed.dnpIndex}`);
-    }
+      // Update progress — estimate total as (highest index seen + 1)
+      _rwStreamTotal = Math.max(_rwStreamTotal, idx + 1);
+      _rwSetProgress(completed, _rwStreamTotal);
+      console.log(`[RW] TAR ${idx} OK — row ${parsed.targetRow}, DNP ${parsed.dnpIndex}`);
+    };
 
-    // 3. Finished
+    // 3. Send single batch command & wait for TAR_STREAM_END
+    _rwStreamTotal = 0;
+    const totalRows = await new Promise((resolve, reject) => {
+      _rwStreamResolve = resolve;
+      _rwStreamReject  = reject;
+
+      // Timeout: 10 min for entire batch (large relays)
+      const timer = setTimeout(() => {
+        _rwStreamResolve = null;
+        _rwStreamReject  = null;
+        _rwStreamHandler = null;
+        reject(new Error("Timeout waiting for FETCH_ALL_TAR to complete"));
+      }, 600_000);
+
+      const origResolve = resolve;
+      _rwStreamResolve = (count) => { clearTimeout(timer); origResolve(count); };
+      _rwStreamReject  = (err)   => { clearTimeout(timer); reject(err); };
+
+      console.log("[RW] Sending FETCH_ALL_TAR (streaming batch)");
+      ws.send(_prefixCmd("FETCH_ALL_TAR"));
+    });
+
+    // 4. Finished
     if (!rwAbort) {
-      _rwSetProgress(-1);              // hide progress bar
+      _rwSetProgress(-1);
       _rwSetStatus("done");
-      console.log(`[RW] All ${RW_TOTAL} TAR commands completed`);
+      console.log(`[RW] FETCH_ALL_TAR complete — ${totalRows} rows streamed, ${completed} parsed`);
     }
 
   } catch (err) {
@@ -865,11 +911,13 @@ async function fetchAllTAR() {
     _rwSetStatus("error");
     _rwSetProgress(-1);
 
-    // Show error toast if available
     if (typeof showToast === "function") {
       showToast(`TAR fetch failed at row ${completed}: ${err.message}`, "error");
     }
   } finally {
+    _rwStreamHandler = null;
+    _rwStreamResolve = null;
+    _rwStreamReject  = null;
     _rwSetFetchBtn(false);
   }
 }
@@ -887,6 +935,9 @@ function _rwDisconnectRaw() {
   }
   _rwResolve = null;
   _rwReject  = null;
+  _rwStreamResolve = null;
+  _rwStreamReject  = null;
+  _rwStreamHandler = null;
 }
 
 // ── Public Actions (called from onclick in relay.html) ──────
@@ -931,10 +982,16 @@ let ioWs         = null;   // WebSocket connection
 let ioAbort      = false;  // Abort signal
 let _ioAllRows   = [];     // All collected I/O rows (RW format, unfiltered)
 let _ioFilter    = "all";  // Current filter: 'all' | 'in' | 'out'
-const IO_TOTAL   = 78;     // TAR 0 through TAR 77
 
 let _ioResolve   = null;
 let _ioReject    = null;
+
+// ── Streaming state for I/O FETCH_ALL_TAR ───────────────────
+
+let _ioStreamResolve = null;
+let _ioStreamReject  = null;
+let _ioStreamHandler = null;
+let _ioStreamTotal   = 0;
 
 // ── UI Helpers ──────────────────────────────────────────────
 
@@ -1086,10 +1143,36 @@ function _ioEnsureConnection() {
     ioWs.onclose = () => {
       console.log("[IO] Closed");
       if (_ioReject) { _ioReject(new Error("WebSocket closed unexpectedly")); _ioResolve = null; _ioReject = null; }
+      if (_ioStreamReject) { _ioStreamReject(new Error("WebSocket closed unexpectedly")); _ioStreamResolve = null; _ioStreamReject = null; _ioStreamHandler = null; }
     };
     ioWs.onmessage = (event) => {
       if (typeof event.data !== "string") return;
-      if (_ioResolve) { const res = _ioResolve; _ioResolve = null; _ioReject = null; res(event.data); }
+      const msg = event.data;
+
+      // ── Streaming: TAR_STREAM:<index>\n<response> ──
+      if (msg.startsWith("TAR_STREAM:")) {
+        const nl = msg.indexOf("\n");
+        const idx = parseInt(msg.substring(11, nl), 10);
+        const body = msg.substring(nl + 1);
+        if (_ioStreamHandler) _ioStreamHandler(idx, body);
+        return;
+      }
+
+      // ── Streaming end: TAR_STREAM_END:<count> ──
+      if (msg.startsWith("TAR_STREAM_END:")) {
+        const count = parseInt(msg.substring(15), 10);
+        if (_ioStreamResolve) {
+          const res = _ioStreamResolve;
+          _ioStreamResolve = null;
+          _ioStreamReject  = null;
+          _ioStreamHandler = null;
+          res(count);
+        }
+        return;
+      }
+
+      // ── Single command response ──
+      if (_ioResolve) { const res = _ioResolve; _ioResolve = null; _ioReject = null; res(msg); }
     };
   });
 }
@@ -1121,39 +1204,40 @@ async function _ioSendCommand(cmd) {
 
 // ── Core — fetchAllIO() ─────────────────────────────────────
 
+// ── Core — fetchAllIO()  (streaming batch) ──────────────────
+
 /**
- * Fetch all TAR rows (0–77), build the same row format as Relay
- * Word, but only keep rows where at least one bit label starts
- * with "IN" or "OUT".
+ * Sends a single FETCH_ALL_TAR command. The server streams TAR
+ * rows back.  Only rows with IN/OUT labels are kept and displayed.
+ * Row count is determined dynamically by the server.
  */
 async function fetchAllIO() {
   _ioSetFetchBtn(true);
   ioAbort = false;
   _ioAllRows = [];
 
+  let scanned = 0;
+
   try {
-    await _ioEnsureConnection();
+    const ws = await _ioEnsureConnection();
     _ioSetStatus("fetching");
-    _ioSetProgress(0, IO_TOTAL);
+    _ioSetProgress(0, 1);
     _ioSetRowCount(0);
 
-    for (let i = 0; i < IO_TOTAL; i++) {
-      if (ioAbort) {
-        console.log("[IO] Aborted by user at TAR", i);
-        _ioSetStatus("aborted");
-        break;
-      }
+    // Set up streaming row handler — filter for I/O rows
+    _ioStreamTotal = 0;
+    _ioStreamHandler = (idx, responseText) => {
+      if (ioAbort) return;
 
-      _ioSetProgress(i, IO_TOTAL);
-
-      const cmd      = "TAR " + i;
-      const response = await _ioSendCommand(cmd);
-      const parsed   = parseTarResponse(response);
-
+      const parsed = parseTarResponse(responseText);
       if (!parsed) {
-        console.warn(`[IO] Failed to parse response for ${cmd}`);
-        continue;
+        console.warn(`[IO] Failed to parse streamed TAR ${idx}`);
+        return;
       }
+
+      scanned++;
+      _ioStreamTotal = Math.max(_ioStreamTotal, idx + 1);
+      _ioSetProgress(scanned, _ioStreamTotal);
 
       // Build row in the same format as the Relay Word table
       const row = {
@@ -1175,14 +1259,34 @@ async function fetchAllIO() {
         _ioApplyFilter();
       }
 
-      console.log(`[IO] TAR ${i} scanned — ${_ioAllRows.length} I/O rows so far`);
-    }
+      console.log(`[IO] TAR ${idx} scanned — ${_ioAllRows.length} I/O rows so far`);
+    };
+
+    // Send single batch command & wait for TAR_STREAM_END
+    const totalRows = await new Promise((resolve, reject) => {
+      _ioStreamResolve = resolve;
+      _ioStreamReject  = reject;
+
+      const timer = setTimeout(() => {
+        _ioStreamResolve = null;
+        _ioStreamReject  = null;
+        _ioStreamHandler = null;
+        reject(new Error("Timeout waiting for FETCH_ALL_TAR to complete"));
+      }, 600_000);
+
+      const origResolve = resolve;
+      _ioStreamResolve = (count) => { clearTimeout(timer); origResolve(count); };
+      _ioStreamReject  = (err)   => { clearTimeout(timer); reject(err); };
+
+      console.log("[IO] Sending FETCH_ALL_TAR (streaming batch)");
+      ws.send(_prefixCmd("FETCH_ALL_TAR"));
+    });
 
     if (!ioAbort) {
       _ioSetProgress(-1);
       _ioSetStatus("done");
       _ioApplyFilter();
-      console.log(`[IO] Scan complete — ${_ioAllRows.length} I/O rows found`);
+      console.log(`[IO] Scan complete — ${totalRows} rows streamed, ${_ioAllRows.length} I/O rows found`);
     }
 
   } catch (err) {
@@ -1193,6 +1297,9 @@ async function fetchAllIO() {
       showToast(`I/O fetch failed: ${err.message}`, "error");
     }
   } finally {
+    _ioStreamHandler = null;
+    _ioStreamResolve = null;
+    _ioStreamReject  = null;
     _ioSetFetchBtn(false);
   }
 }
@@ -1207,6 +1314,10 @@ function _ioDisconnectRaw() {
   }
   _ioResolve = null;
   _ioReject  = null;
+  _ioStreamResolve = null;
+  _ioStreamReject  = null;
+  _ioStreamHandler = null;
+}
 }
 
 // ── Public Actions ──────────────────────────────────────────

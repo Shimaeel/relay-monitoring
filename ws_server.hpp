@@ -326,6 +326,14 @@ public:
     ///   output = JSON response string
     using ActionHandler = std::function<std::string(const std::string&)>;
 
+    /// Callback type for streaming commands (e.g. FETCH_ALL_TAR).
+    /// Receives the raw command, a callback to send each streamed message,
+    /// and an abort flag.  Returns true if the command was handled as a
+    /// stream, false to fall through to the normal single-response handler.
+    using StreamingCallback = std::function<void(const std::string&)>;
+    using StreamCommandHandler = std::function<bool(
+        const std::string& cmd, StreamingCallback sendFn, std::atomic<bool>& abort)>;
+
 private:
     websocket::stream<beast::tcp_stream> ws_;   ///< WebSocket stream over TCP
     beast::flat_buffer buffer_;                  ///< Buffer for incoming messages
@@ -338,6 +346,8 @@ private:
     std::string text_write_buffer_;              ///< Buffer for text responses (FIL DIR etc.)
     CommandHandler cmdHandler_;                   ///< Optional handler for relay commands
     ActionHandler actionHandler_;                 ///< Optional handler for JSON actions (time sync)
+    StreamCommandHandler streamCmdHandler_;       ///< Optional handler for streaming commands
+    std::atomic<bool> streaming_abort_{false};    ///< Abort flag for in-flight streaming
 
     // ── Write queue for guaranteed delivery ─────────────────────────────
     /// Pending message: binary payload or text string, with mode flag
@@ -362,12 +372,14 @@ public:
     explicit WebSocketSession(tcp::socket&& socket, SERDatabase& db,
                               SessionManager* sessionMgr = nullptr,
                               CommandHandler cmdHandler = nullptr,
-                              ActionHandler actionHandler = nullptr)
+                              ActionHandler actionHandler = nullptr,
+                              StreamCommandHandler streamCmdHandler = nullptr)
         : ws_(std::move(socket))
         , db_(db)
         , sessionMgr_(sessionMgr)
         , cmdHandler_(std::move(cmdHandler))
         , actionHandler_(std::move(actionHandler))
+        , streamCmdHandler_(std::move(streamCmdHandler))
     {
     }
     
@@ -618,18 +630,37 @@ private:
                 });
             }).detach();
         }
-        else if (cmdHandler_)
+        else if (streamCmdHandler_ || cmdHandler_)
         {
-            // Forward command to relay and return response to THIS client
+            // Forward command to relay — try streaming handler first, fallback to single-response
             std::cout << "[WS] Forwarding command via handler: " << msg << "\n";
             auto self = shared_from_this();
+            auto streamHandler = streamCmdHandler_;
             auto handler = cmdHandler_;
             auto cmdMsg = msg;
-            std::thread([self, handler, cmdMsg]() {
-                std::string response = handler(cmdMsg);
-                net::post(self->ws_.get_executor(), [self, response]() {
-                    if (!response.empty())
-                        self->sendTextResponse(response);
+            streaming_abort_.store(false);
+            std::thread([self, streamHandler, handler, cmdMsg]() {
+                bool streamed = false;
+                if (streamHandler)
+                {
+                    streamed = streamHandler(cmdMsg,
+                        [self](const std::string& text) {
+                            net::post(self->ws_.get_executor(), [self, text]() {
+                                self->sendTextResponse(text);
+                            });
+                        },
+                        self->streaming_abort_
+                    );
+                }
+                if (!streamed && handler)
+                {
+                    std::string response = handler(cmdMsg);
+                    net::post(self->ws_.get_executor(), [self, response]() {
+                        if (!response.empty())
+                            self->sendTextResponse(response);
+                    });
+                }
+                net::post(self->ws_.get_executor(), [self]() {
                     self->do_read();
                 });
             }).detach();
@@ -682,6 +713,7 @@ private:
         if (ec)
         {
             std::cerr << "[WS] Write error: " << ec.message() << "\n";
+            streaming_abort_.store(true);
             write_queue_.clear();
             return;
         }
@@ -784,6 +816,7 @@ class TELNET_SML_API WebSocketListener : public std::enable_shared_from_this<Web
     SessionManager* sessionMgr_;  ///< Session manager for broadcast support
     WebSocketSession::CommandHandler cmdHandler_;  ///< Command handler for relay forwarding
     WebSocketSession::ActionHandler actionHandler_;  ///< Action handler for JSON actions (time sync)
+    WebSocketSession::StreamCommandHandler streamCmdHandler_;  ///< Streaming command handler
 
 public:
     /**
@@ -795,17 +828,20 @@ public:
      * @param sessionMgr Session manager for broadcast (may be null)
      * @param cmdHandler Command handler for relay forwarding (may be null)
      * @param actionHandler Action handler for JSON actions like time sync (may be null)
+     * @param streamCmdHandler Streaming handler for batch commands (may be null)
      */
     WebSocketListener(net::io_context& ioc, tcp::endpoint endpoint, SERDatabase& db,
                       SessionManager* sessionMgr = nullptr,
                       WebSocketSession::CommandHandler cmdHandler = nullptr,
-                      WebSocketSession::ActionHandler actionHandler = nullptr)
+                      WebSocketSession::ActionHandler actionHandler = nullptr,
+                      WebSocketSession::StreamCommandHandler streamCmdHandler = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , db_(db)
         , sessionMgr_(sessionMgr)
         , cmdHandler_(std::move(cmdHandler))
         , actionHandler_(std::move(actionHandler))
+        , streamCmdHandler_(std::move(streamCmdHandler))
     {
         beast::error_code ec;
 
@@ -878,7 +914,7 @@ private:
         else
         {
             // Create the session and run it (with session manager + command handler + action handler)
-            std::make_shared<WebSocketSession>(std::move(socket), db_, sessionMgr_, cmdHandler_, actionHandler_)->run();
+            std::make_shared<WebSocketSession>(std::move(socket), db_, sessionMgr_, cmdHandler_, actionHandler_, streamCmdHandler_)->run();
         }
 
         // Accept another connection
@@ -939,6 +975,7 @@ class TELNET_SML_API SERWebSocketServer
     SessionManager sessionMgr_;                    ///< Session manager for broadcast
     WebSocketSession::CommandHandler cmdHandler_;  ///< Command handler for relay forwarding
     WebSocketSession::ActionHandler actionHandler_;  ///< Action handler for JSON actions (time sync)
+    WebSocketSession::StreamCommandHandler streamCmdHandler_;  ///< Streaming command handler
 
 public:
     /**
@@ -990,6 +1027,20 @@ public:
     }
 
     /**
+     * @brief Set streaming command handler for batch commands (e.g. FETCH_ALL_TAR)
+     * 
+     * @details Must be called before start(). The handler receives a command
+     * string, a callback to send each streamed message, and an abort flag.
+     * Returns true if it handled the command as a stream.
+     * 
+     * @param handler Streaming callback handler
+     */
+    void setStreamCommandHandler(WebSocketSession::StreamCommandHandler handler)
+    {
+        streamCmdHandler_ = std::move(handler);
+    }
+
+    /**
      * @brief Start the WebSocket server
      * 
      * @details Creates listener and starts I/O thread. Safe to call if already running.
@@ -1007,7 +1058,7 @@ public:
         try
         {
             auto const address = net::ip::make_address("0.0.0.0");
-            listener_ = std::make_shared<WebSocketListener>(ioc_, tcp::endpoint{address, port_}, db_, &sessionMgr_, cmdHandler_, actionHandler_);
+            listener_ = std::make_shared<WebSocketListener>(ioc_, tcp::endpoint{address, port_}, db_, &sessionMgr_, cmdHandler_, actionHandler_, streamCmdHandler_);
             listener_->run();
 
             server_thread_ = std::thread([this]() {

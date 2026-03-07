@@ -357,6 +357,53 @@ public:
             }
         });
 
+        // 4b. Set up streaming command handler — FETCH_ALL_TAR loops TAR 0..N on the server
+        wsServer.setStreamCommandHandler(
+            [this](const std::string& cmd,
+                   WebSocketSession::StreamingCallback sendFn,
+                   std::atomic<bool>& abort) -> bool
+        {
+            // Parse relay prefix (e.g. "3:FETCH_ALL_TAR")
+            auto colon = cmd.find(':');
+            std::string relayId, realCmd;
+            if (colon != std::string::npos)
+            {
+                relayId = cmd.substr(0, colon);
+                realCmd = cmd.substr(colon + 1);
+            }
+            else
+            {
+                auto ids = relayMgr->getActiveRelayIds();
+                if (ids.empty()) return false;
+                relayId = ids.front();
+                realCmd = cmd;
+            }
+
+            if (realCmd != "FETCH_ALL_TAR")
+                return false;   // not a streaming command — fall through
+
+            std::cout << "[WS→Relay] FETCH_ALL_TAR streaming for relay " << relayId << "\n";
+            static const int MAX_TAR = 500;
+            int count = 0;
+
+            for (int i = 0; i < MAX_TAR && !abort.load(); ++i)
+            {
+                std::string response = relayMgr->handleUserCommand(
+                    relayId, "TAR " + std::to_string(i));
+                if (response.empty())
+                    break;  // no more rows — relay returned nothing
+
+                // Stream: "TAR_STREAM:<index>\n<response>"
+                sendFn("TAR_STREAM:" + std::to_string(i) + "\n" + response);
+                ++count;
+            }
+
+            // End marker — tells browser how many rows were found
+            sendFn("TAR_STREAM_END:" + std::to_string(count));
+            std::cout << "[WS→Relay] FETCH_ALL_TAR done — " << count << " rows streamed\n";
+            return true;
+        });
+
         // 5. Set up action handler — relay lifecycle + time sync + password
         wsServer.setActionHandler([this](const std::string& jsonMsg) -> std::string {
             std::string action = extractJsonField(jsonMsg, "action");
