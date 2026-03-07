@@ -1318,7 +1318,7 @@ function _ioDisconnectRaw() {
   _ioStreamReject  = null;
   _ioStreamHandler = null;
 }
-}
+
 
 // ── Public Actions ──────────────────────────────────────────
 
