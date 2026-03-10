@@ -87,18 +87,9 @@ inline std::vector<RelayConfig> getRelayConfigs()
             "Substation Alpha",     // substation
             "Bay 1"                 // bay
         },
+        
         {
             "2",                    // id
-            "SEL-421",              // name
-            "192.168.1.11",         // host
-            23,                     // port
-            "acc",                  // username
-            "OTTER",                // password
-            "Substation Alpha",     // substation
-            "Bay 2"                 // bay
-        },
-        {
-            "3",                    // id
             "SEL-451",              // name
             "192.168.0.3",          // host
             23,                     // port

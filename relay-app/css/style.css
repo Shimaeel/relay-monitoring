@@ -627,11 +627,70 @@ ul, ol { list-style: none; }
 
 .detail-header__right {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--sp-3);
   position: relative;
   z-index: 1;
   flex-shrink: 0;
+}
+
+/* ===== Time Display ===== */
+
+.time-display {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface-hover, #f8f9fa);
+  font-size: 0.8rem;
+  min-width: 220px;
+}
+
+.time-display__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.time-display__label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.time-display__value {
+  color: var(--color-text-primary);
+}
+
+.time-display__value--mono {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  letter-spacing: 0.02em;
+}
+
+.time-display__badge {
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.time-display__badge--ok {
+  color: #16a34a;
+  background: #dcfce7;
+}
+
+.time-display__badge--warn {
+  color: #ca8a04;
+  background: #fef9c3;
+}
+
+.time-display__badge--err {
+  color: #dc2626;
+  background: #fee2e2;
 }
 
 /* ===== Header Config Fields ===== */
@@ -1274,7 +1333,6 @@ ul, ol { list-style: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  
 }
 
 .relay-image {

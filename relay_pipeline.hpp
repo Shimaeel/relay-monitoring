@@ -307,12 +307,20 @@ public:
     {
     }
 
+    /**
+     * @brief Start the reception worker thread.
+     * @post Worker thread is running and ready to accept queued commands.
+     */
     void start()
     {
         stop_flag_ = false;
         worker_thread_ = std::thread([this]() { runLoop(); });
     }
 
+    /**
+     * @brief Stop the reception worker and join its thread.
+     * @post Worker thread has exited and all resources are released.
+     */
     void stop()
     {
         stop_flag_ = true;
@@ -322,6 +330,10 @@ public:
             worker_thread_.join();
     }
 
+    /**
+     * @brief Enqueue a Telnet command for asynchronous execution.
+     * @param cmd Command string (e.g. "SER", "ACC", "FIL DIR").
+     */
     void queueCommand(const std::string& cmd)
     {
         {
@@ -475,6 +487,17 @@ class PipelineProcessingWorker
     }
 
 public:
+    /**
+     * @brief Construct a processing worker for one relay.
+     *
+     * @param rawBuffer    Per-relay ring buffer (consumer side)
+     * @param db           Shared SQLite database
+     * @param wsServer     Shared WebSocket server
+     * @param shmRing      Shared ring buffer for JSON file writer
+     * @param app_running  Global running flag
+     * @param relayId      Relay identifier stamped on parsed records
+     * @param relayName    Display name for log tagging
+     */
     PipelineProcessingWorker(RawDataRingBuffer& rawBuffer,
                              SERDatabase& db,
                              SERWebSocketServer& wsServer,
@@ -493,6 +516,9 @@ public:
     {
     }
 
+    /**
+     * @brief Start the processing worker: register a reader and launch its thread.
+     */
     void start()
     {
         stop_flag_ = false;
@@ -505,6 +531,9 @@ public:
         worker_thread_ = std::thread([this]() { runLoop(); });
     }
 
+    /**
+     * @brief Stop the processing worker: join thread and unregister reader.
+     */
     void stop()
     {
         stop_flag_ = true;

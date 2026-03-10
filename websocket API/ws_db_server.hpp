@@ -89,10 +89,19 @@ class TELNET_SML_API WSDBSession : public std::enable_shared_from_this<WSDBSessi
     SharedDBMemory*  shm_;          ///< Optional shared-memory change notifier
 
 public:
+    /**
+     * @brief Construct a database WebSocket session.
+     *
+     * @param socket Accepted TCP socket (moved)
+     * @param db     Raw SQLite handle for queries
+     * @param mtx    Mutex protecting the SQLite handle
+     * @param shm    Optional shared-memory block for change notifications
+     */
     WSDBSession(tcp::socket&& socket, sqlite3* db, std::mutex& mtx,
                 SharedDBMemory* shm = nullptr)
         : ws_(std::move(socket)), db_(db), db_mutex_(mtx), shm_(shm) {}
 
+    /// @brief Start the session by accepting the WebSocket handshake.
     void run()
     {
         ws_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
@@ -103,6 +112,7 @@ public:
     }
 
 private:
+    /// @brief Handle WebSocket handshake completion.
     void on_accept(beast::error_code ec)
     {
         if (ec) { std::cerr << "[WSDB] Accept error: " << ec.message() << "\n"; return; }
@@ -110,11 +120,13 @@ private:
         do_read();
     }
 
+    /// @brief Initiate async read for the next client message.
     void do_read()
     {
         ws_.async_read(buffer_, beast::bind_front_handler(&WSDBSession::on_read, shared_from_this()));
     }
 
+    /// @brief Handle a received client message — parse, dispatch, respond.
     void on_read(beast::error_code ec, std::size_t)
     {
         if (ec == websocket::error::closed) { std::cout << "[WSDB] Client disconnected\n"; return; }
@@ -134,7 +146,11 @@ private:
             });
     }
 
-    // ── dispatcher — delegates to wsdb_ops:: free functions ───────────────
+    /**
+     * @brief Dispatch a JSON request to the appropriate wsdb_ops function.
+     * @param json Raw JSON request string from the client
+     * @return JSON response string
+     */
     std::string handleRequest(const std::string& json)
     {
         int64_t     id     = wsdb_json::getInt(json, "id");
@@ -188,7 +204,11 @@ private:
         return err.str();
     }
 
-    // ── shared-memory notification ────────────────────────────────────────
+    /**
+     * @brief Publish a change notification to shared memory (if configured).
+     * @param action The mutating action name (e.g. "exec", "define")
+     * @param detail Additional detail (SQL or table name)
+     */
     void notifyShm(const std::string& action, const std::string& detail)
     {
         if (!shm_) return;
@@ -203,15 +223,27 @@ private:
 //  WSDBListener  –  TCP accept loop
 // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * @class WSDBListener
+ * @brief TCP accept loop that creates WSDBSession instances for each connection.
+ */
 class TELNET_SML_API WSDBListener : public std::enable_shared_from_this<WSDBListener>
 {
-    net::io_context& ioc_;
-    tcp::acceptor    acceptor_;
-    sqlite3*         db_;
-    std::mutex&      db_mutex_;
-    SharedDBMemory*  shm_;
+    net::io_context& ioc_;       ///< Reference to I/O context
+    tcp::acceptor    acceptor_;  ///< TCP acceptor for incoming connections
+    sqlite3*         db_;        ///< Raw SQLite handle
+    std::mutex&      db_mutex_;  ///< Mutex protecting the SQLite handle
+    SharedDBMemory*  shm_;       ///< Optional shared-memory notifier
 
 public:
+    /**
+     * @brief Construct listener on the given endpoint.
+     * @param ioc  I/O context for async operations
+     * @param ep   TCP endpoint (address + port)
+     * @param db   SQLite handle
+     * @param mtx  Mutex protecting the handle
+     * @param shm  Optional shared-memory block for change notifications
+     */
     WSDBListener(net::io_context& ioc, tcp::endpoint ep, sqlite3* db, std::mutex& mtx,
                  SharedDBMemory* shm = nullptr)
         : ioc_(ioc), acceptor_(ioc), db_(db), db_mutex_(mtx), shm_(shm)
@@ -227,15 +259,18 @@ public:
         if (ec) { std::cerr << "[WSDB] Listen: " << ec.message() << "\n"; return; }
     }
 
+    /// @brief Start the accept loop.
     void run() { do_accept(); }
 
 private:
+    /// @brief Initiate async accept for the next connection.
     void do_accept()
     {
         acceptor_.async_accept(net::make_strand(ioc_),
             beast::bind_front_handler(&WSDBListener::on_accept, shared_from_this()));
     }
 
+    /// @brief Handle an accepted connection — create a session and loop.
     void on_accept(beast::error_code ec, tcp::socket socket)
     {
         if (!ec) std::make_shared<WSDBSession>(std::move(socket), db_, db_mutex_, shm_)->run();
@@ -281,11 +316,16 @@ public:
                         SharedDBMemory* shm = nullptr)
         : db_(db), port_(port), shm_(shm) {}
 
+    /// @brief Destructor — stops the server if running.
     ~WSDBServer() { stop(); }
 
     WSDBServer(const WSDBServer&)            = delete;
     WSDBServer& operator=(const WSDBServer&) = delete;
 
+    /**
+     * @brief Start the WebSocket database server.
+     * @return true on success, false on failure
+     */
     bool start()
     {
         if (running_) return true;
@@ -306,6 +346,7 @@ public:
         }
     }
 
+    /// @brief Stop the server and join the I/O thread.
     void stop()
     {
         if (!running_) return;
@@ -315,5 +356,6 @@ public:
         std::cout << "[WSDB] Server stopped\n";
     }
 
+    /// @brief Check whether the server is currently running.
     bool isRunning() const { return running_; }
 };

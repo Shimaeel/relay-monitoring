@@ -1,0 +1,266 @@
+%% ═══════════════════════════════════════════════════════════════════════════
+%%  Telnet-SML — COMPLETE SYSTEM ARCHITECTURE DIAGRAM (Mermaid)
+%%  Physical Relay Device → C++ Backend → Transport → Browser UI
+%%  Copyright (C) 2026 Eureka Power Solutions (www.PowerEureka.com)
+%%  Generated: 2026-03-09
+%% ═══════════════════════════════════════════════════════════════════════════
+
+flowchart TB
+    %% ═══════════════════════════════════════════════════════════════
+    %%  LAYER 1 — PHYSICAL RELAY DEVICES (External)
+    %% ═══════════════════════════════════════════════════════════════
+
+    subgraph RELAYS["🏭 PHYSICAL RELAY DEVICES (Substation Alpha)"]
+        direction LR
+        R1["<b>SEL-751</b><br/>192.168.0.2:23<br/>Bay 1 · ID: 1"]
+        R2["<b>SEL-421</b><br/>192.168.1.11:23<br/>Bay 2 · ID: 2"]
+        R3["<b>SEL-451</b><br/>192.168.0.3:23<br/>Bay 3 · ID: 3"]
+    end
+
+    %% ═══════════════════════════════════════════════════════════════
+    %%  LAYER 2 — C++ BACKEND (Per-Relay Pipelines)
+    %% ═══════════════════════════════════════════════════════════════
+
+    subgraph BACKEND["⚙️ C++ BACKEND (TelnetSmlApp — PIMPL)"]
+        direction TB
+
+        subgraph RELAYMGR["RelayManager (On-Demand Pipeline Coordinator)"]
+            direction TB
+            RM_START["startRelay(id) · stopRelay(id)<br/>queueCommand(id, cmd)<br/>handleUserCommand(id, cmd)"]
+        end
+
+        subgraph PIPE1["RelayPipeline [per relay] — Owned Resources"]
+            direction TB
+            TC1["<b>TelnetClient</b><br/>(Winsock TCP Socket)"]
+            subgraph RX1["Thread 1: PipelineReceptionWorker"]
+                direction LR
+                FSM1_CONN["<b>Connection FSM</b> (SML)<br/>Idle → Connecting →<br/>LoggingIn → Operational<br/>↻ ConnectWait, LoginRetryWait"]
+                FSM1_CMD["<b>Command FSM</b> (SML)<br/>Idle → [cmd_event] → Idle<br/>cmd_ser · cmd_tar · cmd_eve<br/>cmd_ctrlc · cmd_ctrld · cmd_set<br/>+ generic passthrough"]
+            end
+            RING1["<b>RawDataRingBuffer</b><br/>(MPMC, 100 msgs)<br/>push: {command, response}"]
+            subgraph PROC1["Thread 2: PipelineProcessingWorker"]
+                direction LR
+                PARSE1["parseSERResponse()"]
+                STAMP1["Stamp relay_id +<br/>relay_name on<br/>every SERRecord"]
+            end
+        end
+
+        subgraph CMDS["Relay Commands Supported"]
+            direction LR
+            CMD_LIST["<b>SER</b> — Sequence of Events<br/><b>TAR n</b> — Target Report #n<br/><b>EVE</b> — Event Report<br/><b>DATE</b> — Read relay time<br/><b>SETTIME</b> — Sync relay clock<br/><b>PAS LEVEL1/2</b> — Change password<br/><b>SET / SHOSET</b> — Show settings<br/><b>FIL DIR</b> — File directory list<br/><b>CTR C n / CTR D n</b> — COMTRADE files<br/><b>CTRL+C / CTRL+D</b> — Control chars<br/><b>FETCH_ALL_TAR</b> — Stream all TARs"]
+        end
+
+        %% ─── Shared Resources ───
+
+        subgraph SHARED["SHARED RESOURCES (Owned by Impl)"]
+            direction TB
+
+            DB[("💾 <b>SERDatabase</b><br/>ser_records.db (SQLite)<br/>relay_id column prevents<br/>cross-relay duplicates<br/>insertAndGetNewRecords()<br/>getAllRecords()")]
+
+            subgraph WS_SER["Thread 3: SERWebSocketServer — Port 8765"]
+                direction TB
+                WS_LISTEN["WebSocketListener<br/>(Boost.Beast/Asio TCP Accept)"]
+                WS_SM["SessionManager<br/>(track + broadcast to all)"]
+                WS_SESS["WebSocketSession(s)<br/>CommandHandler · ActionHandler<br/>StreamCommandHandler"]
+            end
+
+            SHM_RING["<b>SharedRingBuffer</b><br/>(Boost.Interprocess SHM)<br/>Name: TelnetSmlShmRing<br/>Capacity: 500KB<br/>MPMC broadcast pub-sub<br/>Up to 8 readers"]
+
+            subgraph POLL["Thread 4: ThreadManager"]
+                direction LR
+                SER_POLLER["SERPoller<br/>every 120s → queue 'SER'<br/>to ALL active relays"]
+                DB_WRITER["DatabaseWriter<br/>(async write queue)"]
+            end
+
+            subgraph SHM_READER["Thread 5: SharedSerReader"]
+                direction LR
+                SHM_READ["waitRead(readerId)"]
+                TLV_DEC["ASN.1 TLV Decode<br/>→ vector‹SERRecord›"]
+                JSON_WRITE["recordsToJsonTable()<br/>→ writeJsonToFile()<br/>→ ui/data.json"]
+            end
+
+            subgraph WSDB["WSDBServer — Port 8766"]
+                direction TB
+                WSDB_SESS["WSDBSession(s)"]
+                WSDB_OPS["db_operations.hpp<br/>dbGetAll · dbGetIncremental<br/>dbQuery · dbExec<br/>dbTables · dbSchema · dbDefine"]
+            end
+
+            SHM_DB_MEM["SharedDBMemory<br/>(latest-state block, IPC)<br/>DB change notifications<br/>on mutating ops"]
+        end
+
+        %% ─── Service Managers ───
+
+        subgraph SERVICES["SERVICE MANAGERS"]
+            direction LR
+            REL_SVC["<b>RelayService</b><br/>Thread-safe wrapper<br/>around TelnetClient<br/>readRelayTime()<br/>syncRelayTime()<br/>sendRelayCommand()"]
+            TIME_MGR["<b>TimeSyncManager</b><br/>WS Actions: read_time, sync_time<br/>Relay Cmds: DATE, SETTIME<br/>ASN.1 Tag 33 (0x21)<br/>Compares relay ↔ PC time"]
+            PASS_MGR["<b>PasswordManager</b><br/>WS Action: change_password<br/>Relay Cmd: PAS LEVEL1/2<br/>ASN.1 Tag 34 (0x22)<br/>Validates: TAIL1 / OTTER1"]
+        end
+    end
+
+    %% ═══════════════════════════════════════════════════════════════
+    %%  LAYER 3 — TRANSPORT
+    %% ═══════════════════════════════════════════════════════════════
+
+    subgraph TRANSPORT["🔌 TRANSPORT LAYER"]
+        direction LR
+
+        subgraph WS_PORTS["WebSocket Channels"]
+            direction TB
+            WS8765["<b>ws://localhost:8765</b><br/>══════════════════<br/>↓ Binary: ASN.1 BER/TLV SER records<br/>  Tags: 0x61 top, 0x30 record,<br/>  0x80 record_id, 0x81 timestamp,<br/>  0x82 status, 0x83 description,<br/>  0x84 relay_id, 0x85 relay_name<br/>↓ Text: raw relay responses<br/>  (FIL DIR, TAR, EVE, settings)<br/>↓ Text: TAR_STREAM:n, TAR_STREAM_END:n<br/>↑ 'refresh' / 'getData'<br/>↑ 'relay_id:command' (e.g. '1:SER')<br/>↑ JSON actions: start_relay,<br/>  stop_relay, relay_status,<br/>  read_time, sync_time,<br/>  change_password"]
+            WS8766["<b>ws://localhost:8766</b><br/>══════════════════<br/>↕ JSON request / response<br/>getAll · getIncremental<br/>query(sql, params)<br/>exec(sql, params)<br/>tables · schema(table)<br/>define(table, columns)"]
+        end
+
+        HTTP8080["<b>HTTP localhost:8080</b><br/>══════════════════<br/>serve.ps1 (PowerShell)<br/>Serves ui/ directory<br/>COOP + COEP headers<br/>(SharedArrayBuffer)"]
+
+        SHM_IPC["<b>Shared Memory (IPC)</b><br/>══════════════════<br/>SharedRingBuffer<br/>→ ASN.1 TLV payloads<br/>→ decoded → ui/data.json<br/>SharedDBMemory<br/>→ DB change notifications"]
+
+        FILE_IO["<b>File I/O</b><br/>══════════════════<br/>ui/data.json<br/>(JSON array for Tabulator)"]
+    end
+
+    %% ═══════════════════════════════════════════════════════════════
+    %%  LAYER 4 — BROWSER UI
+    %% ═══════════════════════════════════════════════════════════════
+
+    subgraph BROWSER["🌐 BROWSER UI"]
+        direction TB
+
+        subgraph RELAY_APP["relay-app/ — Primary Multi-Relay Dashboard"]
+            direction TB
+            RA_INDEX["<b>index.html</b> — Dashboard<br/>Relay card grid (search/filter)<br/>Combined SER Tabulator table<br/>Connect All / Disconnect All<br/>Export CSV"]
+            RA_RELAY["<b>relay.html?id=N</b> — Relay Detail<br/>Header: name, substation, bay, IP, password<br/>Sections: SER, Settings (SHOSET),<br/>COMTRADE (CTR C/D), Target Reports (TAR)<br/>Actions: Sync Time, Change Password,<br/>Download/Upload Settings, Trigger"]
+            subgraph RA_JS["JavaScript Files"]
+                direction LR
+                RA_DATA["<b>data.js</b><br/>Static relay configs<br/>getRelays() · getRelayById()"]
+                RA_DASH["<b>dashboard.js</b><br/>Card grid, search,<br/>loading overlay"]
+                RA_SECT["<b>sections.js</b><br/>SER/Settings/COMTRADE/TAR<br/>ASN.1 BER/TLV decoder<br/>WS connect, auto-poll,<br/>Tabulator table, CSV export"]
+                RA_COMB["<b>combine_ser.js</b><br/>Aggregated SER from<br/>all relays via port 8765<br/>ASN.1 decoder + Tabulator"]
+                RA_RLYJS["<b>relay.js</b><br/>Detail page controller<br/>header, back, toast"]
+            end
+        end
+
+        subgraph UI_DIR["ui/ — Legacy / Alternative UIs"]
+            direction TB
+            UI_INDEX["<b>index.html</b> — SER Viewer<br/>Standalone Tabulator table<br/>WS connect to 8765"]
+            UI_UI["<b>ui.html</b> — Monitoring Dashboard<br/>Sidebar nav, multi-section<br/>(SER, EVE, TAR, SET, FIL)"]
+            UI_STATUS["<b>status.html</b> — Status Panel<br/>Connection, time, events,<br/>config summary grid"]
+            UI_CMD["<b>command.html</b> — Command Panel<br/>Sidebar: SER, EVE, TAR,<br/>SET, FIL, CTRL, direct input"]
+            UI_SHM["<b>shm_worker.js</b> — Web Worker<br/>WS → SharedArrayBuffer<br/>MPMC ring buffer in JS<br/>BER-TLV encoding"]
+            UI_DATA["<b>data.json</b><br/>Auto-generated by<br/>SharedSerReader (Thread 5)"]
+        end
+
+        subgraph WSAPI["websocket API/ — DB Access"]
+            direction TB
+            DB_CLIENT["<b>db_client.js</b> — DatabaseClient<br/>Promise-based WS API<br/>connect · getAll · getIncremental<br/>query · exec · tables · schema · define<br/>Auto-reconnect, per-request timeout"]
+            DB_PAGES["db_fetch_all.js · db_incremental.js<br/>db_query.js · db_schema.js<br/>(example / demo pages)"]
+        end
+
+        LIBS["<b>Libraries (CDN)</b><br/>Tabulator.js (v5.5 / v6.3.1)<br/>Google Fonts (Sora, Inter, Space Grotesk)"]
+    end
+
+    %% ═══════════════════════════════════════════════════════════════
+    %%  DATA TRANSFORMATION PIPELINE
+    %% ═══════════════════════════════════════════════════════════════
+
+    subgraph TRANSFORM["📊 DATA TRANSFORMATION PIPELINE (SER records end-to-end)"]
+        direction LR
+        T1["1⃣ Raw Telnet Text<br/>relay SER output lines"]
+        T2["2⃣ parseSERResponse()<br/>→ vector‹SERRecord›<br/>+ stamp relay_id/name"]
+        T3["3⃣ SQLite insert<br/>→ ser_records rows<br/>(dedup by relay_id + record_id)"]
+        T4["4⃣ encodeSerRecordsToTlv()<br/>→ ASN.1 BER/TLV binary<br/>0x61→0x30→0x80..0x85"]
+        T5["5⃣ WS binary frame<br/>broadcast to all<br/>connected browsers"]
+        T6["6⃣ JS decodeTlv()<br/>→ JSON objects array"]
+        T7["7⃣ Tabulator.setData()<br/>→ rendered HTML table<br/>with sort, filter, export"]
+        T1 --> T2 --> T3 --> T4 --> T5 --> T6 --> T7
+    end
+
+    %% ═══════════════════════════════════════════════════════════════
+    %%  CONNECTIONS (edges)
+    %% ═══════════════════════════════════════════════════════════════
+
+    %% Relay → TelnetClient (TCP:23 Telnet protocol)
+    R1 -.->|"TCP:23 Telnet"| TC1
+    R2 -.->|"TCP:23"| PIPE1
+    R3 -.->|"TCP:23"| PIPE1
+
+    %% Pipeline internal flow
+    TC1 --> RX1
+    RX1 -->|"push {cmd, resp}"| RING1
+    RING1 -->|"waitPop(readerId)"| PROC1
+
+    %% Processing → Shared resources (3 outputs)
+    PROC1 -->|"① insertAndGetNewRecords()"| DB
+    PROC1 -->|"② broadcastAll()<br/>ASN.1 TLV"| WS_SM
+    PROC1 -->|"③ write(TLV payload)"| SHM_RING
+
+    %% Non-SER text broadcast
+    PROC1 -.->|"Non-SER: broadcastText()"| WS_SM
+
+    %% RelayManager ↔ Pipelines
+    RM_START --> PIPE1
+
+    %% Service managers → RelayService
+    TIME_MGR --> REL_SVC
+    PASS_MGR --> REL_SVC
+
+    %% SharedSerReader chain
+    SHM_RING --> SHM_READ
+    SHM_READ --> TLV_DEC --> JSON_WRITE
+    JSON_WRITE --> FILE_IO
+
+    %% Poller → RelayManager
+    SER_POLLER -->|"queueCommand(id, 'SER')"| RM_START
+
+    %% WS 8765 ↔ Browser
+    WS_SM -->|"ASN.1 BER/TLV binary"| WS8765
+    WS8765 <-->|"ws://localhost:8765"| RA_SECT
+    WS8765 <-->|"ws://localhost:8765"| RA_COMB
+    WS8765 <-->|"ws://localhost:8765"| UI_INDEX
+    WS8765 <-->|"ws://localhost:8765"| UI_SHM
+
+    %% WS 8766 ↔ Browser
+    WSDB --> WS8766
+    WS8766 <-->|"ws://localhost:8766"| DB_CLIENT
+    WSDB_OPS --> DB
+
+    %% HTTP → Browser static files
+    HTTP8080 -->|"serves ui/ files"| UI_DIR
+
+    %% File → Browser
+    FILE_IO -.->|"fetch/read"| UI_DATA
+
+    %% Browser internal wiring
+    RA_DATA --> RA_DASH
+    RA_DATA --> RA_RLYJS
+    RA_SECT --> LIBS
+    RA_COMB --> LIBS
+    UI_INDEX --> LIBS
+    DB_CLIENT --> DB_PAGES
+
+    %% SharedDBMemory
+    WSDB_SESS -.->|"change notifications"| SHM_DB_MEM
+
+    %% WS action/command routing
+    WS_SESS -->|"JSON actions<br/>(start/stop_relay, etc.)"| RM_START
+    WS_SESS -->|"relay_id:cmd<br/>(1:SER, 2:TAR 0, etc.)"| RM_START
+
+    %% ───────────────────────────────────────────
+    %%  STYLING
+    %% ───────────────────────────────────────────
+    classDef relay fill:#fde68a,stroke:#d97706,color:#000
+    classDef thread fill:#bfdbfe,stroke:#2563eb,color:#000
+    classDef shared fill:#bbf7d0,stroke:#16a34a,color:#000
+    classDef transport fill:#e9d5ff,stroke:#7c3aed,color:#000
+    classDef browser fill:#fce7f3,stroke:#db2777,color:#000
+    classDef transform fill:#fff7ed,stroke:#ea580c,color:#000
+    classDef service fill:#fef3c7,stroke:#ca8a04,color:#000
+    classDef commands fill:#f0fdf4,stroke:#15803d,color:#000
+
+    class R1,R2,R3 relay
+    class RX1,PROC1,POLL,SHM_READER thread
+    class DB,SHM_RING,SHM_DB_MEM shared
+    class WS8765,WS8766,HTTP8080,SHM_IPC,FILE_IO transport
+    class RA_INDEX,RA_RELAY,UI_INDEX,UI_UI,UI_STATUS,UI_CMD,DB_CLIENT browser
+    class T1,T2,T3,T4,T5,T6,T7 transform
+    class REL_SVC,TIME_MGR,PASS_MGR service
+    class CMD_LIST commands

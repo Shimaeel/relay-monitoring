@@ -194,6 +194,21 @@ struct TELNET_SML_API SERRecord
  * @see SERRecord Structure for individual records
  * @see SERDatabase::insertRecords() For storing parsed records
  */
+
+/**
+ * @brief Sanitize a single SER text line by stripping Telnet and ANSI artefacts.
+ *
+ * @details Removes Telnet IAC sequences (0xFF …), ANSI CSI escape sequences
+ * (ESC \[ …), and non-printable control characters while keeping ordinary
+ * printable ASCII and horizontal tabs.  A doubled IAC (0xFF 0xFF) is
+ * collapsed and discarded rather than emitted.
+ *
+ * @param line Raw line received from the Telnet session.
+ * @return std::string Cleaned line suitable for field parsing.
+ *
+ * @note The function preserves tab characters (\t) so column-aligned
+ *       relay output stays parsable.
+ */
 inline std::string sanitizeSerLine(const std::string& line)
 {
     std::string out;
@@ -245,6 +260,36 @@ inline std::string sanitizeSerLine(const std::string& line)
     return out;
 }
 
+/**
+ * @brief Parse a raw SER command response into a vector of SERRecord.
+ *
+ * @details Splits the response into lines, sanitises each one via
+ * sanitizeSerLine(), then extracts the record number, date, time,
+ * element name, and optional state ("Asserted" / "Deasserted").
+ * Header lines (starting with '#' or containing "Date") and blank
+ * lines are silently skipped.
+ *
+ * ## Parsing Rules
+ *
+ * 1. Lines starting with '#' are skipped (header).
+ * 2. Lines containing "Date" are skipped (column header).
+ * 3. A valid record line must begin with a digit.
+ * 4. Date format is validated as MM/DD/YY (slashes at positions 2 and 5).
+ * 5. Time must contain at least one colon.
+ * 6. The last word is extracted as state if it equals "Asserted" or
+ *    "Deasserted"; otherwise the entire tail is the element name.
+ *
+ * @param response Raw text response from the SER command.
+ * @return std::vector<SERRecord> Parsed records (may be empty if no valid
+ *         records are found).
+ *
+ * @note relay_id and relay_name are left empty; the caller (pipeline) is
+ *       responsible for filling them in.
+ *
+ * @see sanitizeSerLine() Pre-processing step for each line
+ * @see SERRecord The structure returned for each parsed event
+ * @see SERDatabase::insertRecords() For storing the results
+ */
 inline std::vector<SERRecord> parseSERResponse(const std::string& response)
 {
     std::vector<SERRecord> records;

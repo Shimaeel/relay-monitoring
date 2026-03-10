@@ -33,7 +33,7 @@
         <div class="detail-header__top">
           <div class="detail-header__left">
             <div class="relay-image-container">
-              <img src="images/SEL-735.svg" alt="SEL Relay Device" class="relay-image" />
+              <img id="relay-image" src="images/SEL-relay.svg" alt="SEL Relay Device" class="relay-image" />
             </div>
             <div>
               <h1 id="relay-name">SEL-751</h1>
@@ -74,6 +74,23 @@
 
           <div class="detail-header__right">
             <span id="relay-status-badge"></span>
+
+            <!-- Device & PC Time Display -->
+            <div class="time-display">
+              <div class="time-display__row">
+                <span class="time-display__label">Device Time</span>
+                <span id="device-time" class="time-display__value time-display__value--mono">—</span>
+              </div>
+              <div class="time-display__row">
+                <span class="time-display__label">PC Time</span>
+                <span id="pc-time" class="time-display__value time-display__value--mono">—</span>
+              </div>
+              <div class="time-display__row">
+                <span class="time-display__label">Status</span>
+                <span id="time-sync-status" class="time-display__badge">—</span>
+              </div>
+            </div>
+
             <button id="sync-time-btn" class="btn btn--outline btn--sm">
               ⏱ Sync Time
             </button>

@@ -1873,7 +1873,7 @@ function initEvTable() {
       {
         title: "IA",
         field: "IA",
-        widthGrow: 1,
+        width: 150,
         hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
@@ -1881,7 +1881,7 @@ function initEvTable() {
       {
         title: "IB",
         field: "IB",
-        widthGrow: 1,
+        width: 150,
         hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
@@ -1889,7 +1889,7 @@ function initEvTable() {
       {
         title: "IC",
         field: "IC",
-        widthGrow: 1,
+        width: 150,
         hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
@@ -1897,7 +1897,7 @@ function initEvTable() {
       {
         title: "IN",
         field: "IN",
-        widthGrow: 1,
+        width: 150,
         hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
@@ -1905,7 +1905,7 @@ function initEvTable() {
       {
         title: "VAB",
         field: "VAB",
-        widthGrow: 1,
+        width: 150,
         hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
@@ -1913,7 +1913,7 @@ function initEvTable() {
       {
         title: "VBC",
         field: "VBC",
-        widthGrow: 1,
+        width: 150,
         hozAlign: "right",
         headerSort: true,
         headerFilter: "input"
@@ -1921,7 +1921,7 @@ function initEvTable() {
       {
         title: "VCA",
         field: "VCA",
-        widthGrow: 1,
+        width: 150,
         hozAlign: "right",
         headerSort: true,
         headerFilter: "input"

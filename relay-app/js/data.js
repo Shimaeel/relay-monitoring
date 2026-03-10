@@ -16,7 +16,7 @@
 const RELAYS = [
   {
     id: "1",
-    name: "SEL-751",
+    name: "SEL-735",
     ip: "192.168.0.2",
     substation: "Substation Alpha",
     bay: "Bay 1",
@@ -26,7 +26,7 @@ const RELAYS = [
     wsPort: 8765
   },
   {
-    id: "3",
+    id: "2",
     name: "SEL-451",
     ip: "192.168.0.3",
     substation: "Substation Alpha",

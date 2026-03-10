@@ -324,6 +324,12 @@ private:
         return json.substr(pos + 1, end - pos - 1);
     }
 
+    /**
+     * @brief Escape special characters for JSON string values.
+     *
+     * @param s Raw string to escape.
+     * @return Escaped string safe for embedding in a JSON value.
+     */
     static std::string escapeJson(const std::string& s)
     {
         std::string out;
@@ -339,11 +345,20 @@ private:
         return out;
     }
 
+    /**
+     * @brief Build a JSON success response for the change_password action.
+     * @return JSON string: {"action":"change_password","status":"success"}
+     */
     static std::string buildSuccessJson()
     {
         return "{\"action\":\"change_password\",\"status\":\"success\"}";
     }
 
+    /**
+     * @brief Build a JSON error response for the change_password action.
+     * @param msg Human-readable error description.
+     * @return JSON string with action, status, and error fields.
+     */
     static std::string buildErrorJson(const std::string& msg)
     {
         std::ostringstream json;

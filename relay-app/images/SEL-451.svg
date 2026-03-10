@@ -1,0 +1,458 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 430" width="1400" height="430">
+  <defs>
+    <!-- Panel body gradient - deep steel blue -->
+    <linearGradient id="panelGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2e5498"/>
+      <stop offset="30%" style="stop-color:#1e3e7a"/>
+      <stop offset="100%" style="stop-color:#152d60"/>
+    </linearGradient>
+    <!-- LCD green gradient -->
+    <linearGradient id="lcdGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a8cf45"/>
+      <stop offset="40%" style="stop-color:#96bf30"/>
+      <stop offset="100%" style="stop-color:#82aa20"/>
+    </linearGradient>
+    <!-- LCD dark green for schematic -->
+    <!-- Button face gradient (white/light grey push buttons) -->
+    <linearGradient id="whiteBtnFace" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0f0f0"/>
+      <stop offset="100%" style="stop-color:#d0d0d0"/>
+    </linearGradient>
+    <!-- Blue round button face -->
+    <linearGradient id="blueBtnFace" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" style="stop-color:#2858a8"/>
+      <stop offset="100%" style="stop-color:#0e2254"/>
+    </linearGradient>
+    <!-- Section panel inset -->
+    <linearGradient id="sectionBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#223878"/>
+      <stop offset="100%" style="stop-color:#172c62"/>
+    </linearGradient>
+    <!-- Screw gradient -->
+    <radialGradient id="screwGrad" cx="35%" cy="35%">
+      <stop offset="0%" style="stop-color:#7090c0"/>
+      <stop offset="100%" style="stop-color:#1a3060"/>
+    </radialGradient>
+    <!-- Nav button gradient -->
+    <linearGradient id="navBtnGrad" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" style="stop-color:#e8eef8"/>
+      <stop offset="100%" style="stop-color:#b8c8e0"/>
+    </linearGradient>
+    <!-- LED green lit -->
+    <radialGradient id="ledGreenLit" cx="40%" cy="35%">
+      <stop offset="0%" style="stop-color:#80ff40"/>
+      <stop offset="60%" style="stop-color:#40c000"/>
+      <stop offset="100%" style="stop-color:#208000"/>
+    </radialGradient>
+    <!-- LED off -->
+    <radialGradient id="ledOff" cx="40%" cy="35%">
+      <stop offset="0%" style="stop-color:#505050"/>
+      <stop offset="100%" style="stop-color:#282828"/>
+    </radialGradient>
+    <!-- LED amber dim -->
+    <radialGradient id="ledAmberDim" cx="40%" cy="35%">
+      <stop offset="0%" style="stop-color:#705020"/>
+      <stop offset="100%" style="stop-color:#302010"/>
+    </radialGradient>
+    <!-- Target reset button -->
+    <linearGradient id="targetResetGrad" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" style="stop-color:#dde8f8"/>
+      <stop offset="100%" style="stop-color:#a8b8d0"/>
+    </linearGradient>
+    <!-- SEL logo bg -->
+    <linearGradient id="selLogoBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8eef8"/>
+      <stop offset="100%" style="stop-color:#c8d4e8"/>
+    </linearGradient>
+    <!-- DB9 port bg -->
+    <linearGradient id="db9Bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2a"/>
+      <stop offset="100%" style="stop-color:#080810"/>
+    </linearGradient>
+
+    <filter id="btnShadow" x="-10%" y="-10%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="ledGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softShadow" x="-5%" y="-5%" width="115%" height="120%">
+      <feDropShadow dx="1" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- ===================== OUTER BODY ===================== -->
+  <rect x="0" y="0" width="1400" height="430" rx="10" fill="url(#panelGrad)" stroke="#0a1a3a" stroke-width="3"/>
+  <!-- Top sheen -->
+  <rect x="0" y="0" width="1400" height="4" rx="2" fill="rgba(255,255,255,0.12)"/>
+  <!-- Bottom shadow line -->
+  <rect x="0" y="426" width="1400" height="4" rx="2" fill="rgba(0,0,0,0.3)"/>
+
+  <!-- CORNER SCREWS (Phillips head) -->
+  <!-- TL -->
+  <circle cx="28" cy="28" r="9" fill="url(#screwGrad)" stroke="#0a1428" stroke-width="1.5"/>
+  <line x1="23" y1="28" x2="33" y2="28" stroke="#4a6a9a" stroke-width="1.8"/>
+  <line x1="28" y1="23" x2="28" y2="33" stroke="#4a6a9a" stroke-width="1.8"/>
+  <!-- BL -->
+  <circle cx="28" cy="402" r="9" fill="url(#screwGrad)" stroke="#0a1428" stroke-width="1.5"/>
+  <line x1="23" y1="402" x2="33" y2="402" stroke="#4a6a9a" stroke-width="1.8"/>
+  <line x1="28" y1="397" x2="28" y2="407" stroke="#4a6a9a" stroke-width="1.8"/>
+  <!-- TR -->
+  <circle cx="1372" cy="28" r="9" fill="url(#screwGrad)" stroke="#0a1428" stroke-width="1.5"/>
+  <line x1="1367" y1="28" x2="1377" y2="28" stroke="#4a6a9a" stroke-width="1.8"/>
+  <line x1="1372" y1="23" x2="1372" y2="33" stroke="#4a6a9a" stroke-width="1.8"/>
+  <!-- BR -->
+  <circle cx="1372" cy="402" r="9" fill="url(#screwGrad)" stroke="#0a1428" stroke-width="1.5"/>
+  <line x1="1367" y1="402" x2="1377" y2="402" stroke="#4a6a9a" stroke-width="1.8"/>
+  <line x1="1372" y1="397" x2="1372" y2="407" stroke="#4a6a9a" stroke-width="1.8"/>
+
+  <!-- ===================== PORT F (DB-9 LEFT) ===================== -->
+  <text x="82" y="162" font-family="Arial" font-size="9" fill="#8ab0d8" text-anchor="middle" letter-spacing="1">PORT F</text>
+  <!-- DB9 outer housing - trapezoidal shape -->
+  <path d="M58,170 L108,170 L112,175 L112,215 L108,220 L58,220 L54,215 L54,175 Z" fill="#181828" stroke="#080818" stroke-width="1.5"/>
+  <path d="M62,174 L104,174 L107,178 L107,212 L104,216 L62,216 L59,212 L59,178 Z" fill="#0c0c18" stroke="#2a2a3a" stroke-width="0.8"/>
+  <!-- Mounting ears/flanges -->
+  <rect x="50" y="182" width="10" height="30" rx="2" fill="#2a3850" stroke="#1a2840" stroke-width="1"/>
+  <rect x="106" y="182" width="10" height="30" rx="2" fill="#2a3850" stroke="#1a2840" stroke-width="1"/>
+  <circle cx="55" cy="197" r="3" fill="#4a6080"/>
+  <circle cx="111" cy="197" r="3" fill="#4a6080"/>
+  <!-- DB9 pins - row of 5 -->
+  <circle cx="70" cy="189" r="2.2" fill="#9090a0"/>
+  <circle cx="80" cy="189" r="2.2" fill="#9090a0"/>
+  <circle cx="90" cy="189" r="2.2" fill="#9090a0"/>
+  <circle cx="100" cy="189" r="2.2" fill="#9090a0"/>
+  <circle cx="110" cy="189" r="2.2" fill="#9090a0"/>
+  <!-- DB9 pins - row of 4 -->
+  <circle cx="75" cy="201" r="2.2" fill="#9090a0"/>
+  <circle cx="85" cy="201" r="2.2" fill="#9090a0"/>
+  <circle cx="95" cy="201" r="2.2" fill="#9090a0"/>
+  <circle cx="105" cy="201" r="2.2" fill="#9090a0"/>
+
+  <!-- ===================== INNER PANEL FRAME ===================== -->
+  <rect x="130" y="44" width="1240" height="342" rx="8" fill="url(#sectionBg)" stroke="#0e2050" stroke-width="2.5"/>
+  <!-- inner panel top highlight -->
+  <rect x="131" y="44" width="1238" height="2" rx="1" fill="rgba(255,255,255,0.10)"/>
+
+  <!-- ===================== LCD SECTION BEZEL ===================== -->
+  <!-- Outer bezel of LCD area - deep black frame -->
+  <rect x="143" y="54" width="398" height="322" rx="8" fill="#0a0e18" stroke="#050810" stroke-width="2"/>
+  <!-- LCD mounting frame -->
+  <rect x="150" y="60" width="384" height="310" rx="6" fill="#141820" stroke="#0d1220" stroke-width="1.5"/>
+  <!-- LCD screen itself - green phosphor -->
+  <rect x="157" y="66" width="370" height="298" rx="4" fill="url(#lcdGreen)"/>
+  <!-- LCD scanline overlay (subtle) -->
+  <rect x="157" y="66" width="370" height="298" rx="4" fill="url(#scanlines)" opacity="0.04"/>
+  <!-- LCD top shadow -->
+  <rect x="157" y="66" width="370" height="16" rx="4" fill="rgba(0,0,0,0.18)"/>
+  <!-- LCD left shadow -->
+  <rect x="157" y="66" width="12" height="298" fill="rgba(0,0,0,0.12)"/>
+  <!-- LCD reflection glare -->
+  <rect x="160" y="68" width="130" height="6" rx="3" fill="rgba(255,255,255,0.12)"/>
+
+  <!-- ===== LCD CONTENT ===== -->
+  <!-- Title bar -->
+  <text x="172" y="92" font-family="'Courier New',Courier,monospace" font-size="14" font-weight="bold" fill="#1a3800" letter-spacing="0.5">MAIN/AUX BUS</text>
+
+  <!-- Bus voltage labels -->
+  <text x="258" y="108" font-family="'Courier New',Courier,monospace" font-size="8.5" fill="#1e4200">BA 230KV</text>
+  <text x="258" y="120" font-family="'Courier New',Courier,monospace" font-size="8.5" fill="#1e4200">BP 230KV</text>
+
+  <!-- Top horizontal bus bar -->
+  <rect x="168" y="128" width="340" height="3" fill="#1a3800"/>
+  <!-- Bottom horizontal bus bar -->
+  <rect x="168" y="305" width="340" height="3" fill="#1a3800"/>
+
+  <!-- Left vertical feeder from top bus -->
+  <rect x="208" y="131" width="2" height="30" fill="#1a3800"/>
+  <!-- SW1 switch symbol -->
+  <text x="196" y="148" font-family="'Courier New',Courier,monospace" font-size="8" fill="#1e4200">SW1</text>
+  <rect x="201" y="152" width="18" height="9" rx="1" fill="none" stroke="#1a3800" stroke-width="1.5"/>
+  <rect x="209" y="161" width="2" height="22" fill="#1a3800"/>
+
+  <!-- Right vertical feeder from top bus -->
+  <rect x="308" y="131" width="2" height="30" fill="#1a3800"/>
+  <!-- SW2 switch symbol -->
+  <text x="320" y="148" font-family="'Courier New',Courier,monospace" font-size="8" fill="#1e4200">SW2</text>
+  <rect x="301" y="152" width="18" height="9" rx="1" fill="none" stroke="#1a3800" stroke-width="1.5"/>
+  <rect x="309" y="161" width="2" height="22" fill="#1a3800"/>
+
+  <!-- Horizontal connector between SW1 & SW2 -->
+  <rect x="209" y="183" width="100" height="2" fill="#1a3800"/>
+  <!-- Center vertical down to BKR1 -->
+  <rect x="259" y="185" width="2" height="22" fill="#1a3800"/>
+
+  <!-- BKR1 breaker box -->
+  <text x="170" y="207" font-family="'Courier New',Courier,monospace" font-size="8" fill="#1e4200">BKR1</text>
+  <rect x="245" y="207" width="30" height="22" rx="2" fill="none" stroke="#1a3800" stroke-width="1.5"/>
+  <!-- X symbol inside breaker box -->
+  <line x1="249" y1="211" x2="271" y2="225" stroke="#1a3800" stroke-width="1.2"/>
+  <line x1="271" y1="211" x2="249" y2="225" stroke="#1a3800" stroke-width="1.2"/>
+  <!-- line below BKR1 -->
+  <rect x="259" y="229" width="2" height="20" fill="#1a3800"/>
+
+  <!-- Measurements display -->
+  <text x="290" y="207" font-family="'Courier New',Courier,monospace" font-size="8.5" fill="#1e4200">P: 10.8 MW</text>
+  <text x="290" y="219" font-family="'Courier New',Courier,monospace" font-size="8.5" fill="#1e4200">I: 430 A</text>
+  <text x="290" y="231" font-family="'Courier New',Courier,monospace" font-size="8.5" fill="#1e4200">Q: 1.2 MVAR</text>
+  <text x="290" y="243" font-family="'Courier New',Courier,monospace" font-size="8.5" fill="#1e4200">F: 60.1 HZ</text>
+
+  <!-- SW3 left bottom -->
+  <rect x="259" y="249" width="2" height="16" fill="#1a3800"/>
+  <rect x="168" y="249" width="93" height="2" fill="#1a3800"/>
+  <rect x="168" y="251" width="2" height="22" fill="#1a3800"/>
+  <text x="156" y="266" font-family="'Courier New',Courier,monospace" font-size="8" fill="#1e4200">SW3</text>
+  <rect x="160" y="268" width="18" height="9" rx="1" fill="none" stroke="#1a3800" stroke-width="1.5"/>
+  <rect x="168" y="277" width="2" height="28" fill="#1a3800"/>
+
+  <!-- SW4 right bottom -->
+  <rect x="310" y="249" width="2" height="16" fill="#1a3800"/>
+  <rect x="310" y="249" width="80" height="2" fill="#1a3800"/>
+  <rect x="388" y="251" width="2" height="22" fill="#1a3800"/>
+  <text x="400" y="266" font-family="'Courier New',Courier,monospace" font-size="8" fill="#1e4200">SW4</text>
+  <rect x="382" y="268" width="18" height="9" rx="1" fill="none" stroke="#1a3800" stroke-width="1.5"/>
+  <rect x="389" y="277" width="2" height="28" fill="#1a3800"/>
+
+  <!-- SW5 center bottom -->
+  <rect x="259" y="265" width="2" height="16" fill="#1a3800"/>
+  <text x="268" y="284" font-family="'Courier New',Courier,monospace" font-size="8" fill="#1e4200">SW5</text>
+  <rect x="252" y="280" width="18" height="9" rx="1" fill="none" stroke="#1a3800" stroke-width="1.5"/>
+  <rect x="259" y="289" width="2" height="16" fill="#1a3800"/>
+
+  <!-- Down arrow -->
+  <polygon points="260,315 252,302 268,302" fill="#1a3800"/>
+
+  <!-- Bottom prompt text -->
+  <text x="172" y="350" font-family="'Courier New',Courier,monospace" font-size="11" fill="#1a3800">PRESS &#x21B5; TO ACTIVATE</text>
+
+  <!-- ===================== NAVIGATION BUTTONS SECTION ===================== -->
+  <!-- Nav section background -->
+  <rect x="553" y="54" width="160" height="322" rx="4" fill="url(#sectionBg)" stroke="#0e2050" stroke-width="1"/>
+
+  <!-- UP arrow button -->
+  <circle cx="633" cy="128" r="26" fill="url(#navBtnGrad)" stroke="#8898b8" stroke-width="1.5" filter="url(#btnShadow)"/>
+  <circle cx="633" cy="128" r="23" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
+  <polygon points="633,114 622,136 644,136" fill="#1a2040"/>
+
+  <!-- LEFT arrow button -->
+  <circle cx="585" cy="178" r="26" fill="url(#navBtnGrad)" stroke="#8898b8" stroke-width="1.5" filter="url(#btnShadow)"/>
+  <circle cx="585" cy="178" r="23" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
+  <polygon points="571,178 589,167 589,189" fill="#1a2040"/>
+
+  <!-- RIGHT arrow button -->
+  <circle cx="681" cy="178" r="26" fill="url(#navBtnGrad)" stroke="#8898b8" stroke-width="1.5" filter="url(#btnShadow)"/>
+  <circle cx="681" cy="178" r="23" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
+  <polygon points="695,178 677,167 677,189" fill="#1a2040"/>
+
+  <!-- DOWN arrow button -->
+  <circle cx="633" cy="228" r="26" fill="url(#navBtnGrad)" stroke="#8898b8" stroke-width="1.5" filter="url(#btnShadow)"/>
+  <circle cx="633" cy="228" r="23" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
+  <polygon points="633,242 622,220 644,220" fill="#1a2040"/>
+
+  <!-- ESC button - rectangular -->
+  <rect x="565" y="284" width="62" height="34" rx="5" fill="url(#navBtnGrad)" stroke="#8898b8" stroke-width="1.5" filter="url(#btnShadow)"/>
+  <rect x="567" y="286" width="58" height="30" rx="4" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="0.8"/>
+  <text x="596" y="306" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="bold" fill="#101828" text-anchor="middle" letter-spacing="1">ESC</text>
+
+  <!-- ENT button - rectangular with enter arrow icon -->
+  <rect x="638" y="284" width="62" height="34" rx="5" fill="url(#navBtnGrad)" stroke="#8898b8" stroke-width="1.5" filter="url(#btnShadow)"/>
+  <rect x="640" y="286" width="58" height="30" rx="4" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="0.8"/>
+  <text x="669" y="306" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="bold" fill="#101828" text-anchor="middle" letter-spacing="1">ENT</text>
+  <!-- small enter arrow inside ENT -->
+  <polyline points="659,297 664,297 664,303" fill="none" stroke="#303840" stroke-width="1.4"/>
+  <polygon points="659,303 662,299 662,307" fill="#303840"/>
+
+  <!-- ===================== STATUS LED PANEL ===================== -->
+  <!-- Status section bg -->
+  <rect x="722" y="54" width="228" height="322" rx="4" fill="url(#sectionBg)" stroke="#0e2050" stroke-width="1"/>
+
+  <!-- ENABLED LED row -->
+  <circle cx="742" cy="85" r="6.5" fill="url(#ledGreenLit)" filter="url(#ledGlow)"/>
+  <text x="756" y="90" font-family="Arial,Helvetica,sans-serif" font-size="11" font-weight="bold" fill="#c8e0ff" letter-spacing="0.5">ENABLED</text>
+
+  <!-- TRIP LED row (off) -->
+  <circle cx="742" cy="109" r="6.5" fill="url(#ledOff)"/>
+  <text x="756" y="114" font-family="Arial,Helvetica,sans-serif" font-size="11" font-weight="bold" fill="#c8e0ff" letter-spacing="0.5">TRIP</text>
+
+  <!-- Thin horizontal divider -->
+  <line x1="724" y1="128" x2="946" y2="128" stroke="#1e3878" stroke-width="1.2"/>
+
+  <!-- Left column of LEDs: INST TIME COMM SOTF NEG-SEQ 79 RESET 79 CYCLE 79 LOCKOUT -->
+  <!-- spacing: starts at y=152, step 22 -->
+  <circle cx="734" cy="152" r="5" fill="url(#ledOff)"/>
+  <text x="745" y="157" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">INST</text>
+
+  <circle cx="734" cy="174" r="5" fill="url(#ledOff)"/>
+  <text x="745" y="179" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">TIME</text>
+
+  <circle cx="734" cy="196" r="5" fill="url(#ledOff)"/>
+  <text x="745" y="201" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">COMM</text>
+
+  <circle cx="734" cy="218" r="5" fill="url(#ledOff)"/>
+  <text x="745" y="223" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">SOTF</text>
+
+  <circle cx="734" cy="240" r="5" fill="url(#ledOff)"/>
+  <text x="745" y="245" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">NEG-SEQ</text>
+
+  <circle cx="734" cy="262" r="5" fill="url(#ledOff)"/>
+  <text x="745" y="267" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">79 RESET</text>
+
+  <circle cx="734" cy="284" r="5" fill="url(#ledOff)"/>
+  <text x="745" y="289" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">79 CYCLE</text>
+
+  <circle cx="734" cy="306" r="5" fill="url(#ledOff)"/>
+  <text x="745" y="311" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">79 LOCKOUT</text>
+
+  <!-- Vertical divider between left and right LED columns -->
+  <line x1="830" y1="128" x2="830" y2="322" stroke="#1e3878" stroke-width="1.2"/>
+
+  <!-- Right column: A FAULT, B FAULT, C FAULT, GROUND, LOP, VAY ON, VBY ON, VCY ON -->
+  <circle cx="840" cy="152" r="5" fill="url(#ledOff)"/>
+  <text x="851" y="157" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">A FAULT</text>
+
+  <circle cx="840" cy="174" r="5" fill="url(#ledOff)"/>
+  <text x="851" y="179" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">B FAULT</text>
+
+  <circle cx="840" cy="196" r="5" fill="url(#ledOff)"/>
+  <text x="851" y="201" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">C FAULT</text>
+
+  <circle cx="840" cy="218" r="5" fill="url(#ledOff)"/>
+  <text x="851" y="223" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">GROUND</text>
+
+  <circle cx="840" cy="240" r="5" fill="url(#ledOff)"/>
+  <text x="851" y="245" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">LOP</text>
+
+  <circle cx="840" cy="262" r="5" fill="url(#ledOff)"/>
+  <text x="851" y="267" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">VAY ON</text>
+
+  <circle cx="840" cy="284" r="5" fill="url(#ledOff)"/>
+  <text x="851" y="289" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">VBY ON</text>
+
+  <circle cx="840" cy="306" r="5" fill="url(#ledOff)"/>
+  <text x="851" y="311" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#a0bcd8">VCY ON</text>
+
+  <!-- ===================== TARGET RESET BUTTON ===================== -->
+  <!-- Circular button in upper right of status section -->
+  <circle cx="921" cy="91" r="33" fill="#101828" stroke="#080e1e" stroke-width="2"/>
+  <circle cx="921" cy="91" r="28" fill="url(#targetResetGrad)" stroke="#aabcd0" stroke-width="1.5" filter="url(#btnShadow)"/>
+  <circle cx="921" cy="91" r="25" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+  <text x="921" y="86" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="bold" fill="#1a2030" text-anchor="middle" letter-spacing="0.5">TARGET</text>
+  <text x="921" y="99" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="bold" fill="#1a2030" text-anchor="middle" letter-spacing="0.5">RESET</text>
+
+  <!-- ===================== RIGHT FUNCTION BUTTONS (4x2 grid) ===================== -->
+  <!-- Right function panel background -->
+  <rect x="960" y="54" width="310" height="322" rx="4" fill="url(#sectionBg)" stroke="#0e2050" stroke-width="1"/>
+
+  <!-- Grid dividers -->
+  <!-- Horizontal dividers at rows -->
+  <line x1="962" y1="134" x2="1268" y2="134" stroke="#1e3878" stroke-width="1.2"/>
+  <line x1="962" y1="214" x2="1268" y2="214" stroke="#1e3878" stroke-width="1.2"/>
+  <line x1="962" y1="294" x2="1268" y2="294" stroke="#1e3878" stroke-width="1.2"/>
+  <!-- Vertical divider -->
+  <line x1="1115" y1="56" x2="1115" y2="374" stroke="#1e3878" stroke-width="1.2"/>
+
+  <!-- ---- ROW 1 LEFT: GROUND ENABLED ---- -->
+  <!-- Blue circular button -->
+  <circle cx="994" cy="94" r="28" fill="#0e1828" stroke="#060e1a" stroke-width="1.5"/>
+  <circle cx="994" cy="94" r="23" fill="url(#blueBtnFace)" stroke="#2a4888" stroke-width="1.2" filter="url(#btnShadow)"/>
+  <circle cx="994" cy="94" r="19" fill="none" stroke="rgba(80,120,200,0.35)" stroke-width="1"/>
+  <!-- White label box -->
+  <rect x="1030" y="72" width="75" height="44" rx="3" fill="#d8e4f4" stroke="#b0c4e0" stroke-width="1"/>
+  <text x="1067" y="91" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">GROUND</text>
+  <text x="1067" y="105" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">ENABLED</text>
+
+  <!-- ---- ROW 1 RIGHT: HOT LINE TAG ---- -->
+  <circle cx="1148" cy="94" r="28" fill="#0e1828" stroke="#060e1a" stroke-width="1.5"/>
+  <circle cx="1148" cy="94" r="23" fill="url(#blueBtnFace)" stroke="#2a4888" stroke-width="1.2" filter="url(#btnShadow)"/>
+  <circle cx="1148" cy="94" r="19" fill="none" stroke="rgba(80,120,200,0.35)" stroke-width="1"/>
+  <rect x="1185" y="72" width="75" height="44" rx="3" fill="#d8e4f4" stroke="#b0c4e0" stroke-width="1"/>
+  <text x="1222" y="91" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">HOT LINE</text>
+  <text x="1222" y="105" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">TAG</text>
+
+  <!-- ---- ROW 2 LEFT: RECLOSE ENABLED ---- -->
+  <circle cx="994" cy="174" r="28" fill="#0e1828" stroke="#060e1a" stroke-width="1.5"/>
+  <circle cx="994" cy="174" r="23" fill="url(#blueBtnFace)" stroke="#2a4888" stroke-width="1.2" filter="url(#btnShadow)"/>
+  <circle cx="994" cy="174" r="19" fill="none" stroke="rgba(80,120,200,0.35)" stroke-width="1"/>
+  <rect x="1030" y="152" width="75" height="44" rx="3" fill="#d8e4f4" stroke="#b0c4e0" stroke-width="1"/>
+  <text x="1067" y="171" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">RECLOSE</text>
+  <text x="1067" y="185" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">ENABLED</text>
+
+  <!-- ---- ROW 2 RIGHT: BAY DISPLAY ---- -->
+  <circle cx="1148" cy="174" r="28" fill="#0e1828" stroke="#060e1a" stroke-width="1.5"/>
+  <circle cx="1148" cy="174" r="23" fill="url(#blueBtnFace)" stroke="#2a4888" stroke-width="1.2" filter="url(#btnShadow)"/>
+  <circle cx="1148" cy="174" r="19" fill="none" stroke="rgba(80,120,200,0.35)" stroke-width="1"/>
+  <rect x="1185" y="152" width="75" height="44" rx="3" fill="#d8e4f4" stroke="#b0c4e0" stroke-width="1"/>
+  <text x="1222" y="171" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">BAY</text>
+  <text x="1222" y="185" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">DISPLAY</text>
+
+  <!-- ---- ROW 3 LEFT: REMOTE ENABLED ---- -->
+  <circle cx="994" cy="254" r="28" fill="#0e1828" stroke="#060e1a" stroke-width="1.5"/>
+  <circle cx="994" cy="254" r="23" fill="url(#blueBtnFace)" stroke="#2a4888" stroke-width="1.2" filter="url(#btnShadow)"/>
+  <circle cx="994" cy="254" r="19" fill="none" stroke="rgba(80,120,200,0.35)" stroke-width="1"/>
+  <rect x="1030" y="232" width="75" height="44" rx="3" fill="#d8e4f4" stroke="#b0c4e0" stroke-width="1"/>
+  <text x="1067" y="251" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">REMOTE</text>
+  <text x="1067" y="265" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">ENABLED</text>
+
+  <!-- ---- ROW 3 RIGHT: BREAKER CLOSED / CLOSE ---- -->
+  <circle cx="1148" cy="254" r="28" fill="#0e1828" stroke="#060e1a" stroke-width="1.5"/>
+  <circle cx="1148" cy="254" r="23" fill="url(#blueBtnFace)" stroke="#2a4888" stroke-width="1.2" filter="url(#btnShadow)"/>
+  <circle cx="1148" cy="254" r="19" fill="none" stroke="rgba(80,120,200,0.35)" stroke-width="1"/>
+  <!-- label box with sub-label and main label -->
+  <rect x="1185" y="232" width="75" height="44" rx="3" fill="#d8e4f4" stroke="#b0c4e0" stroke-width="1"/>
+  <text x="1222" y="246" font-family="Arial,Helvetica,sans-serif" font-size="8" fill="#3a5080" text-anchor="middle">BREAKER</text>
+  <text x="1222" y="257" font-family="Arial,Helvetica,sans-serif" font-size="8" fill="#3a5080" text-anchor="middle">CLOSED</text>
+  <text x="1222" y="270" font-family="Arial,Helvetica,sans-serif" font-size="11" font-weight="bold" fill="#1a2840" text-anchor="middle">CLOSE</text>
+
+  <!-- ---- ROW 4 LEFT: ALT SETTINGS ---- -->
+  <circle cx="994" cy="334" r="28" fill="#0e1828" stroke="#060e1a" stroke-width="1.5"/>
+  <circle cx="994" cy="334" r="23" fill="url(#blueBtnFace)" stroke="#2a4888" stroke-width="1.2" filter="url(#btnShadow)"/>
+  <circle cx="994" cy="334" r="19" fill="none" stroke="rgba(80,120,200,0.35)" stroke-width="1"/>
+  <rect x="1030" y="312" width="75" height="44" rx="3" fill="#d8e4f4" stroke="#b0c4e0" stroke-width="1"/>
+  <text x="1067" y="331" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">ALT</text>
+  <text x="1067" y="345" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="bold" fill="#1a2840" text-anchor="middle">SETTINGS</text>
+
+  <!-- ---- ROW 4 RIGHT: BREAKER OPEN / TRIP ---- -->
+  <circle cx="1148" cy="334" r="28" fill="#0e1828" stroke="#060e1a" stroke-width="1.5"/>
+  <circle cx="1148" cy="334" r="23" fill="url(#blueBtnFace)" stroke="#2a4888" stroke-width="1.2" filter="url(#btnShadow)"/>
+  <circle cx="1148" cy="334" r="19" fill="none" stroke="rgba(80,120,200,0.35)" stroke-width="1"/>
+  <rect x="1185" y="312" width="75" height="44" rx="3" fill="#d8e4f4" stroke="#b0c4e0" stroke-width="1"/>
+  <text x="1222" y="326" font-family="Arial,Helvetica,sans-serif" font-size="8" fill="#3a5080" text-anchor="middle">BREAKER</text>
+  <text x="1222" y="337" font-family="Arial,Helvetica,sans-serif" font-size="8" fill="#3a5080" text-anchor="middle">OPEN</text>
+  <text x="1222" y="350" font-family="Arial,Helvetica,sans-serif" font-size="11" font-weight="bold" fill="#1a2840" text-anchor="middle">TRIP</text>
+
+  <!-- ===================== SEL BRANDING COLUMN ===================== -->
+  <rect x="1278" y="54" width="85" height="322" rx="4" fill="url(#sectionBg)" stroke="#0e2050" stroke-width="1"/>
+
+  <!-- SEL-451 model number -->
+  <text x="1320" y="82" font-family="Arial Black,Arial,sans-serif" font-size="17" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">SEL-451</text>
+
+  <!-- Product description -->
+  <text x="1320" y="101" font-family="Arial,Helvetica,sans-serif" font-size="8.5" font-weight="bold" fill="#7090c0" text-anchor="middle" letter-spacing="0.8">PROTECTION</text>
+  <text x="1320" y="114" font-family="Arial,Helvetica,sans-serif" font-size="8.5" font-weight="bold" fill="#7090c0" text-anchor="middle" letter-spacing="0.8">AUTOMATION</text>
+  <text x="1320" y="127" font-family="Arial,Helvetica,sans-serif" font-size="8.5" font-weight="bold" fill="#7090c0" text-anchor="middle" letter-spacing="0.8">CONTROL</text>
+
+  <!-- SEL Logo box - white badge -->
+  <rect x="1292" y="230" width="58" height="52" rx="7" fill="url(#selLogoBg)" stroke="#c8d8f0" stroke-width="2" filter="url(#softShadow)"/>
+  <!-- Inner border -->
+  <rect x="1295" y="233" width="52" height="46" rx="5" fill="none" stroke="#a8bce0" stroke-width="1"/>
+  <!-- SEL text in logo -->
+  <text x="1321" y="266" font-family="Arial Black,Impact,sans-serif" font-size="22" font-weight="900" fill="#1a2a6a" text-anchor="middle" letter-spacing="2">SEL</text>
+
+  <!-- Company name -->
+  <text x="1320" y="302" font-family="Arial,Helvetica,sans-serif" font-size="6.5" fill="#5878a8" text-anchor="middle" letter-spacing="0.5">SCHWEITZER</text>
+  <text x="1320" y="313" font-family="Arial,Helvetica,sans-serif" font-size="6.5" fill="#5878a8" text-anchor="middle" letter-spacing="0.5">ENGINEERING</text>
+  <text x="1320" y="324" font-family="Arial,Helvetica,sans-serif" font-size="6.5" fill="#5878a8" text-anchor="middle" letter-spacing="0.5">LABORATORIES</text>
+
+  <!-- Bottom edge screws on inner panel -->
+  <circle cx="180" cy="393" r="7" fill="url(#screwGrad)" stroke="#0a1428" stroke-width="1.2"/>
+  <line x1="175" y1="393" x2="185" y2="393" stroke="#4a6a9a" stroke-width="1.5"/>
+  <line x1="180" y1="388" x2="180" y2="398" stroke="#4a6a9a" stroke-width="1.5"/>
+
+  <circle cx="760" cy="393" r="7" fill="url(#screwGrad)" stroke="#0a1428" stroke-width="1.2"/>
+  <line x1="755" y1="393" x2="765" y2="393" stroke="#4a6a9a" stroke-width="1.5"/>
+  <line x1="760" y1="388" x2="760" y2="398" stroke="#4a6a9a" stroke-width="1.5"/>
+
+  <circle cx="1330" cy="393" r="7" fill="url(#screwGrad)" stroke="#0a1428" stroke-width="1.2"/>
+  <line x1="1325" y1="393" x2="1335" y2="393" stroke="#4a6a9a" stroke-width="1.5"/>
+  <line x1="1330" y1="388" x2="1330" y2="398" stroke="#4a6a9a" stroke-width="1.5"/>
+</svg>

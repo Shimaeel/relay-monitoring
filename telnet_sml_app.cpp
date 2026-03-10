@@ -264,7 +264,13 @@ public:
 
     bool running = false;                                ///< Application running state
 
-    // ─── Helper: extract a JSON string field ────────────────────────
+    /**
+     * @brief Extract a string field value from a simple JSON object.
+     *
+     * @param json       Raw JSON string.
+     * @param fieldName  Field name to look up (without quotes).
+     * @return Extracted value string, or empty string on failure.
+     */
     static std::string extractJsonField(const std::string& json, const std::string& fieldName)
     {
         const std::string key = "\"" + fieldName + "\"";

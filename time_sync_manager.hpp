@@ -150,6 +150,12 @@ public:
 private:
     // ── read_time handler ───────────────────────────────────────────────
 
+    /**
+     * @brief Handle the "read_time" action.
+     * @details Reads relay time via RelayService, gets local PC time,
+     *          compares both, and returns a JSON response.
+     * @return JSON string with relay_time, pc_time, sync_status, diff_seconds.
+     */
     std::string handleReadTime()
     {
         auto relayResult = relay_.readRelayTime();
@@ -184,6 +190,11 @@ private:
 
     // ── sync_time handler ───────────────────────────────────────────────
 
+    /**
+     * @brief Handle the "sync_time" action.
+     * @details Writes the current local PC time to the relay via SETTIME.
+     * @return JSON string with status and new_time or error.
+     */
     std::string handleSyncTime()
     {
         std::string pcTime = getLocalPCTime();
@@ -229,6 +240,11 @@ private:
         return std::chrono::system_clock::from_time_t(t);
     }
 
+    /**
+     * @brief Escape special characters for JSON string values.
+     * @param s Raw string.
+     * @return JSON-safe escaped string.
+     */
     static std::string escapeJson(const std::string& s)
     {
         std::string out;
@@ -244,6 +260,12 @@ private:
         return out;
     }
 
+    /**
+     * @brief Build a JSON error response.
+     * @param action The action name (e.g. "read_time", "sync_time").
+     * @param msg    Human-readable error description.
+     * @return JSON string with action, status, and error fields.
+     */
     static std::string buildErrorJson(const std::string& action, const std::string& msg)
     {
         std::ostringstream json;

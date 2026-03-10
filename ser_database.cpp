@@ -596,11 +596,12 @@ bool SERDatabase::clearAllRecords()
 // ================= HELPER FUNCTIONS =================
 
 /**
- * @brief Check whether a record with the given ID and timestamp already exists.
+ * @brief Check whether a record with the given relay ID, record ID and timestamp already exists.
  *
  * @details Uses a `SELECT 1 ... LIMIT 1` query for minimal overhead.
  *          Called internally by insertRecord() to prevent duplicates.
  *
+ * @param relayId    The relay identifier to look up.
  * @param recordId   The record identifier to look up.
  * @param timestamp  The timestamp to match against.
  *
