@@ -709,4 +709,7 @@ public:
 
     /// @return Relay display name
     const std::string& relayName() const { return config_.name; }
+
+    /// @return Reference to the underlying TelnetClient for per-relay operations
+    TelnetClient& getClient() { return client_; }
 };

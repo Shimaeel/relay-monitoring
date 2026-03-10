@@ -112,6 +112,7 @@ function showError(relayId) {
 
 let _timeSyncWs   = null;
 let _timeSyncTimer = null;
+let _deviceTimePoller = null;
 
 /**
  * Initialise time sync: open WS, read relay time, start local clock.
@@ -121,8 +122,8 @@ function initTimeSync(relay) {
   updateLocalPCTime();
   _timeSyncTimer = setInterval(updateLocalPCTime, 1000);
 
-  // Connect to the relay's SER WebSocket (which also handles JSON actions)
-  const wsUrl = `ws://${relay.ip}:${relay.wsPort}`;
+  // Connect to the local WebSocket server (bridge to relay via Telnet)
+  const wsUrl = `ws://localhost:${relay.wsPort}`;
   openTimeSyncWs(wsUrl);
 }
 
@@ -134,6 +135,9 @@ function openTimeSyncWs(url) {
   _timeSyncWs.onopen = () => {
     updateRelayStatusBadge("online");
     sendTimeSyncAction("read_time");
+    // Periodically refresh device time every 5s
+    clearInterval(_deviceTimePoller);
+    _deviceTimePoller = setInterval(() => sendTimeSyncAction("read_time"), 5000);
   };
 
   _timeSyncWs.onmessage = (evt) => {
@@ -147,9 +151,10 @@ function openTimeSyncWs(url) {
 
   _timeSyncWs.onclose = () => {
     updateRelayStatusBadge("offline");
+    clearInterval(_deviceTimePoller);
     // Retry after 5 s in case the server is not yet up
     setTimeout(() => {
-      if (currentRelay) openTimeSyncWs(`ws://${currentRelay.ip}:${currentRelay.wsPort}`);
+      if (currentRelay) openTimeSyncWs(`ws://localhost:${currentRelay.wsPort}`);
     }, 5000);
   };
 
@@ -163,7 +168,7 @@ function sendTimeSyncAction(action) {
     showToast("WebSocket not connected — cannot send " + action, "error");
     return;
   }
-  _timeSyncWs.send(JSON.stringify({ action }));
+  _timeSyncWs.send(JSON.stringify({ action, relay_id: currentRelay.id }));
 
   if (action === "sync_time") {
     syncTimeBtn.disabled = true;

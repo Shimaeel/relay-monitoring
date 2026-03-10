@@ -287,4 +287,16 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         return active_.size();
     }
+
+    /**
+     * @brief Get a pointer to an active relay pipeline by ID.
+     * @param relayId  Relay identifier
+     * @return Pointer to RelayPipeline, or nullptr if not active
+     */
+    RelayPipeline* getPipeline(const std::string& relayId)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = active_.find(relayId);
+        return (it != active_.end()) ? it->second.get() : nullptr;
+    }
 };

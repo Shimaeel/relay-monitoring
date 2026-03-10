@@ -120,7 +120,7 @@ function probeRelayStatus(relayList) {
 function probeOneRelay(relay) {
   if (_probeWsMap[relay.id] && _probeWsMap[relay.id].readyState <= 1) return;
 
-  const ws = new WebSocket(`ws://${relay.ip}:${relay.wsPort}`);
+  const ws = new WebSocket(`ws://localhost:${relay.wsPort}`);
   _probeWsMap[relay.id] = ws;
 
   ws.onopen = () => {
