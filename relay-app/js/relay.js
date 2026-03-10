@@ -188,9 +188,9 @@ function handleTimeSyncResponse(msg) {
       timeSyncStatusEl.className = "time-display__badge " +
         (isSynced ? "time-display__badge--ok" : "time-display__badge--warn");
     } else {
-      deviceTimeEl.textContent = "error";
-      timeSyncStatusEl.textContent = "❌ " + (msg.error || "Failed");
-      timeSyncStatusEl.className = "time-display__badge time-display__badge--err";
+      deviceTimeEl.textContent = "—";
+      timeSyncStatusEl.textContent = "—";
+      timeSyncStatusEl.className = "time-display__badge";
     }
   }
 
