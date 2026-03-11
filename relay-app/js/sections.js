@@ -508,6 +508,11 @@ let rwTable     = null;   // Tabulator instance (created once)
 let rwWs        = null;   // WebSocket connection
 let rwAbort     = false;  // Abort signal for in-flight fetch
 
+// ── TAR data cache (shared by Relay Word and I/O) ───────────
+
+let _tarCachedRows = null;  // Array of parsed TAR row objects (set after first fetch)
+let _tarFetchPromise = null; // In-flight fetch promise (to avoid duplicate fetches)
+
 // ── Promise queue for request-response over WebSocket ───────
 
 let _rwResolve  = null;   // resolve() of current pending sendCommand
@@ -828,75 +833,114 @@ async function sendCommand(cmd) {
  * collects all TAR rows internally, then sends the entire batch
  * back as a single TAR_BATCH_ALL JSON message. The UI displays
  * a loading spinner until all data arrives, then renders all rows.
+ * Results are cached so subsequent calls (and I/O) are instant.
  */
 async function fetchAllTAR() {
+  // If cache exists, just populate the table
+  if (_tarCachedRows) {
+    _rwPopulateFromCache();
+    return;
+  }
+
+  // If a fetch is already in flight, wait for it
+  if (_tarFetchPromise) {
+    await _tarFetchPromise;
+    _rwPopulateFromCache();
+    return;
+  }
+
   // Prevent double invocation
   _rwSetFetchBtn(true);
   rwAbort = false;
 
-  try {
-    // 1. Connect
-    const ws = await _rwEnsureConnection();
-    _rwSetStatus("fetching");
-    _rwSetProgress(0, 1);    // show spinner
-    _rwSetRowCount(0);
+  _tarFetchPromise = (async () => {
+    try {
+      // 1. Connect
+      const ws = await _rwEnsureConnection();
+      _rwSetStatus("fetching");
+      _rwSetProgress(0, 1);    // show spinner
+      _rwSetRowCount(0);
 
-    // 2. Send batch command & wait for TAR_BATCH_ALL response
-    const jsonStr = await new Promise((resolve, reject) => {
-      _rwBatchResolve = resolve;
-      _rwBatchReject  = reject;
+      // 2. Send batch command & wait for TAR_BATCH_ALL response
+      const jsonStr = await new Promise((resolve, reject) => {
+        _rwBatchResolve = resolve;
+        _rwBatchReject  = reject;
 
-      // Timeout: 10 min for entire batch (large relays)
-      const timer = setTimeout(() => {
-        _rwBatchResolve = null;
-        _rwBatchReject  = null;
-        reject(new Error("Timeout waiting for FETCH_ALL_TAR to complete"));
-      }, 600_000);
+        // Timeout: 10 min for entire batch (large relays)
+        const timer = setTimeout(() => {
+          _rwBatchResolve = null;
+          _rwBatchReject  = null;
+          reject(new Error("Timeout waiting for FETCH_ALL_TAR to complete"));
+        }, 600_000);
 
-      const origResolve = resolve;
-      _rwBatchResolve = (data) => { clearTimeout(timer); origResolve(data); };
-      _rwBatchReject  = (err)  => { clearTimeout(timer); reject(err); };
+        const origResolve = resolve;
+        _rwBatchResolve = (data) => { clearTimeout(timer); origResolve(data); };
+        _rwBatchReject  = (err)  => { clearTimeout(timer); reject(err); };
 
-      console.log("[RW] Sending FETCH_ALL_TAR (batch)");
-      ws.send(_prefixCmd("FETCH_ALL_TAR"));
-    });
+        console.log("[RW] Sending FETCH_ALL_TAR (batch)");
+        ws.send(_prefixCmd("FETCH_ALL_TAR"));
+      });
 
-    // 3. Parse and render all rows at once
-    if (!rwAbort) {
-      const rows = JSON.parse(jsonStr);
-      let completed = 0;
+      // 3. Parse all rows and cache them
+      if (!rwAbort) {
+        const entries = JSON.parse(jsonStr);
+        const allRows = [];
 
-      for (const entry of rows) {
-        const parsed = parseTarResponse(entry.data);
-        if (!parsed) {
-          console.warn(`[RW] Failed to parse TAR ${entry.idx}`);
-          continue;
+        for (const entry of entries) {
+          const parsed = parseTarResponse(entry.data);
+          if (!parsed) {
+            console.warn(`[RW] Failed to parse TAR ${entry.idx}`);
+            continue;
+          }
+          allRows.push({
+            targetRow: parsed.targetRow,
+            dnpIndex:  _rwDnpRange(parsed.targetRow),
+            bit7: { label: parsed.labels[0], value: parsed.values[0] },
+            bit6: { label: parsed.labels[1], value: parsed.values[1] },
+            bit5: { label: parsed.labels[2], value: parsed.values[2] },
+            bit4: { label: parsed.labels[3], value: parsed.values[3] },
+            bit3: { label: parsed.labels[4], value: parsed.values[4] },
+            bit2: { label: parsed.labels[5], value: parsed.values[5] },
+            bit1: { label: parsed.labels[6], value: parsed.values[6] },
+            bit0: { label: parsed.labels[7], value: parsed.values[7] }
+          });
         }
-        _rwUpdateRow(parsed);
-        completed++;
+
+        _tarCachedRows = allRows;
+        _rwPopulateFromCache();
+        console.log(`[RW] FETCH_ALL_TAR complete — ${entries.length} rows received, ${allRows.length} parsed & cached`);
       }
 
-      _rwSetProgress(-1);    // hide spinner
-      _rwSetRowCount(completed);
-      _rwSetStatus("done");
-      console.log(`[RW] FETCH_ALL_TAR complete — ${rows.length} rows received, ${completed} parsed`);
-    }
-
-  } catch (err) {
-    console.error("[RW] fetchAllTAR error:", err);
-    _rwSetStatus("error");
-    _rwSetProgress(-1);
-
-    if (typeof showToast === "function") {
-      showToast(`TAR fetch failed: ${err.message}`, "error");
-    }
-  } finally {
-    _rwBatchResolve = null;
-    _rwBatchReject  = null;
-    _rwSetFetchBtn(false);
-  }
-}
+    } catch (err) {
+      console.error("[RW] fetchAllTAR error:", err);
+      _rwSetStatus("error");
       _rwSetProgress(-1);
+
+      if (typeof showToast === "function") {
+        showToast(`TAR fetch failed: ${err.message}`, "error");
+      }
+    } finally {
+      _rwBatchResolve = null;
+      _rwBatchReject  = null;
+      _rwSetFetchBtn(false);
+      _tarFetchPromise = null;
+    }
+  })();
+
+  await _tarFetchPromise;
+}
+
+/** Populate the Relay Word table from cached data */
+function _rwPopulateFromCache() {
+  if (!_tarCachedRows) return;
+  if (!rwTable) initRwTable();
+  rwTable.setData(_tarCachedRows);
+  _rwSetRowCount(_tarCachedRows.length);
+  _rwSetProgress(-1);
+  _rwSetStatus("done");
+  _rwSetFetchBtn(false);
+}
+
 // ── Disconnect helpers ──────────────────────────────────────
 
 function _rwDisconnectRaw() {
@@ -917,7 +961,8 @@ function _rwDisconnectRaw() {
 // ── Public Actions (called from onclick in relay.html) ──────
 
 function rwFetchAll() {
-  fetchAllTAR();                       // fire-and-forget (async)
+  _tarCachedRows = null;   // force re-fetch
+  fetchAllTAR();           // fire-and-forget (async)
 }
 
 function rwExportCSV() {
@@ -1161,12 +1206,12 @@ async function _ioSendCommand(cmd) {
 
 // ── Core — fetchAllIO() ─────────────────────────────────────
 
-// ── Core — fetchAllIO()  (batch) ────────────────────────────
+// ── Core — fetchAllIO()  (uses shared TAR cache) ────────────
 
 /**
- * Sends a single FETCH_ALL_TAR command. The server collects all
- * TAR rows, then sends them as a single TAR_BATCH_ALL JSON message.
- * Only rows with IN/OUT labels are kept and displayed.
+ * Uses the shared TAR cache from fetchAllTAR(). If data hasn't
+ * been fetched yet, triggers the fetch and waits. Filters rows
+ * to only keep those with IN/OUT labels.
  */
 async function fetchAllIO() {
   _ioSetFetchBtn(true);
@@ -1174,64 +1219,27 @@ async function fetchAllIO() {
   _ioAllRows = [];
 
   try {
-    const ws = await _ioEnsureConnection();
-    _ioSetStatus("fetching");
-    _ioSetProgress(0, 1);    // show spinner
-    _ioSetRowCount(0);
-
-    // Send batch command & wait for TAR_BATCH_ALL response
-    const jsonStr = await new Promise((resolve, reject) => {
-      _ioBatchResolve = resolve;
-      _ioBatchReject  = reject;
-
-      const timer = setTimeout(() => {
-        _ioBatchResolve = null;
-        _ioBatchReject  = null;
-        reject(new Error("Timeout waiting for FETCH_ALL_TAR to complete"));
-      }, 600_000);
-
-      const origResolve = resolve;
-      _ioBatchResolve = (data) => { clearTimeout(timer); origResolve(data); };
-      _ioBatchReject  = (err)  => { clearTimeout(timer); reject(err); };
-
-      console.log("[IO] Sending FETCH_ALL_TAR (batch)");
-      ws.send(_prefixCmd("FETCH_ALL_TAR"));
-    });
-
-    // Parse all rows at once and filter for I/O
-    if (!ioAbort) {
-      const rows = JSON.parse(jsonStr);
-
-      for (const entry of rows) {
-        const parsed = parseTarResponse(entry.data);
-        if (!parsed) {
-          console.warn(`[IO] Failed to parse TAR ${entry.idx}`);
-          continue;
-        }
-
-        const row = {
-          targetRow: parsed.targetRow,
-          dnpIndex:  _rwDnpRange(parsed.targetRow),
-          bit7: { label: parsed.labels[0], value: parsed.values[0] },
-          bit6: { label: parsed.labels[1], value: parsed.values[1] },
-          bit5: { label: parsed.labels[2], value: parsed.values[2] },
-          bit4: { label: parsed.labels[3], value: parsed.values[3] },
-          bit3: { label: parsed.labels[4], value: parsed.values[4] },
-          bit2: { label: parsed.labels[5], value: parsed.values[5] },
-          bit1: { label: parsed.labels[6], value: parsed.values[6] },
-          bit0: { label: parsed.labels[7], value: parsed.values[7] }
-        };
-
-        if (_ioRowHasIO(row)) {
-          _ioAllRows.push(row);
-        }
-      }
-
-      _ioSetProgress(-1);    // hide spinner
-      _ioSetStatus("done");
-      _ioApplyFilter();
-      console.log(`[IO] Batch complete — ${rows.length} rows received, ${_ioAllRows.length} I/O rows found`);
+    // If cache doesn't exist yet, trigger the shared fetch
+    if (!_tarCachedRows) {
+      _ioSetStatus("fetching");
+      _ioSetProgress(0, 1);    // show spinner
+      _ioSetRowCount(0);
+      await fetchAllTAR();     // populates _tarCachedRows
     }
+
+    if (!_tarCachedRows || ioAbort) return;
+
+    // Filter cached rows for I/O labels
+    for (const row of _tarCachedRows) {
+      if (_ioRowHasIO(row)) {
+        _ioAllRows.push(row);
+      }
+    }
+
+    _ioSetProgress(-1);
+    _ioSetStatus("done");
+    _ioApplyFilter();
+    console.log(`[IO] Filtered from cache — ${_ioAllRows.length} I/O rows found`);
 
   } catch (err) {
     console.error("[IO] fetchAllIO error:", err);
@@ -1241,8 +1249,6 @@ async function fetchAllIO() {
       showToast(`I/O fetch failed: ${err.message}`, "error");
     }
   } finally {
-    _ioBatchResolve = null;
-    _ioBatchReject  = null;
     _ioSetFetchBtn(false);
   }
 }
@@ -1265,6 +1271,7 @@ function _ioDisconnectRaw() {
 // ── Public Actions ──────────────────────────────────────────
 
 function ioFetchAll() {
+  _tarCachedRows = null;   // force re-fetch
   fetchAllIO();   // fire-and-forget (async)
 }
 
@@ -2248,6 +2255,10 @@ document.addEventListener("DOMContentLoaded", function () {
       } else {
         rwTable.redraw(true);
       }
+      // Auto-populate from cache if available
+      if (_tarCachedRows && rwTable) {
+        _rwPopulateFromCache();
+      }
     });
   }
 
@@ -2265,6 +2276,10 @@ document.addEventListener("DOMContentLoaded", function () {
         initIoTable();
       } else {
         ioTable.redraw(true);
+      }
+      // Auto-populate from cache if available
+      if (_tarCachedRows) {
+        fetchAllIO();
       }
     });
   }
@@ -2388,5 +2403,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Default load — SER tab is active
   loadSection("ser");
+
+  // Auto-prefetch TAR data in background so Relay Word & I/O are instant
+  fetchAllTAR();
 
 });
