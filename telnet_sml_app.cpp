@@ -388,8 +388,12 @@ public:
             if (realCmd != "FETCH_ALL_TAR")
                 return false;   // not a streaming command — fall through
 
-            std::cout << "[WS→Relay] FETCH_ALL_TAR streaming for relay " << relayId << "\n";
+            std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
+
+            // Collect all TAR responses into a JSON array, then send as one batch
+            std::string batch = "TAR_BATCH_ALL:[";
+            bool first = true;
 
             for (int i = 0; !abort.load(); ++i)
             {
@@ -402,14 +406,33 @@ public:
                 if (response.find("Invalid Target") != std::string::npos)
                     break;
 
-                // Stream: "TAR_STREAM:<index>\n<response>"
-                sendFn("TAR_STREAM:" + std::to_string(i) + "\n" + response);
+                if (!first) batch += ",";
+                first = false;
+
+                // Escape the raw response text for safe JSON embedding
+                std::string escaped;
+                escaped.reserve(response.size() + 16);
+                for (char c : response)
+                {
+                    switch (c)
+                    {
+                        case '"':  escaped += "\\\""; break;
+                        case '\\': escaped += "\\\\"; break;
+                        case '\n': escaped += "\\n";  break;
+                        case '\r': escaped += "\\r";  break;
+                        case '\t': escaped += "\\t";  break;
+                        default:   escaped += c;      break;
+                    }
+                }
+                batch += "{\"idx\":" + std::to_string(i) + ",\"data\":\"" + escaped + "\"}";
                 ++count;
             }
 
-            // End marker — tells browser how many rows were found
-            sendFn("TAR_STREAM_END:" + std::to_string(count));
-            std::cout << "[WS→Relay] FETCH_ALL_TAR done — " << count << " rows streamed\n";
+            batch += "]";
+
+            // Send the entire batch as a single message
+            sendFn(batch);
+            std::cout << "[WS→Relay] FETCH_ALL_TAR done — " << count << " rows batched\n";
             return true;
         });
 
