@@ -1,19 +1,16 @@
 var searchData=
 [
-  ['table_0',['Transition Table',['../struct_telnet_f_s_m.html#autotoc_md56',1,'']]],
-  ['telnet_20fsm_20implementation_20detailed_20explanation_1',['Telnet FSM Implementation - Detailed Explanation',['../md_work.html',1,'']]],
-  ['telnet_20sml_20documentation_2',['Telnet-SML Documentation',['../index.html',1,'']]],
-  ['telnet_5ffsm_20hpp_20state_20machine_3',['3. TelnetFSM (telnet_fsm.hpp) - State Machine',['../md_work.html#autotoc_md90',1,'']]],
-  ['telnetclient_20client_20hpp_20cpp_20network_20layer_4',['2. TelnetClient (client.hpp/cpp) - Network Layer',['../md_work.html#autotoc_md88',1,'']]],
-  ['telnetfsm_20telnet_5ffsm_20hpp_20state_20machine_5',['3. TelnetFSM (telnet_fsm.hpp) - State Machine',['../md_work.html#autotoc_md90',1,'']]],
-  ['the_20dll_6',['the DLL',['../dll__export_8hpp.html#autotoc_md17',1,'Building the DLL'],['../dll__export_8hpp.html#autotoc_md18',1,'Using the DLL']]],
-  ['this_20example_7',['Building This Example',['../dll__example_8cpp.html#autotoc_md14',1,'']]],
-  ['thread_20model_8',['Thread Model',['../telnet__sml__app_8cpp.html#autotoc_md59',1,'Thread Model'],['../telnet__sml__app_8hpp.html#autotoc_md72',1,'Thread Model'],['../class_s_e_r_web_socket_server.html#autotoc_md107',1,'Thread Model']]],
-  ['thread_20role_9',['Thread Role',['../class_shared_ser_reader.html#autotoc_md60',1,'']]],
-  ['thread_20safety_10',['Thread Safety',['../class_raw_data_ring_buffer.html#autotoc_md29',1,'Thread Safety'],['../class_0d133141374007140042230012220336136223052373371026_1_1_reception_worker.html#autotoc_md65',1,'Thread Safety'],['../class_0d133141374007140042230012220336136223052373371026_1_1_processing_worker.html#autotoc_md69',1,'Thread Safety']]],
-  ['threading_20model_11',['Threading Model',['../thread__manager_8hpp.html#autotoc_md75',1,'']]],
-  ['tlv_20payload_20format_12',['ASN.1 BER/TLV Payload Format',['../ws__server_8hpp.html#autotoc_md101',1,'']]],
-  ['tlv_20structure_13',['TLV Structure',['../asn__tlv__codec_8hpp.html#autotoc_md0',1,'']]],
-  ['transaction_20strategy_14',['Transaction Strategy',['../ser__database_8cpp.html#autotoc_md34',1,'']]],
-  ['transition_20table_15',['Transition Table',['../struct_telnet_f_s_m.html#autotoc_md56',1,'']]]
+  ['receptionworker_20or_20processingworker_0',['Usage (inside ReceptionWorker or ProcessingWorker)',['../class_relay_service.html#autotoc_md40',1,'']]],
+  ['record_20format_1',['SER Record Format',['../ser__record_8hpp.html#autotoc_md51',1,'']]],
+  ['reference_2',['Macro Reference',['../dll__export_8hpp.html#autotoc_md19',1,'']]],
+  ['relay_3',['Adding a New Relay',['../relay__config_8hpp.html#autotoc_md32',1,'']]],
+  ['relay_20on_20demand_4',['Architecture (Multi-Relay, On-Demand)',['../class_telnet_sml_app_1_1_impl.html#autotoc_md77',1,'']]],
+  ['relay_20to_20ui_5',['8. C++ &amp;amp; JavaScript Combined Data Flow — Relay to UI',['../md_work.html#autotoc_md107',1,'']]],
+  ['resources_6',['Shared vs. Owned Resources',['../relay__pipeline_8hpp.html#autotoc_md37',1,'']]],
+  ['response_20collection_7',['Response Collection',['../client_8cpp.html#autotoc_md7',1,'']]],
+  ['response_20collection_20algorithm_8',['Response Collection Algorithm',['../class_telnet_client.html#autotoc_md13',1,'']]],
+  ['retry_20flow_9',['Retry Flow',['../struct_retry_state.html#autotoc_md62',1,'']]],
+  ['role_10',['Thread Role',['../class_shared_ser_reader.html#autotoc_md75',1,'']]],
+  ['rules_11',['Rules',['../ser__record_8hpp.html#autotoc_md57',1,'Parsing Rules'],['../ser__record_8hpp.html#autotoc_md58',1,'Parsing Rules']]],
+  ['run_20command_12',['7. Run Command',['../md_work.html#autotoc_md105',1,'']]]
 ];

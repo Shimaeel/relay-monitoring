@@ -1,25 +1,4 @@
 var searchData=
 [
-  ['accept_20loop_0',['Accept Loop',['../class_web_socket_listener.html#autotoc_md105',1,'']]],
-  ['acceptor_5f_1',['acceptor_',['../class_telnet_server.html#a603165ad1d3e0ed8e4d7e920394e97b0',1,'TelnetServer::acceptor_'],['../class_web_socket_listener.html#adcf025ccb609834727ad87b96e9de472',1,'WebSocketListener::acceptor_']]],
-  ['actionhandler_2',['ActionHandler',['../class_web_socket_session.html#a05e70a546700ee2c558457009a956b13',1,'WebSocketSession']]],
-  ['actionhandler_5f_3',['actionHandler_',['../class_web_socket_session.html#adbdc7eb96ce38fa02afc16dc49fab2c7',1,'WebSocketSession::actionHandler_'],['../class_web_socket_listener.html#aad6435d46f6a11c57799815f95505b35',1,'WebSocketListener::actionHandler_'],['../class_s_e_r_web_socket_server.html#aa7b2471e91ae828554625336175b1bcd',1,'SERWebSocketServer::actionHandler_']]],
-  ['actions_4',['Actions',['../password__manager_8hpp.html#autotoc_md24',1,'Supported WebSocket Actions'],['../time__sync__manager_8hpp.html#autotoc_md78',1,'Supported WebSocket Actions']]],
-  ['add_5',['add',['../class_session_manager.html#ae3f3ad0e782ff8ad9aaefb39a481bcaf',1,'SessionManager']]],
-  ['algorithm_6',['Algorithm',['../ser__record_8hpp.html#autotoc_md48',1,'Parsing Algorithm'],['../class_telnet_client.html#autotoc_md13',1,'Response Collection Algorithm']]],
-  ['app_5frunning_7',['app_running',['../class_telnet_sml_app_1_1_impl.html#aa132e75218b2bc579285ea1425abdb03',1,'TelnetSmlApp::Impl']]],
-  ['application_20entry_20point_8',['1. main.cpp - Application Entry Point',['../md_work.html#autotoc_md86',1,'']]],
-  ['application_20workflow_9',['Application Workflow',['../main_8cpp.html#autotoc_md21',1,'']]],
-  ['architecture_10',['Architecture',['../class_telnet_sml_app_1_1_impl.html#autotoc_md62',1,'Architecture'],['../md_work.html#autotoc_md83',1,'Browser Architecture'],['../md_work.html#autotoc_md82',1,'C++ Process Architecture'],['../client_8hpp.html#autotoc_md9',1,'Class Architecture'],['../telnet__fsm_8hpp.html#autotoc_md51',1,'Component Architecture'],['../ser__database_8hpp.html#autotoc_md38',1,'Data Flow Architecture'],['../main_8cpp.html#autotoc_md20',1,'System Architecture'],['../index.html#arch_sec',1,'System Architecture']]],
-  ['architecture_20client_20side_11',['Browser Architecture (Client Side)',['../ws__server_8hpp.html#autotoc_md100',1,'']]],
-  ['architecture_20diagram_20mermaid_12',['Architecture Diagram (Mermaid)',['../md_work.html#autotoc_md84',1,'']]],
-  ['architecture_20overview_13',['Architecture Overview',['../telnet__sml__app_8cpp.html#autotoc_md58',1,'Architecture Overview'],['../telnet__sml__app_8hpp.html#autotoc_md71',1,'Architecture Overview'],['../md_work.html#autotoc_md81',1,'Architecture Overview'],['../ws__server_8hpp.html#autotoc_md98',1,'Architecture Overview']]],
-  ['architecture_20position_14',['Architecture Position',['../raw__data__ring__buffer_8hpp.html#autotoc_md27',1,'']]],
-  ['asn_201_20ber_20tlv_20payload_20format_15',['ASN.1 BER/TLV Payload Format',['../ws__server_8hpp.html#autotoc_md101',1,'']]],
-  ['asn1_5fdate_5ftag_16',['ASN1_DATE_TAG',['../relay__service_8hpp.html#ad35ee090a1d5dbf73440c7bf467c9507',1,'relay_service.hpp']]],
-  ['asn1_5fpassword_5ftag_17',['ASN1_PASSWORD_TAG',['../password__manager_8hpp.html#a38f6196aa67af2003d9cd015dda1514b',1,'password_manager.hpp']]],
-  ['asn_5fdate_18',['asn_date',['../namespaceasn__date.html',1,'']]],
-  ['asn_5fpassword_19',['asn_password',['../namespaceasn__password.html',1,'']]],
-  ['asn_5ftlv_20',['asn_tlv',['../namespaceasn__tlv.html',1,'']]],
-  ['asn_5ftlv_5fcodec_2ehpp_21',['asn_tlv_codec.hpp',['../asn__tlv__codec_8hpp.html',1,'']]]
+  ['8_20c_20javascript_20combined_20data_20flow_20—_20relay_20to_20ui_0',['8. C++ &amp;amp; JavaScript Combined Data Flow — Relay to UI',['../md_work.html#autotoc_md107',1,'']]]
 ];

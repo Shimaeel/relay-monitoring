@@ -27,18 +27,26 @@ var NAVTREE =
   [ "Telnet-SML", "index.html", [
     [ "Telnet-SML Documentation", "index.html", "index" ],
     [ "Telnet FSM Implementation - Detailed Explanation", "md_work.html", [
-      [ "Architecture Overview", "md_work.html#autotoc_md81", [
-        [ "C++ Process Architecture", "md_work.html#autotoc_md82", null ],
-        [ "Browser Architecture", "md_work.html#autotoc_md83", null ],
-        [ "Architecture Diagram (Mermaid)", "md_work.html#autotoc_md84", null ]
+      [ "Architecture Overview", "md_work.html#autotoc_md89", [
+        [ "C++ Process Architecture", "md_work.html#autotoc_md90", null ],
+        [ "Browser Architecture", "md_work.html#autotoc_md91", null ],
+        [ "Architecture Diagram (Mermaid)", "md_work.html#autotoc_md92", null ]
       ] ],
-      [ "1. main.cpp - Application Entry Point", "md_work.html#autotoc_md86", null ],
-      [ "2. TelnetClient (client.hpp/cpp) - Network Layer", "md_work.html#autotoc_md88", null ],
-      [ "3. TelnetFSM (telnet_fsm.hpp) - State Machine", "md_work.html#autotoc_md90", null ],
-      [ "4. Execution Flow", "md_work.html#autotoc_md92", null ],
-      [ "5. Key Design Patterns", "md_work.html#autotoc_md94", null ],
-      [ "6. Build Command", "md_work.html#autotoc_md96", null ],
-      [ "7. Run Command", "md_work.html#autotoc_md97", null ]
+      [ "1. main.cpp - Application Entry Point", "md_work.html#autotoc_md94", null ],
+      [ "2. TelnetClient (client.hpp/cpp) - Network Layer", "md_work.html#autotoc_md96", null ],
+      [ "3. TelnetFSM (telnet_fsm.hpp) - State Machine", "md_work.html#autotoc_md98", null ],
+      [ "4. Execution Flow", "md_work.html#autotoc_md100", null ],
+      [ "5. Key Design Patterns", "md_work.html#autotoc_md102", null ],
+      [ "6. Build Command", "md_work.html#autotoc_md104", null ],
+      [ "7. Run Command", "md_work.html#autotoc_md105", null ],
+      [ "8. C++ &amp; JavaScript Combined Data Flow — Relay to UI", "md_work.html#autotoc_md107", [
+        [ "Overview", "md_work.html#autotoc_md108", null ],
+        [ "Full Data Flow Diagram (Mermaid)", "md_work.html#autotoc_md109", null ],
+        [ "Data Format Flow", "md_work.html#autotoc_md110", null ],
+        [ "Communication Channels", "md_work.html#autotoc_md111", null ],
+        [ "ASN.1 TLV Binary Wire Format", "md_work.html#autotoc_md112", null ],
+        [ "End-to-End Sequence", "md_work.html#autotoc_md113", null ]
+      ] ]
     ] ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
@@ -53,9 +61,11 @@ var NAVTREE =
       [ "Class Hierarchy", "hierarchy.html", "hierarchy" ],
       [ "Class Members", "functions.html", [
         [ "All", "functions.html", "functions_dup" ],
-        [ "Functions", "functions_func.html", null ],
+        [ "Functions", "functions_func.html", "functions_func" ],
         [ "Variables", "functions_vars.html", null ],
-        [ "Typedefs", "functions_type.html", null ]
+        [ "Typedefs", "functions_type.html", null ],
+        [ "Enumerations", "functions_enum.html", null ],
+        [ "Enumerator", "functions_eval.html", null ]
       ] ]
     ] ],
     [ "Files", "files.html", [
@@ -74,8 +84,9 @@ var NAVTREE =
 
 var NAVTREEINDEX =
 [
-"_c_1_2_users_2qures_2_one_drive_2_desktop_2_work_2_telnet-_app_2_older_2_telnet-_s_m_l_2server_8cpp-example.html",
-"class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a"
+"_c_1_2_users_2admin_2_desktop_2new_2_telnet-_s_m_l1_2server_8cpp-example.html",
+"class_telnet_server.html#aaf1479e06f257553732e540650dd0f5b",
+"ser__json__writer_8hpp.html#a5c077d95f29d39a73aa9b32b93ceddda"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronization';

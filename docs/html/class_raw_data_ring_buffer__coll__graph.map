@@ -1,13 +1,15 @@
 <map id="RawDataRingBuffer" name="RawDataRingBuffer">
-<area shape="rect" id="Node000001" title="SPSC ring buffer for decoupling Telnet reception from FSM processing." alt="" coords="114,585,262,825"/>
-<area shape="rect" id="Node000002" title=" " alt="" coords="5,444,209,513"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="120,510,142,569,137,569,119,516"/>
+<area shape="rect" id="Node000001" title="MPMC ring buffer for decoupling Telnet reception from multiple consumers." alt="" coords="226,644,374,1140"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,473,209,543"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="125,540,221,729,216,730,123,545"/>
 <area shape="rect" id="Node000003" href="$struct_raw_data_message.html" title="Container for raw Telnet command/response pair." alt="" coords="48,303,166,372"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="108,369,110,428,105,427,107,375"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="107,369,110,456,105,456,107,375"/>
 <area shape="rect" id="Node000004" title=" " alt="" coords="73,140,142,209"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="107,207,110,286,105,285,107,212"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="107,206,110,286,105,286,107,212"/>
 <area shape="rect" id="Node000005" title=" " alt="" coords="50,5,164,91"/>
 <area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="107,103,110,140,105,140,107,108"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="234,444,306,513"/>
-<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="259,511,240,571,235,568,256,515"/>
+<area shape="rect" id="Node000006" href="$struct_raw_data_ring_buffer_1_1_reader_slot.html" title="Per&#45;reader state." alt="" coords="233,444,368,572"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="301,569,303,628,298,627,300,574"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="392,473,465,543"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="419,540,382,655,378,653,416,545"/>
 </map>

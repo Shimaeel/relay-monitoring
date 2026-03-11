@@ -1,23 +1,23 @@
 <map id="DatabaseWriter" name="DatabaseWriter">
-<area shape="rect" id="Node000001" title="Asynchronous database writer thread." alt="" coords="223,1327,365,1545"/>
-<area shape="rect" id="Node000002" href="$class_s_e_r_database.html" title="SQLite database handler for storing and retrieving SER records." alt="" coords="5,460,158,935"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="48,932,48,1013,51,1094,62,1176,82,1254,103,1297,134,1334,171,1366,211,1393,206,1394,168,1370,131,1338,99,1300,77,1256,57,1177,46,1095,43,1013,48,937"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="101,140,170,209"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="100,205,91,218,82,234,66,284,55,337,50,390,48,443,43,443,44,390,50,336,60,283,77,232,87,215,102,200"/>
-<area shape="rect" id="Node000007" href="$struct_s_e_r_record.html" title="Structure representing a System Event Record (SER)." alt="" coords="150,345,252,436"/>
-<area shape="poly" id="edge7_Node000007_Node000003" title=" " alt="" coords="149,206,160,233,188,329,183,329,155,234,149,212"/>
-<area shape="rect" id="Node000004" title=" " alt="" coords="78,5,192,91"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="135,103,138,140,133,140,135,108"/>
-<area shape="rect" id="Node000005" href="$class_thread_safe_queue.html" title=" " alt="" coords="189,1100,399,1255"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="295,1252,296,1311,291,1309,293,1257"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="198,959,363,1028"/>
-<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="284,1025,290,1083,284,1082,282,1030"/>
-<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="208,433,276,942,271,942,205,438"/>
-<area shape="rect" id="Node000008" title=" " alt="" coords="90,959,162,1028"/>
-<area shape="poly" id="edge11_Node000001_Node000008" title=" " alt="" coords="112,1030,101,1075,90,1132,89,1194,93,1225,103,1254,123,1290,150,1324,180,1353,212,1381,207,1381,176,1357,146,1327,119,1293,98,1256,88,1226,83,1195,85,1132,96,1074,113,1025"/>
-<area shape="poly" id="edge8_Node000005_Node000008" title=" " alt="" coords="156,1025,214,1087,209,1088,157,1031"/>
-<area shape="rect" id="Node000009" title=" " alt="" coords="423,1143,496,1212"/>
-<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="443,1210,391,1304,376,1326,372,1322,386,1301,440,1214"/>
-<area shape="rect" id="Node000010" title=" " alt="" coords="521,1143,645,1212"/>
-<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="568,1210,541,1259,504,1305,444,1354,381,1394,378,1389,441,1349,500,1301,537,1256,564,1214"/>
+<area shape="rect" id="Node000001" title="Asynchronous database writer thread." alt="" coords="246,1327,388,1545"/>
+<area shape="rect" id="Node000002" href="$class_s_e_r_database.html" title="SQLite database handler for storing and retrieving SER records." alt="" coords="5,524,189,935"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="71,932,71,1012,75,1093,85,1175,105,1254,127,1297,158,1334,195,1366,234,1393,229,1394,192,1370,154,1338,122,1300,100,1256,80,1176,69,1094,66,1012,71,937"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="124,140,193,209"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="124,208,109,234,89,301,77,370,72,440,72,508,66,507,66,439,72,369,84,299,105,232,125,203"/>
+<area shape="rect" id="Node000007" href="$struct_s_e_r_record.html" title="Structure representing a System Event Record (SER)." alt="" coords="177,388,279,500"/>
+<area shape="poly" id="edge7_Node000007_Node000003" title=" " alt="" coords="175,206,188,232,207,303,220,372,215,372,202,305,183,234,176,211"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="101,5,216,91"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="159,103,161,140,156,140,159,108"/>
+<area shape="rect" id="Node000005" href="$class_thread_safe_queue.html" title=" " alt="" coords="212,1100,422,1255"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="319,1252,320,1311,315,1309,316,1257"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="221,959,387,1028"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="307,1025,313,1083,308,1082,306,1030"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="237,497,300,942,294,942,234,502"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="113,959,186,1028"/>
+<area shape="poly" id="edge11_Node000001_Node000008" title=" " alt="" coords="135,1030,124,1075,113,1132,112,1194,117,1225,126,1254,147,1290,173,1324,203,1353,236,1381,230,1381,200,1357,169,1327,142,1293,122,1256,112,1226,107,1195,108,1132,119,1074,137,1025"/>
+<area shape="poly" id="edge8_Node000005_Node000008" title=" " alt="" coords="180,1025,238,1087,233,1088,180,1031"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="446,1143,519,1212"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="467,1210,414,1304,400,1326,396,1322,410,1301,463,1214"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="545,1143,668,1212"/>
+<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="592,1210,565,1259,527,1305,467,1354,404,1394,402,1389,464,1349,523,1301,560,1256,588,1214"/>
 </map>

@@ -1,0 +1,7 @@
+<map id="RelayPipeline::RelayPipeline" name="RelayPipeline::RelayPipeline">
+<area shape="rect" id="Node000001" title="Non&#45;copyable, non&#45;movable (owns threads)." alt="" coords="5,5,195,32"/>
+<area shape="rect" id="Node000002" href="$class_relay_pipeline.html#a60f93550b5bf6a3f05a5d87881024447" title="Construct a pipeline for a specific relay." alt="" coords="243,5,432,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,16,230,19,224,19,195,21"/>
+<area shape="rect" id="Node000003" href="$class_relay_pipeline.html#a29c66fec7983cec7b8dac1d6a47c8c16" title=" " alt="" coords="480,5,624,32"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="432,16,467,19,462,19,432,21"/>
+</map>

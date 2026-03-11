@@ -1,5 +1,5 @@
 <map id="SERWebSocketServer::broadcast" name="SERWebSocketServer::broadcast">
-<area shape="rect" id="Node000001" title="Broadcast data to all connected clients (push model)" alt="" coords="5,23,159,65"/>
+<area shape="rect" id="Node000001" title="Broadcast data to all connected clients (push model)." alt="" coords="5,23,159,65"/>
 <area shape="rect" id="Node000002" href="$namespaceasn__tlv.html#a03c61eaf7c30d4bb4e8f50d6cd2f5f03" title="Encode SER records to ASN.1 BER/TLV format." alt="" coords="207,23,389,65"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="159,41,194,44,188,44,159,47"/>
 <area shape="rect" id="Node000003" href="$namespaceasn__tlv.html#a0cc9af3d4e8aba5f164c66bb47750767" title="Append a string as a TLV structure." alt="" coords="437,5,604,32"/>

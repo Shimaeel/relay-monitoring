@@ -1,7 +1,7 @@
 <map id="SERDatabase" name="SERDatabase">
-<area shape="rect" id="Node000001" title="SQLite database handler for storing and retrieving SER records." alt="" coords="5,303,158,777"/>
-<area shape="rect" id="Node000002" title=" " alt="" coords="48,140,116,209"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="82,206,84,286,79,286,82,211"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="24,5,139,91"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="82,103,84,140,79,140,82,108"/>
+<area shape="rect" id="Node000001" title="SQLite database handler for storing and retrieving SER records." alt="" coords="5,303,189,713"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="63,140,132,209"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="98,206,100,286,95,285,97,212"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="40,5,155,91"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="98,103,100,140,95,140,97,108"/>
 </map>

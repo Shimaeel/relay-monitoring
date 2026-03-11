@@ -1,10 +1,10 @@
 <map id="TimeSyncManager::handleAction" name="TimeSyncManager::handleAction">
 <area shape="rect" id="Node000001" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="5,181,219,208"/>
-<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#a729b318dd4e664a91323c6096211fa82" title=" " alt="" coords="551,232,772,259"/>
+<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#a729b318dd4e664a91323c6096211fa82" title="Build a JSON error response." alt="" coords="551,232,772,259"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="189,206,267,217,406,230,538,240,533,241,405,235,266,223,189,211"/>
-<area shape="rect" id="Node000004" href="$class_time_sync_manager.html#a6d7aefdf9577ff2f38b502ddbe603d66" title=" " alt="" coords="267,93,503,120"/>
+<area shape="rect" id="Node000004" href="$class_time_sync_manager.html#a6d7aefdf9577ff2f38b502ddbe603d66" title="Handle the &quot;read_time&quot; action." alt="" coords="267,93,503,120"/>
 <area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="155,178,327,123,326,128,157,183"/>
-<area shape="rect" id="Node000008" href="$class_time_sync_manager.html#ab03b40ab388284d44f5a30a63fa0f432" title=" " alt="" coords="267,181,502,208"/>
+<area shape="rect" id="Node000008" href="$class_time_sync_manager.html#ab03b40ab388284d44f5a30a63fa0f432" title="Handle the &quot;sync_time&quot; action." alt="" coords="267,181,502,208"/>
 <area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="219,192,254,194,249,195,219,197"/>
 <area shape="rect" id="Node000003" href="$ser__json__writer_8hpp.html#a5c077d95f29d39a73aa9b32b93ceddda" title="Escape special characters for JSON string values." alt="" coords="867,181,958,208"/>
 <area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="731,229,849,207,854,207,732,234"/>

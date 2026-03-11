@@ -1,15 +1,30 @@
 var class_raw_data_ring_buffer =
 [
+    [ "ReaderSlot", "struct_raw_data_ring_buffer_1_1_reader_slot.html", "struct_raw_data_ring_buffer_1_1_reader_slot" ],
+    [ "ReaderId", "class_raw_data_ring_buffer.html#a8beff0346267268935ab18aa1c7a3f28", null ],
     [ "RawDataRingBuffer", "class_raw_data_ring_buffer.html#a77028ab7eeea0d9b2c8a91fa95d2df52", null ],
+    [ "activeReaderCount", "class_raw_data_ring_buffer.html#a482dbd3cece3496474546f1128195ac4", null ],
     [ "clear", "class_raw_data_ring_buffer.html#afbe60747655cec8800456793ae4a38d2", null ],
+    [ "dropCount", "class_raw_data_ring_buffer.html#a14056db0cb835e4adc4eb2aa58859888", null ],
     [ "empty", "class_raw_data_ring_buffer.html#a1bd4ea1300a7f04cfe4a737426928003", null ],
     [ "notifyAll", "class_raw_data_ring_buffer.html#a5450858f4cd0c333cc5c972430734d4b", null ],
     [ "push", "class_raw_data_ring_buffer.html#a129b60f8eae8227dd28f19eab47303f5", null ],
+    [ "registerReader", "class_raw_data_ring_buffer.html#a958890cdb69633c380bd43224155d4c0", null ],
     [ "size", "class_raw_data_ring_buffer.html#a633bd9b5d56879e38a6a792669e4c3ba", null ],
-    [ "tryPop", "class_raw_data_ring_buffer.html#ab21c013d93bed174be78d8c13ad23321", null ],
-    [ "waitPop", "class_raw_data_ring_buffer.html#a4b54a146d435928f02f00f0ed052fb9b", null ],
+    [ "totalReads", "class_raw_data_ring_buffer.html#ad0fb82e0b9fdc361c4e210f9578b08e2", null ],
+    [ "totalWrites", "class_raw_data_ring_buffer.html#a6f24ae236e6edfb7e18cf1acd8edf644", null ],
+    [ "trimConsumed", "class_raw_data_ring_buffer.html#a2ba63725396bb97b8be6db8bbb36f4a8", null ],
+    [ "tryPop", "class_raw_data_ring_buffer.html#a3ab0f6908897fb2d62c7314c5c6f9496", null ],
+    [ "unregisterReader", "class_raw_data_ring_buffer.html#a4f93a94d759159d5a229bba550495148", null ],
+    [ "waitPop", "class_raw_data_ring_buffer.html#a45431cd0e2496d21d77795f0a8dcae08", null ],
+    [ "base_index_", "class_raw_data_ring_buffer.html#a4ef044a19fe6735ea9280ed6a077554b", null ],
     [ "cv_", "class_raw_data_ring_buffer.html#afe39b1d41b3989a16d2dc15ad6f4269b", null ],
+    [ "drop_count_", "class_raw_data_ring_buffer.html#a1357cb687a82c8f64b1d916f6dbacf70", null ],
+    [ "kInvalidReader", "class_raw_data_ring_buffer.html#aee5008864680e9a255c7eda6ab48a941", null ],
+    [ "kMaxReaders", "class_raw_data_ring_buffer.html#af2f9dd3e49e5660aca3c18ebf66c66c6", null ],
     [ "max_size_", "class_raw_data_ring_buffer.html#af94f12eade65af11882a992e8a6dddcd", null ],
     [ "mutex_", "class_raw_data_ring_buffer.html#abd32f1e07871167405ded2f136290dd9", null ],
-    [ "queue_", "class_raw_data_ring_buffer.html#a6408c685d3a8acd183dba9c5c42a67f1", null ]
+    [ "queue_", "class_raw_data_ring_buffer.html#a6408c685d3a8acd183dba9c5c42a67f1", null ],
+    [ "readers_", "class_raw_data_ring_buffer.html#a2a9d048992ecbc207388b86f102be89e", null ],
+    [ "total_writes_", "class_raw_data_ring_buffer.html#a75439b93d8f333e46fb98862b57cdd39", null ]
 ];

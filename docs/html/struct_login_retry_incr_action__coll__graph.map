@@ -1,0 +1,3 @@
+<map id="LoginRetryIncrAction" name="LoginRetryIncrAction">
+<area shape="rect" id="Node000001" title="FSM Action: Increment login retry counter." alt="" coords="5,5,138,75"/>
+</map>

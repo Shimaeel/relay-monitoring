@@ -1,7 +1,7 @@
 var class_relay_service =
 [
-    [ "CommandResult", "struct_relay_service_1_1_command_result.html", "struct_relay_service_1_1_command_result" ],
     [ "DateResult", "struct_relay_service_1_1_date_result.html", "struct_relay_service_1_1_date_result" ],
+    [ "CommandResult", "struct_relay_service_1_1_command_result.html", "struct_relay_service_1_1_command_result" ],
     [ "RelayService", "class_relay_service.html#a78a0da5754669b0e9273b81705694a9f", null ],
     [ "cleanRelayText", "class_relay_service.html#a6b06198b016666d16149811b42116ece", null ],
     [ "readRelayTime", "class_relay_service.html#a0cbdd298b64e29af13e074b1a6cd3383", null ],

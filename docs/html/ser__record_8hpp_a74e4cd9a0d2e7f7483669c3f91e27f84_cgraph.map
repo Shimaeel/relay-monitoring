@@ -1,5 +1,5 @@
 <map id="parseSERResponse" name="parseSERResponse">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,146,32"/>
+<area shape="rect" id="Node000001" title="Parse a raw SER command response into a vector of SERRecord." alt="" coords="5,5,146,32"/>
 <area shape="rect" id="Node000002" href="$ser__record_8hpp.html#a3b567ed0529e21ab4536d1df5192a033" title="Parse SER response string into a vector of SERRecord." alt="" coords="194,5,304,32"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="146,16,181,19,176,19,146,21"/>
 </map>

@@ -1,60 +1,64 @@
 <map id="ws_server.hpp" name="ws_server.hpp">
-<area shape="rect" id="Node000001" title="WebSocket Server for Real&#45;time SER Data Access." alt="" coords="1002,5,1109,32"/>
-<area shape="rect" id="Node000002" href="$dll__export_8hpp.html" title="DLL Export/Import Macros for Windows." alt="" coords="1700,229,1803,256"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1109,18,1268,22,1472,31,1569,39,1654,49,1717,62,1739,69,1752,78,1763,93,1770,111,1775,147,1771,184,1763,217,1759,212,1766,183,1769,148,1765,112,1758,96,1748,82,1736,74,1716,67,1653,54,1569,44,1471,36,1268,27,1109,23"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="24,80,167,107"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="999,23,662,44,426,60,183,82,182,77,426,55,661,38,1004,21"/>
-<area shape="rect" id="Node000004" title=" " alt="" coords="191,80,373,107"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="999,25,743,49,389,82,388,77,742,44,1004,24"/>
-<area shape="rect" id="Node000005" title=" " alt="" coords="396,80,539,107"/>
-<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="999,27,554,82,554,77,1004,25"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="562,80,709,107"/>
-<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="999,30,724,79,723,74,1004,29"/>
-<area shape="rect" id="Node000007" title=" " alt="" coords="733,80,868,107"/>
-<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1014,32,860,78,859,73,1008,33"/>
-<area shape="rect" id="Node000008" title=" " alt="" coords="892,80,949,107"/>
-<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1034,32,959,75,957,70,1029,33"/>
-<area shape="rect" id="Node000009" title=" " alt="" coords="973,80,1042,107"/>
-<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1049,31,1026,69,1022,65,1045,34"/>
-<area shape="rect" id="Node000010" title=" " alt="" coords="1066,80,1143,107"/>
-<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1065,30,1090,68,1085,66,1063,35"/>
-<area shape="rect" id="Node000011" title=" " alt="" coords="1149,229,1202,256"/>
-<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="999,22,764,30,441,41,151,59,56,70,27,76,13,82,8,93,13,105,36,120,74,134,191,160,348,182,526,200,885,225,1136,240,1131,240,884,230,526,205,347,187,190,165,73,139,33,125,9,108,3,93,9,78,25,71,55,65,151,53,441,36,764,24,1004,20"/>
-<area shape="rect" id="Node000012" title=" " alt="" coords="1307,229,1364,256"/>
-<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1109,23,1225,42,1278,58,1298,67,1312,78,1332,110,1341,147,1344,183,1341,216,1338,212,1339,183,1336,148,1327,112,1308,82,1295,72,1276,63,1224,48,1109,28"/>
-<area shape="rect" id="Node000013" title=" " alt="" coords="1373,80,1444,107"/>
-<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1109,28,1355,77,1361,81,1355,81,1353,83,1109,33"/>
-<area shape="rect" id="Node000014" title=" " alt="" coords="1469,80,1508,107"/>
-<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1109,22,1261,40,1356,56,1457,80,1451,80,1355,61,1260,45,1109,27"/>
-<area shape="rect" id="Node000015" title=" " alt="" coords="1532,80,1589,107"/>
-<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1109,21,1287,40,1400,56,1519,80,1514,80,1399,61,1286,45,1109,27"/>
-<area shape="rect" id="Node000016" href="$asn__tlv__codec_8hpp.html" title="ASN.1 BER/TLV codec for SER record payloads." alt="" coords="1168,80,1298,107"/>
-<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="1087,30,1190,74,1185,74,1086,35"/>
-<area shape="rect" id="Node000023" href="$ser__database_8hpp.html" title="SQLite database handler for SER records." alt="" coords="1613,80,1738,107"/>
-<area shape="poly" id="edge27_Node000001_Node000023" title=" " alt="" coords="1109,22,1319,43,1600,79,1595,80,1319,49,1109,28"/>
-<area shape="poly" id="edge18_Node000016_Node000011" title=" " alt="" coords="1188,106,1151,128,1135,140,1123,156,1119,172,1124,187,1134,203,1148,220,1143,218,1130,206,1119,190,1114,172,1118,153,1132,137,1148,123,1183,108"/>
-<area shape="poly" id="edge19_Node000016_Node000012" title=" " alt="" coords="1243,105,1320,217,1315,215,1240,110"/>
-<area shape="rect" id="Node000017" title=" " alt="" coords="1133,155,1197,181"/>
-<area shape="poly" id="edge16_Node000016_Node000017" title=" " alt="" coords="1223,106,1188,146,1186,141,1218,108"/>
-<area shape="rect" id="Node000018" title=" " alt="" coords="997,155,1058,181"/>
-<area shape="poly" id="edge17_Node000016_Node000018" title=" " alt="" coords="1200,107,1073,154,1071,148,1194,108"/>
-<area shape="rect" id="Node000019" href="$ser__record_8hpp.html" title="System Event Record (SER) data structure and parser." alt="" coords="1423,155,1530,181"/>
-<area shape="poly" id="edge20_Node000016_Node000019" title=" " alt="" coords="1276,105,1422,150,1417,150,1275,110"/>
-<area shape="poly" id="edge21_Node000019_Node000002" title=" " alt="" coords="1525,179,1691,225,1686,225,1524,185"/>
-<area shape="poly" id="edge22_Node000019_Node000011" title=" " alt="" coords="1427,182,1218,234,1217,229,1421,182"/>
-<area shape="poly" id="edge23_Node000019_Node000012" title=" " alt="" coords="1455,181,1374,224,1373,219,1449,182"/>
-<area shape="rect" id="Node000020" title=" " alt="" coords="1571,229,1639,256"/>
-<area shape="poly" id="edge24_Node000019_Node000020" title=" " alt="" coords="1500,179,1572,222,1567,221,1498,184"/>
-<area shape="rect" id="Node000021" title=" " alt="" coords="1388,229,1462,256"/>
-<area shape="poly" id="edge25_Node000019_Node000021" title=" " alt="" coords="1470,181,1444,219,1441,214,1465,183"/>
-<area shape="rect" id="Node000022" title=" " alt="" coords="1487,229,1547,256"/>
-<area shape="poly" id="edge26_Node000019_Node000022" title=" " alt="" coords="1485,180,1505,217,1500,214,1482,184"/>
-<area shape="poly" id="edge28_Node000023_Node000002" title=" " alt="" coords="1690,105,1710,127,1728,153,1741,184,1749,216,1744,212,1736,186,1724,156,1706,130,1688,110"/>
-<area shape="poly" id="edge29_Node000023_Node000011" title=" " alt="" coords="1615,105,1482,133,1375,157,1287,190,1213,225,1212,220,1285,186,1373,152,1481,127,1610,106"/>
-<area shape="poly" id="edge30_Node000023_Node000012" title=" " alt="" coords="1616,106,1492,135,1413,157,1378,186,1352,219,1349,214,1374,182,1410,152,1491,130,1610,107"/>
-<area shape="poly" id="edge33_Node000023_Node000019" title=" " alt="" coords="1643,107,1526,152,1525,146,1638,108"/>
-<area shape="rect" id="Node000024" title=" " alt="" coords="1555,155,1620,181"/>
-<area shape="poly" id="edge31_Node000023_Node000024" title=" " alt="" coords="1663,106,1615,147,1613,142,1658,108"/>
-<area shape="rect" id="Node000025" title=" " alt="" coords="1644,155,1715,181"/>
-<area shape="poly" id="edge32_Node000023_Node000025" title=" " alt="" coords="1678,105,1680,141,1676,137,1674,109"/>
+<area shape="rect" id="Node000001" title="WebSocket Server for Real&#45;time SER Data Access." alt="" coords="1093,5,1199,32"/>
+<area shape="rect" id="Node000002" href="$dll__export_8hpp.html" title="DLL Export/Import Macros for Windows." alt="" coords="1844,229,1947,256"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1199,17,1376,20,1605,28,1715,35,1811,46,1883,60,1908,68,1923,78,1933,94,1939,111,1938,149,1927,186,1912,218,1909,213,1922,184,1933,148,1934,112,1928,96,1919,82,1905,73,1882,65,1811,51,1715,41,1604,33,1376,25,1200,23"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="24,80,90,107"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1090,20,928,23,686,29,400,48,252,63,106,83,104,77,251,57,400,42,685,24,928,17,1095,19"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="114,80,258,107"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1090,23,752,44,517,60,274,82,273,77,517,55,752,38,1095,22"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="282,80,463,107"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1090,25,833,49,480,82,479,77,833,44,1095,24"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="487,80,629,107"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1090,27,645,82,644,77,1095,25"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="653,80,799,107"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1090,30,815,79,814,74,1095,29"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="824,80,959,107"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1104,32,951,78,950,73,1099,33"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="983,80,1040,107"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1125,32,1049,75,1048,70,1120,33"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="1064,80,1132,107"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1140,31,1116,69,1113,65,1135,34"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="1157,80,1234,107"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1156,30,1181,68,1176,66,1154,35"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="1255,229,1309,256"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1090,21,836,29,484,40,166,57,60,69,28,75,13,82,8,93,13,105,38,121,81,136,139,151,210,163,382,186,579,203,972,227,1243,240,1238,240,971,232,578,209,382,191,209,169,138,156,79,142,36,126,9,108,3,93,10,78,27,70,59,64,165,52,484,34,836,23,1095,20"/>
+<area shape="rect" id="Node000013" title=" " alt="" coords="1413,229,1471,256"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1200,23,1315,43,1368,59,1403,78,1425,109,1438,146,1444,182,1445,215,1441,212,1439,183,1433,147,1420,112,1399,82,1366,64,1314,49,1200,29"/>
+<area shape="rect" id="Node000014" title=" " alt="" coords="1463,80,1520,107"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1200,27,1445,77,1451,81,1445,81,1444,83,1199,33"/>
+<area shape="rect" id="Node000015" title=" " alt="" coords="1544,80,1615,107"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1199,24,1344,45,1531,80,1526,80,1343,50,1199,29"/>
+<area shape="rect" id="Node000016" title=" " alt="" coords="1640,80,1679,107"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="1200,20,1385,36,1503,53,1627,80,1622,80,1503,58,1385,41,1200,25"/>
+<area shape="rect" id="Node000017" title=" " alt="" coords="1703,80,1760,107"/>
+<area shape="poly" id="edge16_Node000001_Node000017" title=" " alt="" coords="1200,20,1410,37,1547,53,1690,80,1685,80,1546,59,1410,42,1200,25"/>
+<area shape="rect" id="Node000018" href="$asn__tlv__codec_8hpp.html" title="ASN.1 BER/TLV codec for SER record payloads." alt="" coords="1258,80,1389,107"/>
+<area shape="poly" id="edge17_Node000001_Node000018" title=" " alt="" coords="1177,30,1281,74,1276,74,1177,35"/>
+<area shape="rect" id="Node000025" href="$ser__database_8hpp.html" title="SQLite database handler for SER records." alt="" coords="1784,80,1908,107"/>
+<area shape="poly" id="edge29_Node000001_Node000025" title=" " alt="" coords="1200,21,1442,42,1771,79,1766,80,1442,47,1200,27"/>
+<area shape="poly" id="edge20_Node000018_Node000012" title=" " alt="" coords="1289,106,1255,128,1241,141,1230,156,1226,172,1231,188,1241,203,1255,220,1250,218,1237,206,1226,190,1221,172,1225,154,1237,137,1252,124,1284,108"/>
+<area shape="poly" id="edge21_Node000018_Node000013" title=" " alt="" coords="1335,105,1425,218,1420,216,1332,110"/>
+<area shape="rect" id="Node000019" title=" " alt="" coords="1239,155,1304,181"/>
+<area shape="poly" id="edge18_Node000018_Node000019" title=" " alt="" coords="1317,106,1291,144,1288,140,1312,108"/>
+<area shape="rect" id="Node000020" title=" " alt="" coords="1104,155,1164,181"/>
+<area shape="poly" id="edge19_Node000018_Node000020" title=" " alt="" coords="1293,107,1180,152,1178,147,1288,108"/>
+<area shape="rect" id="Node000021" href="$ser__record_8hpp.html" title="System Event Record (SER) data structure and parser." alt="" coords="1560,155,1668,181"/>
+<area shape="poly" id="edge22_Node000018_Node000021" title=" " alt="" coords="1375,105,1551,151,1546,150,1374,110"/>
+<area shape="poly" id="edge23_Node000021_Node000002" title=" " alt="" coords="1663,179,1834,225,1829,225,1663,185"/>
+<area shape="poly" id="edge24_Node000021_Node000012" title=" " alt="" coords="1563,181,1324,235,1324,230,1557,181"/>
+<area shape="poly" id="edge25_Node000021_Node000013" title=" " alt="" coords="1587,181,1486,226,1484,221,1581,182"/>
+<area shape="rect" id="Node000022" title=" " alt="" coords="1677,229,1746,256"/>
+<area shape="poly" id="edge26_Node000021_Node000022" title=" " alt="" coords="1632,179,1685,221,1680,219,1630,184"/>
+<area shape="rect" id="Node000023" title=" " alt="" coords="1494,229,1569,256"/>
+<area shape="poly" id="edge27_Node000021_Node000023" title=" " alt="" coords="1602,181,1558,221,1556,217,1597,183"/>
+<area shape="rect" id="Node000024" title=" " alt="" coords="1593,229,1654,256"/>
+<area shape="poly" id="edge28_Node000021_Node000024" title=" " alt="" coords="1617,180,1622,216,1618,212,1614,184"/>
+<area shape="poly" id="edge30_Node000025_Node000002" title=" " alt="" coords="1853,105,1873,154,1890,216,1886,213,1868,156,1850,109"/>
+<area shape="poly" id="edge31_Node000025_Node000012" title=" " alt="" coords="1786,105,1503,157,1405,191,1323,225,1322,220,1403,186,1501,152,1781,106"/>
+<area shape="poly" id="edge32_Node000025_Node000013" title=" " alt="" coords="1786,105,1644,134,1550,157,1503,187,1465,221,1463,216,1500,183,1548,152,1643,129,1781,106"/>
+<area shape="poly" id="edge35_Node000025_Node000021" title=" " alt="" coords="1808,107,1669,152,1668,147,1803,108"/>
+<area shape="rect" id="Node000026" title=" " alt="" coords="1699,155,1764,181"/>
+<area shape="poly" id="edge33_Node000025_Node000026" title=" " alt="" coords="1829,106,1765,148,1764,143,1824,108"/>
+<area shape="rect" id="Node000027" title=" " alt="" coords="1788,155,1859,181"/>
+<area shape="poly" id="edge34_Node000025_Node000027" title=" " alt="" coords="1844,106,1834,142,1830,138,1840,109"/>
 </map>

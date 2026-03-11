@@ -1,5 +1,9 @@
 <map id="parseSERResponse" name="parseSERResponse">
-<area shape="rect" id="Node000001" title=" " alt="" coords="217,5,357,32"/>
-<area shape="rect" id="Node000002" href="$struct_poll_ser_action.html#a80290394273450b8c46083cc224c529f" title="Execute SER polling and storage." alt="" coords="5,5,169,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="199,19,169,21,169,16,204,19"/>
+<area shape="rect" id="Node000001" title="Parse a raw SER command response into a vector of SERRecord." alt="" coords="448,35,588,61"/>
+<area shape="rect" id="Node000002" href="$struct_poll_ser_action.html#a80290394273450b8c46083cc224c529f" title="Execute SER polling and storage." alt="" coords="232,5,395,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="430,36,396,33,396,28,436,36"/>
+<area shape="rect" id="Node000003" href="$class_pipeline_processing_worker.html#a4b7df7922a70ab4c8542b73118f0c864" title=" " alt="" coords="227,56,400,99"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="436,60,401,68,400,62,430,60"/>
+<area shape="rect" id="Node000004" href="$class_pipeline_processing_worker.html#ab0168acad7f6865fe4244c69c3046d32" title="Start the processing worker: register a reader and launch its thread." alt="" coords="5,56,179,99"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="209,78,179,80,179,75,214,77"/>
 </map>

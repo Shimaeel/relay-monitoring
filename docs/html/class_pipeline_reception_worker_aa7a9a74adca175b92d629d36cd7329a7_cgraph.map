@@ -1,0 +1,11 @@
+<map id="PipelineReceptionWorker::start" name="PipelineReceptionWorker::start">
+<area shape="rect" id="Node000001" title="Start the reception worker thread." alt="" coords="5,39,173,81"/>
+<area shape="rect" id="Node000002" href="$class_pipeline_reception_worker.html#ab14d5bb4804a5832c44af615fd377077" title=" " alt="" coords="221,39,388,81"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="173,57,207,59,202,61,173,63"/>
+<area shape="rect" id="Node000003" href="$class_pipeline_reception_worker.html#a36e9f79b336784cb62214037b38879c1" title="Execute a Telnet command via Command FSM with reconnection." alt="" coords="436,39,603,81"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="388,57,423,60,417,60,389,63"/>
+<area shape="rect" id="Node000004" href="$class_pipeline_reception_worker.html#ab10a5e28319ccc25f868e5ce5dcd1a49" title="Drive the RelayConnectionFSM to Operational state." alt="" coords="651,5,819,48"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="603,44,633,42,638,42,604,50"/>
+<area shape="rect" id="Node000005" href="$class_pipeline_reception_worker.html#af350352d2c354e4fbab12906ce9b8228" title="Parse a command string and fire the corresponding Command FSM event." alt="" coords="651,72,819,115"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="604,70,638,78,633,78,604,76"/>
+</map>

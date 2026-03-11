@@ -6,7 +6,7 @@
 <area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="145,120,228,101,224,104,147,125"/>
 <area shape="rect" id="Node000007" href="$class_s_e_r_database.html#ac4611fbd8ff79ee0d8ec51cb04a171fc" title="Insert multiple SER records with transaction support." alt="" coords="236,123,430,149"/>
 <area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="169,133,223,135,218,137,170,139"/>
-<area shape="rect" id="Node000010" href="$ser__record_8hpp.html#a74e4cd9a0d2e7f7483669c3f91e27f84" title=" " alt="" coords="263,173,403,200"/>
+<area shape="rect" id="Node000010" href="$ser__record_8hpp.html#a74e4cd9a0d2e7f7483669c3f91e27f84" title="Parse a raw SER command response into a vector of SERRecord." alt="" coords="263,173,403,200"/>
 <area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="155,147,252,168,248,171,155,153"/>
 <area shape="rect" id="Node000012" href="$class_telnet_client.html#a39aee6a66b79184a3c7fe5072c2f422f" title="Send command and receive response data." alt="" coords="217,228,449,255"/>
 <area shape="poly" id="edge12_Node000001_Node000012" title=" " alt="" coords="108,147,157,179,218,210,252,223,246,223,216,214,155,183,107,153"/>
@@ -19,7 +19,7 @@
 <area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="905,53,963,56,957,56,906,59"/>
 <area shape="rect" id="Node000008" href="$class_s_e_r_database.html#a7af7d201eef0336f5c599c3d05671f18" title="Insert a single SER record into the database." alt="" coords="497,123,684,149"/>
 <area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="430,133,484,136,479,136,431,139"/>
-<area shape="rect" id="Node000009" href="$class_s_e_r_database.html#a844eb9c372acb5fa192d5e5b08fdf826" title="Check if a record already exists in the database." alt="" coords="737,123,923,149"/>
+<area shape="rect" id="Node000009" href="$class_s_e_r_database.html#a77ac29d719dfce9ffe151bb73c9295bd" title="Check if a record already exists in the database." alt="" coords="737,123,923,149"/>
 <area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="685,133,724,136,719,136,685,139"/>
 <area shape="rect" id="Node000011" href="$ser__record_8hpp.html#a3b567ed0529e21ab4536d1df5192a033" title="Parse SER response string into a vector of SERRecord." alt="" coords="536,173,646,200"/>
 <area shape="poly" id="edge11_Node000010_Node000011" title=" " alt="" coords="403,184,523,186,517,187,404,189"/>

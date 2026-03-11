@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['max_5fretries_0',['max_retries',['../struct_retry_state.html#a5137613c1070519f9336cb6b10f73cbe',1,'RetryState']]],
-  ['max_5fsize_5f_1',['max_size_',['../class_raw_data_ring_buffer.html#af94f12eade65af11882a992e8a6dddcd',1,'RawDataRingBuffer']]],
-  ['mutex_5f_2',['mutex_',['../class_raw_data_ring_buffer.html#abd32f1e07871167405ded2f136290dd9',1,'RawDataRingBuffer::mutex_'],['../class_relay_service.html#a3f055b3d552feae52813f349463e55ff',1,'RelayService::mutex_'],['../class_thread_safe_queue.html#ace0d7b833c9302eb30f6bd5bcf0f36be',1,'ThreadSafeQueue::mutex_'],['../class_session_manager.html#a7c9345fa74c2f46aad05736e04e0410f',1,'SessionManager::mutex_']]]
+  ['kind_0',['kind',['../struct_web_socket_session_1_1_pending_msg.html#a6fed5a35953c96211939770058e8af90',1,'WebSocketSession::PendingMsg']]],
+  ['kinvalidreader_1',['kInvalidReader',['../class_raw_data_ring_buffer.html#aee5008864680e9a255c7eda6ab48a941',1,'RawDataRingBuffer']]],
+  ['kmaxreaders_2',['kMaxReaders',['../class_raw_data_ring_buffer.html#af2f9dd3e49e5660aca3c18ebf66c66c6',1,'RawDataRingBuffer']]]
 ];

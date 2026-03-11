@@ -1,28 +1,34 @@
 <map id="WebSocketSession::run" name="WebSocketSession::run">
-<area shape="rect" id="Node000001" title="Start the session by accepting WebSocket handshake." alt="" coords="5,112,167,139"/>
-<area shape="rect" id="Node000002" href="$class_web_socket_session.html#a7b82f2e9c71f6822c2d2f6dcc1a251c5" title="Handle WebSocket handshake completion." alt="" coords="215,104,372,147"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="167,123,202,125,197,126,167,128"/>
-<area shape="rect" id="Node000003" href="$class_web_socket_session.html#a2529887f34770366fc2c225bd085edba" title="Send current database records to client as JSON." alt="" coords="420,112,619,139"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="372,123,407,125,402,126,372,128"/>
-<area shape="rect" id="Node000004" href="$namespaceasn__tlv.html#a03c61eaf7c30d4bb4e8f50d6cd2f5f03" title="Encode SER records to ASN.1 BER/TLV format." alt="" coords="667,37,850,80"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="570,109,662,85,667,84,571,114"/>
-<area shape="rect" id="Node000008" href="$class_web_socket_session.html#a0fed81151d5dcbe23dbee79f1bf12c66" title="Handle write completion." alt="" coords="680,104,837,147"/>
-<area shape="poly" id="edge8_Node000003_Node000008" title=" " alt="" coords="620,123,667,125,662,125,620,128"/>
-<area shape="rect" id="Node000005" href="$namespaceasn__tlv.html#a0cc9af3d4e8aba5f164c66bb47750767" title="Append a string as a TLV structure." alt="" coords="909,5,1076,32"/>
-<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="849,40,898,35,893,36,850,46"/>
-<area shape="rect" id="Node000006" href="$namespaceasn__tlv.html#a4a9f3333d71c851f9002020ffd417b18" title="Append a complete TLV structure to an output buffer." alt="" coords="1154,25,1305,52"/>
-<area shape="poly" id="edge7_Node000004_Node000006" title=" " alt="" coords="850,52,1141,42,1136,43,850,57"/>
-<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="1076,23,1141,31,1135,31,1076,28"/>
-<area shape="rect" id="Node000007" href="$namespaceasn__tlv.html#af1ae5498c52c5e99d18f2cd5cb4f2609" title="Append BER length encoding to an output buffer." alt="" coords="1378,25,1550,52"/>
-<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="1305,36,1365,38,1360,39,1306,41"/>
-<area shape="rect" id="Node000009" href="$class_web_socket_session.html#a2bc079950c2e39e8ff745f0da57646ba" title="Initiate async read for next client message." alt="" coords="898,116,1087,143"/>
-<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="837,124,885,127,879,128,838,129"/>
-<area shape="rect" id="Node000010" href="$class_web_socket_session.html#a6c0557f87f9f6050a8848237ace942bb" title="Handle received client message." alt="" coords="1135,116,1324,143"/>
-<area shape="poly" id="edge10_Node000009_Node000010" title=" " alt="" coords="1087,136,1122,138,1117,138,1087,141"/>
-<area shape="poly" id="edge14_Node000010_Node000003" title=" " alt="" coords="1165,143,1087,157,969,169,877,174,785,172,667,161,584,146,585,140,668,156,785,167,877,169,969,163,1087,152,1160,144"/>
-<area shape="poly" id="edge11_Node000010_Node000009" title=" " alt="" coords="1132,121,1103,123,1103,118,1137,120"/>
-<area shape="rect" id="Node000011" href="$class_web_socket_session.html#a43bf9b3aa8c9ed23d031c7ae8059da22" title="Extract the &quot;action&quot; value from a simple JSON object." alt="" coords="1372,87,1556,129"/>
-<area shape="poly" id="edge12_Node000010_Node000011" title=" " alt="" coords="1325,118,1354,118,1360,118,1325,123"/>
-<area shape="rect" id="Node000012" href="$class_web_socket_session.html#a606e227b631d765ac0191c0535df607f" title="Check if a message is a JSON action (contains &quot;action&quot; key)." alt="" coords="1373,153,1555,196"/>
-<area shape="poly" id="edge13_Node000010_Node000012" title=" " alt="" coords="1303,141,1360,154,1355,154,1302,146"/>
+<area shape="rect" id="Node000001" title="Start the session by accepting WebSocket handshake." alt="" coords="5,108,167,135"/>
+<area shape="rect" id="Node000002" href="$class_web_socket_session.html#a7b82f2e9c71f6822c2d2f6dcc1a251c5" title="Handle WebSocket handshake completion." alt="" coords="215,100,372,143"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="167,119,202,121,197,122,168,124"/>
+<area shape="rect" id="Node000003" href="$class_web_socket_session.html#a2529887f34770366fc2c225bd085edba" title="Send current database records to client as ASN.1 BER/TLV." alt="" coords="420,108,619,135"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="372,119,407,121,402,122,373,124"/>
+<area shape="rect" id="Node000004" href="$namespaceasn__tlv.html#a03c61eaf7c30d4bb4e8f50d6cd2f5f03" title="Encode SER records to ASN.1 BER/TLV format." alt="" coords="667,12,850,55"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="558,105,681,61,687,60,559,110"/>
+<area shape="rect" id="Node000008" href="$class_web_socket_session.html#a0fed81151d5dcbe23dbee79f1bf12c66" title="Handle write completion." alt="" coords="680,129,837,172"/>
+<area shape="poly" id="edge8_Node000003_Node000008" title=" " alt="" coords="620,131,667,139,662,139,620,136"/>
+<area shape="rect" id="Node000005" href="$namespaceasn__tlv.html#a0cc9af3d4e8aba5f164c66bb47750767" title="Append a string as a TLV structure." alt="" coords="919,25,1086,52"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="850,33,906,36,901,37,851,38"/>
+<area shape="rect" id="Node000006" href="$namespaceasn__tlv.html#a4a9f3333d71c851f9002020ffd417b18" title="Append a complete TLV structure to an output buffer." alt="" coords="1174,5,1325,32"/>
+<area shape="poly" id="edge7_Node000004_Node000006" title=" " alt="" coords="850,16,897,11,1035,7,1161,13,1156,13,1035,12,898,16,850,21"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="1086,29,1161,26,1156,26,1087,35"/>
+<area shape="rect" id="Node000007" href="$namespaceasn__tlv.html#af1ae5498c52c5e99d18f2cd5cb4f2609" title="Append BER length encoding to an output buffer." alt="" coords="1398,5,1570,32"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="1325,16,1385,18,1380,19,1326,21"/>
+<area shape="rect" id="Node000009" href="$class_web_socket_session.html#a2bc079950c2e39e8ff745f0da57646ba" title="Initiate async read for next client message." alt="" coords="908,141,1097,168"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="837,149,894,153,889,153,838,155"/>
+<area shape="rect" id="Node000013" href="$class_web_socket_session.html#a124943db6c094918e372c94bfb7ec533" title="Send the next queued message (if any)." alt="" coords="898,81,1107,108"/>
+<area shape="poly" id="edge15_Node000008_Node000013" title=" " alt="" coords="837,130,923,112,929,112,838,135"/>
+<area shape="rect" id="Node000010" href="$class_web_socket_session.html#a6c0557f87f9f6050a8848237ace942bb" title="Handle received client message." alt="" coords="1155,141,1344,168"/>
+<area shape="poly" id="edge10_Node000009_Node000010" title=" " alt="" coords="1098,161,1142,164,1137,164,1098,166"/>
+<area shape="poly" id="edge14_Node000010_Node000003" title=" " alt="" coords="1185,168,1083,188,953,201,883,204,810,203,737,198,667,187,608,168,558,145,559,140,610,163,668,181,738,192,810,198,882,198,953,196,1082,182,1180,169"/>
+<area shape="poly" id="edge11_Node000010_Node000009" title=" " alt="" coords="1152,146,1113,148,1113,143,1157,146"/>
+<area shape="rect" id="Node000011" href="$class_web_socket_session.html#a43bf9b3aa8c9ed23d031c7ae8059da22" title="Extract the &quot;action&quot; value from a simple JSON object." alt="" coords="1392,152,1576,195"/>
+<area shape="poly" id="edge12_Node000010_Node000011" title=" " alt="" coords="1345,160,1380,165,1374,165,1345,165"/>
+<area shape="rect" id="Node000012" href="$class_web_socket_session.html#a606e227b631d765ac0191c0535df607f" title="Check if a message is a JSON action (contains &quot;action&quot; key)." alt="" coords="1393,85,1575,128"/>
+<area shape="poly" id="edge13_Node000010_Node000012" title=" " alt="" coords="1318,138,1376,129,1381,128,1318,143"/>
+<area shape="poly" id="edge18_Node000013_Node000003" title=" " alt="" coords="895,101,635,118,635,112,900,100"/>
+<area shape="rect" id="Node000014" href="$class_web_socket_session.html#afe8845301daa6254f51e87dd9dd4cc3d" title="Handle broadcast write completion — drains pending queue." alt="" coords="1171,73,1328,116"/>
+<area shape="poly" id="edge16_Node000013_Node000014" title=" " alt="" coords="1107,101,1158,103,1152,104,1108,106"/>
+<area shape="poly" id="edge17_Node000014_Node000013" title=" " alt="" coords="1168,86,1122,88,1122,83,1173,86"/>
 </map>

@@ -1,11 +1,15 @@
 var class_web_socket_session =
 [
+    [ "PendingMsg", "struct_web_socket_session_1_1_pending_msg.html", "struct_web_socket_session_1_1_pending_msg" ],
     [ "ActionHandler", "class_web_socket_session.html#a05e70a546700ee2c558457009a956b13", null ],
     [ "CommandHandler", "class_web_socket_session.html#af70aa593af5246f2aa62bb8e34f5273a", null ],
-    [ "WebSocketSession", "class_web_socket_session.html#a86a1bead5b640c7d2a26c1c14fa361a7", null ],
+    [ "StreamCommandHandler", "class_web_socket_session.html#ace75a0fe211cd6d97ab8a36fe63baf46", null ],
+    [ "StreamingCallback", "class_web_socket_session.html#a81035d1d7ac3b4b629acd6bbe5405770", null ],
+    [ "WebSocketSession", "class_web_socket_session.html#a172f8e674772a47931b4614627374c3f", null ],
     [ "~WebSocketSession", "class_web_socket_session.html#a9a95a1b78a6b9e72a43e32dee39ea0c3", null ],
     [ "do_broadcast", "class_web_socket_session.html#a24aad98befc1c2d007af7a64bee4864f", null ],
     [ "do_read", "class_web_socket_session.html#a2bc079950c2e39e8ff745f0da57646ba", null ],
+    [ "drainQueue", "class_web_socket_session.html#a124943db6c094918e372c94bfb7ec533", null ],
     [ "extractAction", "class_web_socket_session.html#a43bf9b3aa8c9ed23d031c7ae8059da22", null ],
     [ "isJsonAction", "class_web_socket_session.html#a606e227b631d765ac0191c0535df607f", null ],
     [ "on_accept", "class_web_socket_session.html#a7b82f2e9c71f6822c2d2f6dcc1a251c5", null ],
@@ -24,8 +28,11 @@ var class_web_socket_session =
     [ "db_", "class_web_socket_session.html#a5eb68bc78b0469be93e59e24f198e179", null ],
     [ "pending_read_", "class_web_socket_session.html#a353c4fbfabc7dbce6ca3875bfd3fd76d", null ],
     [ "sessionMgr_", "class_web_socket_session.html#a2a23b4613aab08acf254bb0bd631b9f3", null ],
+    [ "streamCmdHandler_", "class_web_socket_session.html#a5834880cdea82d22af6daba925dc54bd", null ],
+    [ "streaming_abort_", "class_web_socket_session.html#a9a8e798a3aa02258db7cb27032907119", null ],
     [ "text_write_buffer_", "class_web_socket_session.html#a64592d6399e59c37d964d468061123c6", null ],
     [ "write_buffer_", "class_web_socket_session.html#a871bf9cc50bb11f867c4bc07e81226e2", null ],
+    [ "write_queue_", "class_web_socket_session.html#a3d0e17249a9a228473709b5509acb6a1", null ],
     [ "writing_", "class_web_socket_session.html#ad5e6d4388ee3a8d5b525f263b4c32389", null ],
     [ "ws_", "class_web_socket_session.html#a826e6ab790133d55f5d9902bbd9b4d1b", null ]
 ];

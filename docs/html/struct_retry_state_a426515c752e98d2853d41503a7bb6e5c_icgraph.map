@@ -1,5 +1,7 @@
 <map id="RetryState::increment" name="RetryState::increment">
-<area shape="rect" id="Node000001" title="Increment retry counter." alt="" coords="233,5,382,32"/>
-<area shape="rect" id="Node000002" href="$struct_retry_wait_action.html#a621c6c5cfaea0e48f7024e71bc9589e9" title="Execute retry wait." alt="" coords="5,5,185,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="214,19,185,21,185,16,220,19"/>
+<area shape="rect" id="Node000001" title="Increment retry counter." alt="" coords="233,43,382,69"/>
+<area shape="rect" id="Node000002" href="$struct_login_retry_incr_action.html#a1845673127ec7fbfc8cafffa5be7f077" title=" " alt="" coords="23,5,167,48"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="214,44,167,39,167,34,220,43"/>
+<area shape="rect" id="Node000003" href="$struct_retry_wait_action.html#a621c6c5cfaea0e48f7024e71bc9589e9" title="Execute retry wait." alt="" coords="5,72,185,99"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="215,69,185,76,185,70,220,68"/>
 </map>

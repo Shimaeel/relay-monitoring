@@ -1,8 +1,10 @@
 <map id="TimeSyncManager::buildErrorJson" name="TimeSyncManager::buildErrorJson">
-<area shape="rect" id="Node000001" title=" " alt="" coords="550,5,771,32"/>
-<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#ab7e1061ae8a4a1bae60ed0411ff4b825" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="5,5,219,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="534,21,219,21,219,16,535,16"/>
-<area shape="rect" id="Node000003" href="$class_time_sync_manager.html#ab03b40ab388284d44f5a30a63fa0f432" title=" " alt="" coords="267,31,502,57"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="537,30,503,36,502,31,532,30"/>
-<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="249,32,219,31,219,26,254,32"/>
+<area shape="rect" id="Node000001" title="Build a JSON error response." alt="" coords="733,13,955,40"/>
+<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#ab7e1061ae8a4a1bae60ed0411ff4b825" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="189,13,402,40"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="715,27,403,29,403,24,720,26"/>
+<area shape="rect" id="Node000004" href="$class_time_sync_manager.html#ab03b40ab388284d44f5a30a63fa0f432" title="Handle the &quot;sync_time&quot; action." alt="" coords="450,39,685,65"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="721,38,686,44,686,39,715,38"/>
+<area shape="rect" id="Node000003" href="$class_telnet_sml_app_1_1_impl.html#a64957945d93500acea2140ec59b07802" title="Starts all application components." alt="" coords="5,5,141,48"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="170,27,141,29,141,24,176,26"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="432,40,402,39,403,34,437,40"/>
 </map>

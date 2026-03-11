@@ -9,7 +9,8 @@ var searchData=
   ['clientcount_6',['clientCount',['../class_s_e_r_web_socket_server.html#a36333b8c6c851ac3f5882afa5dbeedf3',1,'SERWebSocketServer']]],
   ['close_7',['close',['../class_s_e_r_database.html#a6800d7f803456544a3915465fd092df9',1,'SERDatabase']]],
   ['comparetime_8',['compareTime',['../class_time_sync_manager.html#a2b382a0cca1fcf4d52890ccaac8c2a0f',1,'TimeSyncManager']]],
-  ['connectcheck_9',['connectCheck',['../class_telnet_client.html#a43d0aa1501528357ae9d0a213c18c56b',1,'TelnetClient']]],
-  ['count_10',['count',['../class_session_manager.html#a8604c8a387a0121998b2a6674415c4cd',1,'SessionManager']]],
-  ['createtable_11',['createTable',['../class_s_e_r_database.html#ad55583b39ff6c9cc9d2d44f20f34ad47',1,'SERDatabase']]]
+  ['config_9',['config',['../class_relay_pipeline.html#a29c66fec7983cec7b8dac1d6a47c8c16',1,'RelayPipeline']]],
+  ['connectcheck_10',['connectCheck',['../class_telnet_client.html#a43d0aa1501528357ae9d0a213c18c56b',1,'TelnetClient']]],
+  ['count_11',['count',['../class_session_manager.html#a8604c8a387a0121998b2a6674415c4cd',1,'SessionManager']]],
+  ['createtable_12',['createTable',['../class_s_e_r_database.html#ad55583b39ff6c9cc9d2d44f20f34ad47',1,'SERDatabase']]]
 ];

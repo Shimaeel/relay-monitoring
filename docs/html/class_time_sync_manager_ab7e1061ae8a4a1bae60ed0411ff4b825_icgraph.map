@@ -1,0 +1,5 @@
+<map id="TimeSyncManager::handleAction" name="TimeSyncManager::handleAction">
+<area shape="rect" id="Node000001" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="189,13,402,40"/>
+<area shape="rect" id="Node000002" href="$class_telnet_sml_app_1_1_impl.html#a64957945d93500acea2140ec59b07802" title="Starts all application components." alt="" coords="5,5,141,48"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="170,27,141,29,141,24,176,26"/>
+</map>

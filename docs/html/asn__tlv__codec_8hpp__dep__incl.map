@@ -1,21 +1,30 @@
 <map id="asn_tlv_codec.hpp" name="asn_tlv_codec.hpp">
-<area shape="rect" id="Node000001" title="ASN.1 BER/TLV codec for SER record payloads." alt="" coords="162,5,293,32"/>
-<area shape="rect" id="Node000002" href="$password__manager_8hpp.html" title="Password management for relay LEVEL1 / LEVEL2 password changes." alt="" coords="31,155,190,181"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="194,43,176,61,156,82,132,121,117,156,112,153,127,118,152,78,173,57,198,39"/>
-<area shape="rect" id="Node000003" href="$telnet__sml__app_8cpp.html" title="Telnet SML Application &#45; Main orchestrator implementation." alt="" coords="219,229,353,256"/>
-<area shape="poly" id="edge10_Node000001_Node000003" title=" " alt="" coords="168,39,107,64,47,97,25,116,12,136,9,157,20,180,33,190,51,199,102,215,161,226,221,235,216,236,160,231,100,220,49,204,30,194,16,183,4,158,7,134,21,113,44,93,104,59,171,35"/>
-<area shape="rect" id="Node000004" href="$relay__service_8hpp.html" title="Thread&#45;safe relay communication service for DATE operations." alt="" coords="166,80,289,107"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="229,45,230,81,225,79,226,50"/>
-<area shape="rect" id="Node000006" href="$telnet__fsm_8hpp.html" title="Boost.SML Finite State Machine for Telnet Communication." alt="" coords="362,80,469,107"/>
-<area shape="poly" id="edge8_Node000001_Node000006" title=" " alt="" coords="275,35,385,79,380,80,274,41"/>
-<area shape="rect" id="Node000007" href="$ws__server_8hpp.html" title="WebSocket Server for Real&#45;time SER Data Access." alt="" coords="502,155,609,181"/>
-<area shape="poly" id="edge11_Node000001_Node000007" title=" " alt="" coords="308,24,395,41,440,57,482,78,505,95,524,116,551,155,546,154,520,119,501,99,480,82,438,62,394,46,308,29"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="156,185,258,228,253,230,154,190"/>
-<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="193,117,132,156,129,152,197,113"/>
-<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="235,120,255,180,281,230,276,228,250,182,232,124"/>
-<area shape="rect" id="Node000005" href="$time__sync__manager_8hpp.html" title="DATE synchronization manager for relay ↔ local&#45;PC time operations." alt="" coords="265,155,428,181"/>
-<area shape="poly" id="edge6_Node000004_Node000005" title=" " alt="" coords="261,112,328,154,323,154,260,118"/>
-<area shape="poly" id="edge7_Node000005_Node000003" title=" " alt="" coords="329,192,298,231,295,227,324,194"/>
-<area shape="poly" id="edge9_Node000006_Node000003" title=" " alt="" coords="434,117,447,150,448,167,442,183,424,202,402,217,354,235,353,230,400,212,421,198,437,180,443,166,442,151,431,122"/>
-<area shape="poly" id="edge12_Node000007_Node000003" title=" " alt="" coords="497,186,334,231,333,226,492,186"/>
+<area shape="rect" id="Node000001" title="ASN.1 BER/TLV codec for SER record payloads." alt="" coords="379,5,509,32"/>
+<area shape="rect" id="Node000002" href="$password__manager_8hpp.html" title="Password management for relay LEVEL1 / LEVEL2 password changes." alt="" coords="40,229,200,256"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="396,40,301,88,246,120,195,157,157,195,130,231,126,227,153,192,192,153,244,115,299,83,400,37"/>
+<area shape="rect" id="Node000003" href="$telnet__sml__app_8cpp.html" title="Telnet SML Application &#45; Main orchestrator implementation." alt="" coords="347,304,482,331"/>
+<area shape="poly" id="edge15_Node000001_Node000003" title=" " alt="" coords="362,35,235,65,166,86,102,112,51,141,31,158,18,175,10,193,9,212,15,233,30,254,50,270,81,282,165,300,261,309,349,316,344,316,260,315,165,305,80,287,48,274,26,258,10,235,4,213,5,192,13,172,28,154,48,137,100,107,164,81,233,60,366,32"/>
+<area shape="rect" id="Node000004" href="$relay__pipeline_8hpp.html" title="Per&#45;relay processing pipeline for on&#45;demand relay connections." alt="" coords="512,155,637,181"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="487,37,517,55,542,78,555,97,564,118,575,155,570,153,559,120,550,100,538,82,514,59,487,42"/>
+<area shape="rect" id="Node000006" href="$relay__service_8hpp.html" title="Thread&#45;safe relay communication service for DATE operations." alt="" coords="205,155,328,181"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="420,41,283,156,280,152,415,43"/>
+<area shape="rect" id="Node000008" href="$telnet__fsm_8hpp.html" title="Boost.SML Finite State Machine for Telnet Communication." alt="" coords="421,80,528,107"/>
+<area shape="poly" id="edge12_Node000001_Node000008" title=" " alt="" coords="456,44,472,80,467,79,454,49"/>
+<area shape="rect" id="Node000009" href="$ws__server_8hpp.html" title="WebSocket Server for Real&#45;time SER Data Access." alt="" coords="613,80,720,107"/>
+<area shape="poly" id="edge16_Node000001_Node000009" title=" " alt="" coords="497,34,630,79,625,80,497,40"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="187,258,365,302,361,305,186,263"/>
+<area shape="poly" id="edge6_Node000004_Node000003" title=" " alt="" coords="557,192,495,258,434,306,432,301,491,254,552,194"/>
+<area shape="rect" id="Node000005" href="$relay__manager_8hpp.html" title="On&#45;demand coordinator for multiple relay pipelines." alt="" coords="562,229,694,256"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="594,192,621,230,616,228,592,197"/>
+<area shape="poly" id="edge5_Node000005_Node000003" title=" " alt="" coords="579,261,453,306,451,301,574,262"/>
+<area shape="poly" id="edge8_Node000006_Node000002" title=" " alt="" coords="225,190,147,231,144,226,230,187"/>
+<area shape="poly" id="edge9_Node000006_Node000003" title=" " alt="" coords="259,194,257,226,259,241,265,255,281,273,301,287,350,307,344,307,299,291,278,277,260,257,254,243,251,227,256,198"/>
+<area shape="rect" id="Node000007" href="$time__sync__manager_8hpp.html" title="DATE synchronization manager for relay ↔ local&#45;PC time operations." alt="" coords="274,229,438,256"/>
+<area shape="poly" id="edge10_Node000006_Node000007" title=" " alt="" coords="295,189,343,229,338,229,293,194"/>
+<area shape="poly" id="edge11_Node000007_Node000003" title=" " alt="" coords="377,266,407,304,402,303,375,271"/>
+<area shape="poly" id="edge14_Node000008_Node000003" title=" " alt="" coords="475,120,469,185,452,257,440,283,425,306,422,301,435,281,447,255,464,184,472,124"/>
+<area shape="poly" id="edge13_Node000008_Node000004" title=" " alt="" coords="505,113,560,154,554,154,504,119"/>
+<area shape="poly" id="edge19_Node000009_Node000003" title=" " alt="" coords="685,117,704,149,718,185,721,223,717,241,707,258,692,270,671,281,613,297,546,308,482,314,482,309,545,302,612,291,669,276,689,266,703,254,712,239,716,223,713,186,699,151,683,122"/>
+<area shape="poly" id="edge18_Node000009_Node000004" title=" " alt="" coords="641,115,592,157,589,152,636,118"/>
+<area shape="poly" id="edge17_Node000009_Node000005" title=" " alt="" coords="664,120,652,182,635,231,631,227,647,181,660,124"/>
 </map>

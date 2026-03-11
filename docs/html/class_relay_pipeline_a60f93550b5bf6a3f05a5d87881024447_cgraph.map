@@ -1,0 +1,5 @@
+<map id="RelayPipeline::RelayPipeline" name="RelayPipeline::RelayPipeline">
+<area shape="rect" id="Node000001" title="Construct a pipeline for a specific relay." alt="" coords="5,5,195,32"/>
+<area shape="rect" id="Node000002" href="$class_relay_pipeline.html#a29c66fec7983cec7b8dac1d6a47c8c16" title=" " alt="" coords="243,5,387,32"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,16,230,19,225,19,195,21"/>
+</map>

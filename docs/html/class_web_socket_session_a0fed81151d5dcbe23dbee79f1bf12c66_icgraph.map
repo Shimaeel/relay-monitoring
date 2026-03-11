@@ -1,17 +1,25 @@
 <map id="WebSocketSession::on_write" name="WebSocketSession::on_write">
-<area shape="rect" id="Node000001" title="Handle write completion." alt="" coords="727,64,885,107"/>
-<area shape="rect" id="Node000002" href="$class_web_socket_session.html#a2529887f34770366fc2c225bd085edba" title="Send current database records to client as JSON." alt="" coords="480,13,679,40"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="710,61,679,55,635,43,636,38,680,49,715,61"/>
-<area shape="rect" id="Node000007" href="$class_web_socket_session.html#a6c789e228fc7a6101f1e586dc67ad8da" title="Send a plain text response to this client (for FIL DIR etc.)" alt="" coords="482,64,678,107"/>
-<area shape="poly" id="edge8_Node000001_Node000007" title=" " alt="" coords="709,85,678,88,678,83,715,85"/>
-<area shape="rect" id="Node000003" href="$class_web_socket_session.html#a7b82f2e9c71f6822c2d2f6dcc1a251c5" title="Handle WebSocket handshake completion." alt="" coords="259,5,416,48"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="462,27,417,29,416,24,467,26"/>
-<area shape="rect" id="Node000005" href="$class_web_socket_session.html#a6c0557f87f9f6050a8848237ace942bb" title="Handle received client message." alt="" coords="243,76,432,103"/>
-<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="512,44,481,55,392,78,391,73,479,49,507,45"/>
-<area shape="rect" id="Node000004" href="$class_web_socket_session.html#aa60a520432526e90b74fd97713469a56" title="Start the session by accepting WebSocket handshake." alt="" coords="19,13,181,40"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="241,28,182,29,181,24,246,26"/>
-<area shape="rect" id="Node000006" href="$class_web_socket_session.html#a2bc079950c2e39e8ff745f0da57646ba" title="Initiate async read for next client message." alt="" coords="5,76,195,103"/>
-<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="224,99,196,101,195,96,230,98"/>
-<area shape="poly" id="edge7_Node000006_Node000001" title=" " alt="" coords="182,103,243,112,366,124,461,130,557,129,679,116,732,108,738,107,680,121,557,134,461,136,365,129,242,117,182,109"/>
-<area shape="poly" id="edge6_Node000006_Node000005" title=" " alt="" coords="210,78,245,80,240,81,211,83"/>
+<area shape="rect" id="Node000001" title="Handle write completion." alt="" coords="953,133,1110,176"/>
+<area shape="rect" id="Node000002" href="$class_web_socket_session.html#a2529887f34770366fc2c225bd085edba" title="Send current database records to client as ASN.1 BER/TLV." alt="" coords="705,101,905,128"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="935,138,884,131,885,126,940,138"/>
+<area shape="rect" id="Node000010" href="$class_web_socket_session.html#a6c789e228fc7a6101f1e586dc67ad8da" title="Send a plain text response to this client (for FIL DIR etc.)." alt="" coords="707,232,903,275"/>
+<area shape="poly" id="edge13_Node000001_Node000010" title=" " alt="" coords="974,182,906,216,862,234,861,229,904,211,969,183"/>
+<area shape="rect" id="Node000003" href="$class_web_socket_session.html#a124943db6c094918e372c94bfb7ec533" title="Send the next queued message (if any)." alt="" coords="448,13,657,40"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="759,94,656,55,618,43,618,38,658,49,764,94"/>
+<area shape="rect" id="Node000006" href="$class_web_socket_session.html#a7b82f2e9c71f6822c2d2f6dcc1a251c5" title="Handle WebSocket handshake completion." alt="" coords="474,64,631,107"/>
+<area shape="poly" id="edge7_Node000002_Node000006" title=" " alt="" coords="687,102,632,97,632,92,693,101"/>
+<area shape="rect" id="Node000008" href="$class_web_socket_session.html#a6c0557f87f9f6050a8848237ace942bb" title="Handle received client message." alt="" coords="458,131,647,157"/>
+<area shape="poly" id="edge9_Node000002_Node000008" title=" " alt="" coords="687,128,648,136,647,130,692,128"/>
+<area shape="poly" id="edge6_Node000003_Node000001" title=" " alt="" coords="673,36,787,55,847,69,906,87,954,107,998,133,992,132,952,112,904,92,846,75,786,61,673,41"/>
+<area shape="rect" id="Node000004" href="$class_web_socket_session.html#afe8845301daa6254f51e87dd9dd4cc3d" title="Handle broadcast write completion — drains pending queue." alt="" coords="227,5,384,48"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="430,36,385,38,384,33,435,35"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="399,15,450,17,445,19,401,20"/>
+<area shape="rect" id="Node000005" href="$class_web_socket_session.html#a24aad98befc1c2d007af7a64bee4864f" title="Perform broadcast write operation (called on strand)." alt="" coords="5,5,163,48"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="209,28,164,29,162,24,213,25"/>
+<area shape="rect" id="Node000007" href="$class_web_socket_session.html#aa60a520432526e90b74fd97713469a56" title="Start the session by accepting WebSocket handshake." alt="" coords="225,72,386,99"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="456,86,387,88,386,83,461,85"/>
+<area shape="rect" id="Node000009" href="$class_web_socket_session.html#a2bc079950c2e39e8ff745f0da57646ba" title="Initiate async read for next client message." alt="" coords="211,131,400,157"/>
+<area shape="poly" id="edge10_Node000008_Node000009" title=" " alt="" coords="440,153,401,155,400,150,445,153"/>
+<area shape="poly" id="edge12_Node000009_Node000001" title=" " alt="" coords="386,158,448,167,587,174,726,173,955,162,950,163,726,178,587,179,448,172,386,163"/>
+<area shape="poly" id="edge11_Node000009_Node000008" title=" " alt="" coords="415,132,460,135,455,136,416,138"/>
 </map>

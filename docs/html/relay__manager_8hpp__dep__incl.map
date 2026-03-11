@@ -1,0 +1,5 @@
+<map id="relay_manager.hpp" name="relay_manager.hpp">
+<area shape="rect" id="Node000001" title="On&#45;demand coordinator for multiple relay pipelines." alt="" coords="7,5,138,32"/>
+<area shape="rect" id="Node000002" href="$telnet__sml__app_8cpp.html" title="Telnet SML Application &#45; Main orchestrator implementation." alt="" coords="5,80,140,107"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="74,46,75,80,70,79,71,50"/>
+</map>
