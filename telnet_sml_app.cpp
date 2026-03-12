@@ -431,6 +431,7 @@ public:
             batch += "]";
 
             // Send the entire batch as a single message
+            std::cout << "[WS→Relay] Sending TAR_BATCH_ALL (" << batch.size() << " bytes, " << count << " rows)\n";
             sendFn(batch);
             std::cout << "[WS→Relay] FETCH_ALL_TAR done — " << count << " rows batched\n";
             return true;

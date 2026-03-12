@@ -733,6 +733,7 @@ function _rwEnsureConnection() {
     const url = _rwBuildWsUrl();
     console.log("[RW] Connecting to", url);
     rwWs = new WebSocket(url);
+    rwWs.binaryType = "arraybuffer";  // avoid Blob handling issues
 
     rwWs.onopen = () => {
       console.log("[RW] Connected");
@@ -761,17 +762,57 @@ function _rwEnsureConnection() {
 
     // Route incoming text messages — batch TAR or single-response
     rwWs.onmessage = (event) => {
-      if (typeof event.data !== "string") return;
       const msg = event.data;
+
+      // Skip binary messages (initial SER data / broadcasts)
+      if (msg instanceof ArrayBuffer || msg instanceof Blob) {
+        console.log("[RW] Received binary (", msg.byteLength || msg.size, "bytes) — skipping");
+        return;
+      }
+
+      if (typeof msg !== "string") {
+        console.log("[RW] Received non-string message type:", typeof msg);
+        return;
+      }
+
+      console.log("[RW] Received WS message (", msg.length, "chars), starts with:", msg.substring(0, 60));
 
       // ── Batch: TAR_BATCH_ALL:[...] ──
       if (msg.startsWith("TAR_BATCH_ALL:")) {
         const jsonStr = msg.substring(14);
+        console.log("[RW] TAR_BATCH_ALL received (", jsonStr.length, "chars)");
         if (_rwBatchResolve) {
           const res = _rwBatchResolve;
           _rwBatchResolve = null;
           _rwBatchReject  = null;
           res(jsonStr);
+        } else {
+          console.warn("[RW] TAR_BATCH_ALL arrived but no pending resolve — caching directly");
+          try {
+            const entries = JSON.parse(jsonStr);
+            const allRows = [];
+            for (const entry of entries) {
+              const parsed = parseTarResponse(entry.data);
+              if (parsed) {
+                allRows.push({
+                  targetRow: parsed.targetRow,
+                  dnpIndex:  _rwDnpRange(parsed.targetRow),
+                  bit7: { label: parsed.labels[0], value: parsed.values[0] },
+                  bit6: { label: parsed.labels[1], value: parsed.values[1] },
+                  bit5: { label: parsed.labels[2], value: parsed.values[2] },
+                  bit4: { label: parsed.labels[3], value: parsed.values[3] },
+                  bit3: { label: parsed.labels[4], value: parsed.values[4] },
+                  bit2: { label: parsed.labels[5], value: parsed.values[5] },
+                  bit1: { label: parsed.labels[6], value: parsed.values[6] },
+                  bit0: { label: parsed.labels[7], value: parsed.values[7] }
+                });
+              }
+            }
+            _tarCachedRows = allRows;
+            console.log("[RW] Cached", allRows.length, "rows from late-arriving batch");
+          } catch (e) {
+            console.error("[RW] Failed to parse late batch:", e);
+          }
         }
         return;
       }
