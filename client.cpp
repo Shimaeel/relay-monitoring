@@ -105,7 +105,7 @@ bool TelnetClient::connectCheck(const std::string& host,
 bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
                                       std::string& outBuffer)
 {
-    if (!connected_)
+    if (!connected_ || !socket_.is_open())
     {
         // std::cout << "[DEBUG] SendCmdReceiveData: Not connected\n";
         last_io_ok_ = false;

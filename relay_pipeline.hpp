@@ -212,6 +212,7 @@ class PipelineReceptionWorker
      */
     void executeCommand(const std::string& cmd)
     {
+        std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
         for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt)
         {
             if (stop_flag_.load())
@@ -252,7 +253,10 @@ class PipelineReceptionWorker
         std::cout << relay_tag_ << " Worker thread started (FSM-driven)\n";
 
         // Kick the FSM out of Idle → Connecting (ConnectAction runs)
-        fsm_.process_event(start_event{});
+        {
+            std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
+            fsm_.process_event(start_event{});
+        }
 
         while (!stop_flag_.load())
         {
