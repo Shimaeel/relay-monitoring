@@ -291,9 +291,9 @@ public:
     {
         {
             std::lock_guard<std::mutex> lock(tarCacheMutex_);
-            if (tarCache_.count(relayId) || tarFetchInProgress_[relayId])
-                return;   // Already cached or in-progress
-            tarFetchInProgress_[relayId] = true;
+            if (tarCache_.count(relayId))
+                return;   // Already cached
+            // tarFetchInProgress_ is set by caller before spawning this thread
         }
 
         std::cout << "[TAR-BG] Starting background TAR collection for relay " << relayId << "\n";
@@ -547,6 +547,11 @@ public:
                 bool ok = relayMgr->startRelay(relayId);
                 if (ok)
                 {
+                    // Mark in-progress BEFORE spawning thread to avoid race
+                    {
+                        std::lock_guard<std::mutex> lock(tarCacheMutex_);
+                        tarFetchInProgress_[relayId] = true;
+                    }
                     // Auto-start background TAR collection for this relay
                     tarBgThreads_.emplace_back([this, relayId]() {
                         collectTarBackground(relayId);
