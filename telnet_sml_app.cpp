@@ -291,9 +291,10 @@ public:
     {
         {
             std::lock_guard<std::mutex> lock(tarCacheMutex_);
-            if (tarCache_.count(relayId))
-                return;   // Already cached
-            // tarFetchInProgress_ is set by caller before spawning this thread
+            // Already cached or another thread is collecting — bail out
+            if (tarCache_.count(relayId) || tarFetchInProgress_[relayId])
+                return;
+            tarFetchInProgress_[relayId] = true;   // atomic check-and-set under lock
         }
 
         std::cout << "[TAR-BG] Starting background TAR collection for relay " << relayId << "\n";
@@ -480,6 +481,12 @@ public:
             }
 
             // Fallback: collect directly (no cached data available)
+            {
+                std::lock_guard<std::mutex> lock(tarCacheMutex_);
+                if (tarFetchInProgress_[relayId])
+                    return false;   // background fetch still running — don't duplicate
+                tarFetchInProgress_[relayId] = true;
+            }
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
 
@@ -526,7 +533,9 @@ public:
             {
                 std::lock_guard<std::mutex> lock(tarCacheMutex_);
                 tarCache_[relayId] = batch;
+                tarFetchInProgress_[relayId] = false;
             }
+            tarCacheCv_.notify_all();
 
             // Send the entire batch as a single message
             std::cout << "[WS→Relay] Sending TAR_BATCH_ALL (" << batch.size() << " bytes, " << count << " rows)\n";
@@ -547,12 +556,8 @@ public:
                 bool ok = relayMgr->startRelay(relayId);
                 if (ok)
                 {
-                    // Mark in-progress BEFORE spawning thread to avoid race
-                    {
-                        std::lock_guard<std::mutex> lock(tarCacheMutex_);
-                        tarFetchInProgress_[relayId] = true;
-                    }
-                    // Auto-start background TAR collection for this relay
+                    // Spawn background TAR collection — collectTarBackground()
+                    // self-guards with atomic check-and-set of tarFetchInProgress_
                     tarBgThreads_.emplace_back([this, relayId]() {
                         collectTarBackground(relayId);
                     });
