@@ -902,6 +902,14 @@ async function fetchAllTAR() {
       _rwSetProgress(0, 1);    // show spinner
       _rwSetRowCount(0);
 
+      // 1b. Ensure relay pipeline is running before fetching TAR data.
+      //     The server processes messages sequentially per connection,
+      //     so start_relay will complete before FETCH_ALL_TAR is read.
+      const relay = getCurrentRelay();
+      if (relay) {
+        ws.send(JSON.stringify({ action: "start_relay", relay_id: String(relay.id) }));
+      }
+
       // 2. Send batch command & wait for TAR_BATCH_ALL response
       const jsonStr = await new Promise((resolve, reject) => {
         _rwBatchResolve = resolve;
