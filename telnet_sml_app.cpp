@@ -262,6 +262,13 @@ public:
     // ─── Multi-relay management ─────────────────────────────────────
     std::unique_ptr<RelayManager> relayMgr;              ///< On-demand pipeline coordinator
 
+    // ─── Background TAR collection & cache ───────────────────────────
+    std::mutex tarCacheMutex_;                                        ///< Guards TAR cache
+    std::unordered_map<std::string, std::string> tarCache_;           ///< relay_id → TAR_BATCH_ALL JSON
+    std::unordered_map<std::string, bool> tarFetchInProgress_;        ///< relay_id → in-progress flag
+    std::condition_variable tarCacheCv_;                               ///< Notifies when TAR fetch completes
+    std::vector<std::thread> tarBgThreads_;                            ///< Background TAR collection threads
+
     bool running = false;                                ///< Application running state
 
     /**
@@ -271,6 +278,72 @@ public:
      * @param fieldName  Field name to look up (without quotes).
      * @return Extracted value string, or empty string on failure.
      */
+    /**
+     * @brief Collect all TAR data for a relay in the background.
+     *
+     * @details Reuses the same TAR 0..N loop as FETCH_ALL_TAR but runs
+     * in a background thread.  Result is cached so future requests
+     * return instantly.
+     *
+     * @param relayId  Relay identifier to collect TAR data from
+     */
+    void collectTarBackground(const std::string& relayId)
+    {
+        {
+            std::lock_guard<std::mutex> lock(tarCacheMutex_);
+            if (tarCache_.count(relayId) || tarFetchInProgress_[relayId])
+                return;   // Already cached or in-progress
+            tarFetchInProgress_[relayId] = true;
+        }
+
+        std::cout << "[TAR-BG] Starting background TAR collection for relay " << relayId << "\n";
+        int count = 0;
+        std::string batch = "TAR_BATCH_ALL:[";
+        bool first = true;
+
+        for (int i = 0; app_running.load(); ++i)
+        {
+            std::string response = relayMgr->handleUserCommand(
+                relayId, "TAR " + std::to_string(i));
+            if (response.empty())
+                break;
+            if (response.find("Invalid Target") != std::string::npos)
+                break;
+
+            if (!first) batch += ",";
+            first = false;
+
+            std::string escaped;
+            escaped.reserve(response.size() + 16);
+            for (char c : response)
+            {
+                switch (c)
+                {
+                    case '"':  escaped += "\\\""; break;
+                    case '\\': escaped += "\\\\"; break;
+                    case '\n': escaped += "\\n";  break;
+                    case '\r': escaped += "\\r";  break;
+                    case '\t': escaped += "\\t";  break;
+                    default:   escaped += c;      break;
+                }
+            }
+            batch += "{\"idx\":" + std::to_string(i)
+                   + ",\"data\":\"" + escaped + "\"}";
+            ++count;
+        }
+
+        batch += "]";
+
+        {
+            std::lock_guard<std::mutex> lock(tarCacheMutex_);
+            tarCache_[relayId] = std::move(batch);
+            tarFetchInProgress_[relayId] = false;
+        }
+        tarCacheCv_.notify_all();
+        std::cout << "[TAR-BG] Background TAR collection complete for relay "
+                  << relayId << " (" << count << " rows)\n";
+    }
+
     static std::string extractJsonField(const std::string& json, const std::string& fieldName)
     {
         const std::string key = "\"" + fieldName + "\"";
@@ -388,6 +461,25 @@ public:
             if (realCmd != "FETCH_ALL_TAR")
                 return false;   // not a streaming command — fall through
 
+            // Try to serve from background cache first
+            {
+                std::unique_lock<std::mutex> lock(tarCacheMutex_);
+                // Wait for in-progress background fetch to complete (up to 10 min)
+                tarCacheCv_.wait_for(lock, std::chrono::minutes(10), [&]() {
+                    return tarCache_.count(relayId) > 0 || !tarFetchInProgress_[relayId];
+                });
+
+                auto it = tarCache_.find(relayId);
+                if (it != tarCache_.end())
+                {
+                    std::cout << "[WS→Relay] Serving cached TAR_BATCH_ALL for relay " << relayId
+                              << " (" << it->second.size() << " bytes)\n";
+                    sendFn(it->second);
+                    return true;
+                }
+            }
+
+            // Fallback: collect directly (no cached data available)
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
 
@@ -430,6 +522,12 @@ public:
 
             batch += "]";
 
+            // Cache the result for future requests
+            {
+                std::lock_guard<std::mutex> lock(tarCacheMutex_);
+                tarCache_[relayId] = batch;
+            }
+
             // Send the entire batch as a single message
             std::cout << "[WS→Relay] Sending TAR_BATCH_ALL (" << batch.size() << " bytes, " << count << " rows)\n";
             sendFn(batch);
@@ -447,6 +545,13 @@ public:
                 std::string relayId = extractJsonField(jsonMsg, "relay_id");
                 std::cout << "[WS->Action] Starting relay " << relayId << "\n";
                 bool ok = relayMgr->startRelay(relayId);
+                if (ok)
+                {
+                    // Auto-start background TAR collection for this relay
+                    tarBgThreads_.emplace_back([this, relayId]() {
+                        collectTarBackground(relayId);
+                    });
+                }
                 return ok
                     ? "{\"action\":\"start_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"success\"}"
                     : "{\"action\":\"start_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"failed\",\"error\":\"Unknown relay or start failed\"}";
@@ -456,6 +561,12 @@ public:
             {
                 std::string relayId = extractJsonField(jsonMsg, "relay_id");
                 std::cout << "[WS->Action] Stopping relay " << relayId << "\n";
+                // Clear cached TAR data for this relay
+                {
+                    std::lock_guard<std::mutex> lock(tarCacheMutex_);
+                    tarCache_.erase(relayId);
+                    tarFetchInProgress_.erase(relayId);
+                }
                 bool ok = relayMgr->stopRelay(relayId);
                 return ok
                     ? "{\"action\":\"stop_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"success\"}"
@@ -590,6 +701,14 @@ public:
         // Stop all relay pipelines first
         if (relayMgr)
             relayMgr->stopAll();
+
+        // Join background TAR collection threads
+        for (auto& t : tarBgThreads_)
+        {
+            if (t.joinable())
+                t.join();
+        }
+        tarBgThreads_.clear();
 
         threadMgr.stopAll();
         shmReader.stop();

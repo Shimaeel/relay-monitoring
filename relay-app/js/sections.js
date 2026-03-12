@@ -2304,10 +2304,8 @@ document.addEventListener("DOMContentLoaded", function () {
       } else {
         rwTable.redraw(true);
       }
-      // Auto-populate from cache if available
-      if (_tarCachedRows && rwTable) {
-        _rwPopulateFromCache();
-      }
+      // Auto-fetch TAR data (returns from cache instantly if available)
+      fetchAllTAR();
     });
   }
 
@@ -2326,10 +2324,8 @@ document.addEventListener("DOMContentLoaded", function () {
       } else {
         ioTable.redraw(true);
       }
-      // Auto-populate from cache if available
-      if (_tarCachedRows) {
-        fetchAllIO();
-      }
+      // Auto-fetch I/O data (uses shared TAR cache, returns instantly if available)
+      fetchAllIO();
     });
   }
 
