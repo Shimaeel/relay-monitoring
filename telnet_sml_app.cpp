@@ -301,14 +301,25 @@ public:
         int count = 0;
         std::string batch = "TAR_BATCH_ALL:[";
         bool first = true;
+        constexpr int MAX_TAR_ROWS = 128;  // safety cap — no relay has more than ~78 rows
 
-        for (int i = 0; app_running.load(); ++i)
+        for (int i = 0; i < MAX_TAR_ROWS && app_running.load(); ++i)
         {
             std::string response = relayMgr->handleUserCommand(
                 relayId, "TAR " + std::to_string(i));
             if (response.empty())
                 break;
+
+            // Stop on known termination / error patterns
             if (response.find("Invalid Target") != std::string::npos)
+                break;
+            if (response.find("ERR") != std::string::npos)
+                break;
+
+            // Validate that the response looks like actual TAR data
+            // (must contain the "TAR" echo or a "ROW" header)
+            if (response.find("TAR") == std::string::npos &&
+                response.find("ROW") == std::string::npos)
                 break;
 
             if (!first) batch += ",";
@@ -494,20 +505,29 @@ public:
             }
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
+            constexpr int MAX_TAR_ROWS = 128;  // safety cap — no relay has more than ~78 rows
 
             // Collect all TAR responses into a JSON array, then send as one batch
             std::string batch = "TAR_BATCH_ALL:[";
             bool first = true;
 
-            for (int i = 0; !abort.load(); ++i)
+            for (int i = 0; i < MAX_TAR_ROWS && !abort.load(); ++i)
             {
                 std::string response = relayMgr->handleUserCommand(
                     relayId, "TAR " + std::to_string(i));
                 if (response.empty())
                     break;  // no more rows — relay returned nothing
 
-                // Stop when relay reports "Invalid Target"
+                // Stop on known termination / error patterns
                 if (response.find("Invalid Target") != std::string::npos)
+                    break;
+                if (response.find("ERR") != std::string::npos)
+                    break;
+
+                // Validate that the response looks like actual TAR data
+                // (must contain the "TAR" echo or a "ROW" header)
+                if (response.find("TAR") == std::string::npos &&
+                    response.find("ROW") == std::string::npos)
                     break;
 
                 if (!first) batch += ",";

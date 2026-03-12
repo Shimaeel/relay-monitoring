@@ -934,12 +934,12 @@ async function fetchAllTAR() {
         _rwBatchResolve = resolve;
         _rwBatchReject  = reject;
 
-        // Timeout: 10 min for entire batch (large relays)
+        // Timeout: 2 min for entire batch (server responds quickly with backend fix)
         const timer = setTimeout(() => {
           _rwBatchResolve = null;
           _rwBatchReject  = null;
           reject(new Error("Timeout waiting for FETCH_ALL_TAR to complete"));
-        }, 600_000);
+        }, 120_000);
 
         const origResolve = resolve;
         _rwBatchResolve = (data) => { clearTimeout(timer); origResolve(data); };
@@ -976,13 +976,27 @@ async function fetchAllTAR() {
 
         _tarCachedRows = allRows;
         _rwPopulateFromCache();
-        console.log(`[RW] FETCH_ALL_TAR complete — ${entries.length} rows received, ${allRows.length} parsed & cached`);
+
+        // If relay returned 0 parseable rows, TAR is likely unsupported
+        if (allRows.length === 0) {
+          _rwSetStatus("done");
+          _rwSetProgress(-1);
+          console.warn(`[RW] FETCH_ALL_TAR returned 0 parseable rows — relay may not support TAR`);
+          if (typeof showToast === "function") {
+            showToast("This relay does not appear to support TAR commands", "warning");
+          }
+        } else {
+          console.log(`[RW] FETCH_ALL_TAR complete — ${entries.length} rows received, ${allRows.length} parsed & cached`);
+        }
       }
 
     } catch (err) {
       console.error("[RW] fetchAllTAR error:", err);
       _rwSetStatus("error");
       _rwSetProgress(-1);
+
+      // Cache empty array so we don't keep retrying on unsupported relays
+      _tarCachedRows = [];
 
       if (typeof showToast === "function") {
         showToast(`TAR fetch failed: ${err.message}`, "error");
@@ -1003,7 +1017,7 @@ function _rwPopulateFromCache() {
   if (!_tarCachedRows) return;
   if (!rwTable) initRwTable();
   rwTable.setData(_tarCachedRows);
-  _rwSetRowCount(_tarCachedRows.length);
+  _rwSetRowCount(_tarCachedRows.length); 
   _rwSetProgress(-1);
   _rwSetStatus("done");
   _rwSetFetchBtn(false);
@@ -2469,8 +2483,5 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Default load — SER tab is active
   loadSection("ser");
-
-  // Auto-prefetch TAR data in background so Relay Word & I/O are instant
-  fetchAllTAR();
 
 });
