@@ -366,6 +366,11 @@ function connectSerWebSocket() {
       // --- Text / JSON ---
       else {
         console.log("[SER] Received text:", event.data);
+        // Handle server-pushed TAR_BATCH_ALL (from background TAR collection)
+        if (typeof event.data === "string" && event.data.startsWith("TAR_BATCH_ALL:")) {
+          _handleTarBatchPush(event.data);
+          return;
+        }
         try {
           const json = JSON.parse(event.data);
           if (Array.isArray(json)) {
@@ -512,6 +517,44 @@ let rwAbort     = false;  // Abort signal for in-flight fetch
 
 let _tarCachedRows = null;  // Array of parsed TAR row objects (set after first fetch)
 let _tarFetchPromise = null; // In-flight fetch promise (to avoid duplicate fetches)
+
+/**
+ * Handle a server-pushed TAR_BATCH_ALL message (from any WebSocket).
+ * Parses the batch, caches it, and renders the Relay Word table if visible.
+ */
+function _handleTarBatchPush(msg) {
+  const jsonStr = msg.substring(14);
+  try {
+    const entries = JSON.parse(jsonStr);
+    const allRows = [];
+    for (const entry of entries) {
+      const parsed = parseTarResponse(entry.data);
+      if (parsed) {
+        allRows.push({
+          targetRow: parsed.targetRow,
+          dnpIndex:  _rwDnpRange(parsed.targetRow),
+          bit7: { label: parsed.labels[0], value: parsed.values[0] },
+          bit6: { label: parsed.labels[1], value: parsed.values[1] },
+          bit5: { label: parsed.labels[2], value: parsed.values[2] },
+          bit4: { label: parsed.labels[3], value: parsed.values[3] },
+          bit3: { label: parsed.labels[4], value: parsed.values[4] },
+          bit2: { label: parsed.labels[5], value: parsed.values[5] },
+          bit1: { label: parsed.labels[6], value: parsed.values[6] },
+          bit0: { label: parsed.labels[7], value: parsed.values[7] }
+        });
+      }
+    }
+    _tarCachedRows = allRows;
+    console.log("[TAR-PUSH] Cached", allRows.length, "rows from server push");
+    // If Relay Word table is currently visible, render immediately
+    const rwSec = document.getElementById("relayword-section");
+    if (rwTable && rwSec && rwSec.style.display !== "none") {
+      _rwPopulateFromCache();
+    }
+  } catch (e) {
+    console.error("[TAR-PUSH] Failed to parse pushed TAR batch:", e);
+  }
+}
 
 // ── Promise queue for request-response over WebSocket ───────
 
@@ -787,32 +830,8 @@ function _rwEnsureConnection() {
           _rwBatchReject  = null;
           res(jsonStr);
         } else {
-          console.warn("[RW] TAR_BATCH_ALL arrived but no pending resolve — caching directly");
-          try {
-            const entries = JSON.parse(jsonStr);
-            const allRows = [];
-            for (const entry of entries) {
-              const parsed = parseTarResponse(entry.data);
-              if (parsed) {
-                allRows.push({
-                  targetRow: parsed.targetRow,
-                  dnpIndex:  _rwDnpRange(parsed.targetRow),
-                  bit7: { label: parsed.labels[0], value: parsed.values[0] },
-                  bit6: { label: parsed.labels[1], value: parsed.values[1] },
-                  bit5: { label: parsed.labels[2], value: parsed.values[2] },
-                  bit4: { label: parsed.labels[3], value: parsed.values[3] },
-                  bit3: { label: parsed.labels[4], value: parsed.values[4] },
-                  bit2: { label: parsed.labels[5], value: parsed.values[5] },
-                  bit1: { label: parsed.labels[6], value: parsed.values[6] },
-                  bit0: { label: parsed.labels[7], value: parsed.values[7] }
-                });
-              }
-            }
-            _tarCachedRows = allRows;
-            console.log("[RW] Cached", allRows.length, "rows from late-arriving batch");
-          } catch (e) {
-            console.error("[RW] Failed to parse late batch:", e);
-          }
+          console.warn("[RW] TAR_BATCH_ALL arrived but no pending resolve — handling as push");
+          _handleTarBatchPush(msg);
         }
         return;
       }
@@ -1218,6 +1237,8 @@ function _ioEnsureConnection() {
           _ioBatchResolve = null;
           _ioBatchReject  = null;
           res(jsonStr);
+        } else {
+          _handleTarBatchPush(msg);
         }
         return;
       }

@@ -337,12 +337,17 @@ public:
 
         {
             std::lock_guard<std::mutex> lock(tarCacheMutex_);
-            tarCache_[relayId] = std::move(batch);
+            tarCache_[relayId] = batch;
             tarFetchInProgress_[relayId] = false;
         }
         tarCacheCv_.notify_all();
+
+        // Push TAR data to all connected clients immediately
+        wsServer.broadcastText(batch);
+
         std::cout << "[TAR-BG] Background TAR collection complete for relay "
-                  << relayId << " (" << count << " rows)\n";
+                  << relayId << " (" << count << " rows, pushed to "
+                  << wsServer.clientCount() << " clients)\n";
     }
 
     static std::string extractJsonField(const std::string& json, const std::string& fieldName)
