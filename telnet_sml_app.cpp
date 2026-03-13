@@ -310,16 +310,8 @@ public:
             if (response.empty())
                 break;
 
-            // Stop on known termination / error patterns
+            // Stop when relay signals no more TAR rows
             if (response.find("Invalid Target") != std::string::npos)
-                break;
-            if (response.find("ERR") != std::string::npos)
-                break;
-
-            // Validate that the response looks like actual TAR data
-            // (must contain the "TAR" echo or a "ROW" header)
-            if (response.find("TAR") == std::string::npos &&
-                response.find("ROW") == std::string::npos)
                 break;
 
             if (!first) batch += ",";
@@ -356,17 +348,29 @@ public:
 
         {
             std::lock_guard<std::mutex> lock(tarCacheMutex_);
-            tarCache_[relayId] = batch;
+            // Only cache non-empty results — if relay wasn't connected yet,
+            // handleUserCommand returns empty on the first call and count stays 0.
+            // Leaving the cache empty allows a later FETCH_ALL_TAR (sent after the
+            // relay is fully operational) to collect and cache fresh data.
+            if (count > 0)
+                tarCache_[relayId] = batch;
             tarFetchInProgress_[relayId] = false;
         }
         tarCacheCv_.notify_all();
 
-        // Push TAR data to all connected clients immediately
-        wsServer.broadcastText(batch);
-
-        std::cout << "[TAR-BG] Background TAR collection complete for relay "
-                  << relayId << " (" << count << " rows, pushed to "
-                  << wsServer.clientCount() << " clients)\n";
+        if (count > 0)
+        {
+            // Push TAR data to all connected clients immediately
+            wsServer.broadcastText(batch);
+            std::cout << "[TAR-BG] Background TAR collection complete for relay "
+                      << relayId << " (" << count << " rows, pushed to "
+                      << wsServer.clientCount() << " clients)\n";
+        }
+        else
+        {
+            std::cout << "[TAR-BG] Background TAR got 0 rows for relay " << relayId
+                      << " — relay not yet connected; FETCH_ALL_TAR will collect on demand\n";
+        }
     }
 
     static std::string extractJsonField(const std::string& json, const std::string& fieldName)
@@ -526,16 +530,8 @@ public:
                 if (response.empty())
                     break;  // no more rows — relay returned nothing
 
-                // Stop on known termination / error patterns
+                // Stop when relay signals no more TAR rows
                 if (response.find("Invalid Target") != std::string::npos)
-                    break;
-                if (response.find("ERR") != std::string::npos)
-                    break;
-
-                // Validate that the response looks like actual TAR data
-                // (must contain the "TAR" echo or a "ROW" header)
-                if (response.find("TAR") == std::string::npos &&
-                    response.find("ROW") == std::string::npos)
                     break;
 
                 if (!first) batch += ",";
@@ -597,11 +593,19 @@ public:
                 bool ok = relayMgr->startRelay(relayId);
                 if (ok)
                 {
-                    // Spawn background TAR collection — collectTarBackground()
-                    // self-guards with atomic check-and-set of tarFetchInProgress_
-                    tarBgThreads_.emplace_back([this, relayId]() {
-                        collectTarBackground(relayId);
-                    });
+                    // Only spawn background TAR collection if not already cached or in progress
+                    bool shouldCollect = false;
+                    {
+                        std::lock_guard<std::mutex> lock(tarCacheMutex_);
+                        if (!tarCache_.count(relayId) && !tarFetchInProgress_[relayId])
+                            shouldCollect = true;
+                    }
+                    if (shouldCollect)
+                    {
+                        tarBgThreads_.emplace_back([this, relayId]() {
+                            collectTarBackground(relayId);
+                        });
+                    }
                 }
                 return ok
                     ? "{\"action\":\"start_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"success\"}"

@@ -934,12 +934,14 @@ async function fetchAllTAR() {
         _rwBatchResolve = resolve;
         _rwBatchReject  = reject;
 
-        // Timeout: 2 min for entire batch (server responds quickly with backend fix)
+        // Timeout: 10 min — matches the backend wait_for duration.
+        // Slow relays (~78 TAR rows × 2s each) can take 150+ seconds,
+        // so 2 min was too short and caused false timeout errors.
         const timer = setTimeout(() => {
           _rwBatchResolve = null;
           _rwBatchReject  = null;
           reject(new Error("Timeout waiting for FETCH_ALL_TAR to complete"));
-        }, 120_000);
+        }, 600_000);
 
         const origResolve = resolve;
         _rwBatchResolve = (data) => { clearTimeout(timer); origResolve(data); };
@@ -991,15 +993,23 @@ async function fetchAllTAR() {
       }
 
     } catch (err) {
-      console.error("[RW] fetchAllTAR error:", err);
-      _rwSetStatus("error");
       _rwSetProgress(-1);
-
-      // Cache empty array so we don't keep retrying on unsupported relays
-      _tarCachedRows = [];
-
-      if (typeof showToast === "function") {
-        showToast(`TAR fetch failed: ${err.message}`, "error");
+      if (rwAbort) {
+        // User navigated away — leave _tarCachedRows as null so the next
+        // visit to Relay Word retries instead of showing an empty table.
+        console.log("[RW] fetchAllTAR cancelled by navigation");
+        _rwSetStatus("idle");
+      } else {
+        console.error("[RW] fetchAllTAR error:", err);
+        _rwSetStatus("error");
+        // Do NOT cache empty here — a timeout or network error just means
+        // the relay was slow or unreachable, not that it lacks TAR support.
+        // Leaving _tarCachedRows as null lets the next visit retry.
+        // (The "relay doesn't support TAR" case is handled in the success
+        //  path above where allRows.length === 0 already sets _tarCachedRows = [].)
+        if (typeof showToast === "function") {
+          showToast(`TAR fetch failed: ${err.message}`, "error");
+        }
       }
     } finally {
       _rwBatchResolve = null;
@@ -2242,6 +2252,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function teardownRelayWord() {
     rwAbort = true;
+    // Immediately reject any in-flight batch promise so its 2-minute timer
+    // is cleared and fetchAllTAR() exits the catch block right away.
+    if (_rwBatchReject) {
+      const rej = _rwBatchReject;
+      _rwBatchResolve = null;
+      _rwBatchReject  = null;
+      rej(new Error("aborted"));
+    }
     _rwDisconnectRaw();
   }
 
