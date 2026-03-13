@@ -327,7 +327,7 @@ public:
 
             std::string escaped;
             escaped.reserve(response.size() + 16);
-            for (char c : response)
+            for (unsigned char c : response)
             {
                 switch (c)
                 {
@@ -336,7 +336,15 @@ public:
                     case '\n': escaped += "\\n";  break;
                     case '\r': escaped += "\\r";  break;
                     case '\t': escaped += "\\t";  break;
-                    default:   escaped += c;      break;
+                    default:
+                        if (c < 0x20) {
+                            char buf[8];
+                            snprintf(buf, sizeof(buf), "\\u%04x", c);
+                            escaped += buf;
+                        } else {
+                            escaped += static_cast<char>(c);
+                        }
+                        break;
                 }
             }
             batch += "{\"idx\":" + std::to_string(i)
@@ -536,7 +544,7 @@ public:
                 // Escape the raw response text for safe JSON embedding
                 std::string escaped;
                 escaped.reserve(response.size() + 16);
-                for (char c : response)
+                for (unsigned char c : response)
                 {
                     switch (c)
                     {
@@ -545,7 +553,15 @@ public:
                         case '\n': escaped += "\\n";  break;
                         case '\r': escaped += "\\r";  break;
                         case '\t': escaped += "\\t";  break;
-                        default:   escaped += c;      break;
+                        default:
+                            if (c < 0x20) {
+                                char buf[8];
+                                snprintf(buf, sizeof(buf), "\\u%04x", c);
+                                escaped += buf;
+                            } else {
+                                escaped += static_cast<char>(c);
+                            }
+                            break;
                     }
                 }
                 batch += "{\"idx\":" + std::to_string(i) + ",\"data\":\"" + escaped + "\"}";
