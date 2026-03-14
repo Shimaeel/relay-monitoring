@@ -366,6 +366,11 @@ function connectSerWebSocket() {
       // --- Text / JSON ---
       else {
         console.log("[SER] Received text:", event.data);
+        // Handle server-pushed TAR_BATCH_PART (partial 100-row batch)
+        if (typeof event.data === "string" && event.data.startsWith("TAR_BATCH_PART:")) {
+          _handleTarBatchPart(event.data);
+          return;
+        }
         // Handle server-pushed TAR_BATCH_ALL (from background TAR collection)
         if (typeof event.data === "string" && event.data.startsWith("TAR_BATCH_ALL:")) {
           _handleTarBatchPush(event.data);
@@ -531,28 +536,66 @@ let _tarFetchPromise = null; // In-flight fetch promise (to avoid duplicate fetc
  * Handle a server-pushed TAR_BATCH_ALL message (from any WebSocket).
  * Parses the batch, caches it, and renders the Relay Word table if visible.
  */
+/**
+ * Parse a TAR batch JSON array into row objects for the Tabulator table.
+ * @param {Array} entries  Array of {idx, data} objects
+ * @returns {Array} Parsed row objects
+ */
+function _parseTarEntries(entries) {
+  const rows = [];
+  for (const entry of entries) {
+    const parsed = parseTarResponse(entry.data);
+    if (parsed) {
+      rows.push({
+        targetRow: parsed.targetRow,
+        dnpIndex:  _rwDnpRange(parsed.targetRow),
+        bit7: { label: parsed.labels[0], value: parsed.values[0] },
+        bit6: { label: parsed.labels[1], value: parsed.values[1] },
+        bit5: { label: parsed.labels[2], value: parsed.values[2] },
+        bit4: { label: parsed.labels[3], value: parsed.values[3] },
+        bit3: { label: parsed.labels[4], value: parsed.values[4] },
+        bit2: { label: parsed.labels[5], value: parsed.values[5] },
+        bit1: { label: parsed.labels[6], value: parsed.values[6] },
+        bit0: { label: parsed.labels[7], value: parsed.values[7] }
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Handle a server-pushed TAR_BATCH_PART message (partial batch of ~100 rows).
+ * Appends to the existing cache and renders incrementally.
+ */
+function _handleTarBatchPart(msg) {
+  const jsonStr = msg.substring(15);  // strip "TAR_BATCH_PART:"
+  try {
+    const entries = JSON.parse(jsonStr);
+    const newRows = _parseTarEntries(entries);
+    if (newRows.length === 0) return;
+
+    // Append to existing cache (or create new)
+    if (!_tarCachedRows) _tarCachedRows = [];
+    _tarCachedRows = _tarCachedRows.concat(newRows);
+
+    console.log("[TAR-PART] Appended", newRows.length, "rows — total cached:", _tarCachedRows.length);
+
+    // Render incrementally if table is visible
+    const rwSec = document.getElementById("relayword-section");
+    if (rwTable && rwSec && rwSec.style.display !== "none") {
+      _rwPopulateFromCache();
+    }
+    _rwSetRowCount(_tarCachedRows.length);
+  } catch (e) {
+    console.error("[TAR-PART] Failed to parse partial TAR batch:", e);
+  }
+}
+
 function _handleTarBatchPush(msg) {
   const jsonStr = msg.substring(14);
   try {
     const entries = JSON.parse(jsonStr);
-    const allRows = [];
-    for (const entry of entries) {
-      const parsed = parseTarResponse(entry.data);
-      if (parsed) {
-        allRows.push({
-          targetRow: parsed.targetRow,
-          dnpIndex:  _rwDnpRange(parsed.targetRow),
-          bit7: { label: parsed.labels[0], value: parsed.values[0] },
-          bit6: { label: parsed.labels[1], value: parsed.values[1] },
-          bit5: { label: parsed.labels[2], value: parsed.values[2] },
-          bit4: { label: parsed.labels[3], value: parsed.values[3] },
-          bit3: { label: parsed.labels[4], value: parsed.values[4] },
-          bit2: { label: parsed.labels[5], value: parsed.values[5] },
-          bit1: { label: parsed.labels[6], value: parsed.values[6] },
-          bit0: { label: parsed.labels[7], value: parsed.values[7] }
-        });
-      }
-    }
+    const allRows = _parseTarEntries(entries);
     _tarCachedRows = allRows;
     console.log("[TAR-PUSH] Cached", allRows.length, "rows from server push");
     // If Relay Word table is currently visible, render immediately
@@ -828,6 +871,13 @@ function _rwEnsureConnection() {
       }
 
       console.log("[RW] Received WS message (", msg.length, "chars), starts with:", msg.substring(0, 60));
+
+      // ── Partial batch: TAR_BATCH_PART:[...] (100-row increments) ──
+      if (msg.startsWith("TAR_BATCH_PART:")) {
+        console.log("[RW] TAR_BATCH_PART received (", msg.length, "chars)");
+        _handleTarBatchPart(msg);
+        return;
+      }
 
       // ── Batch: TAR_BATCH_ALL:[...] ──
       if (msg.startsWith("TAR_BATCH_ALL:")) {

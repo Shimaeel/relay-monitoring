@@ -365,9 +365,12 @@ public:
 
         std::cout << "[TAR-BG] Starting background TAR collection for relay " << relayId << "\n";
         int count = 0;
+        constexpr int BATCH_SIZE = 50;    // send partial batch to UI every N rows
         std::string batch = "TAR_BATCH_ALL:[";
-        std::vector<TARRecord> records;      // structured TAR records
+        std::string partialBatch;          // accumulates current partial batch
+        std::vector<TARRecord> records;    // structured TAR records
         bool first = true;
+        bool partialFirst = true;
 
         for (int i = 0; app_running.load(); ++i)
         {
@@ -383,16 +386,47 @@ public:
             // Store structured record
             records.push_back(TARRecord{i, response});
 
+            std::string escaped = escapeTarJson(response);
+            std::string entry = "{\"idx\":" + std::to_string(i)
+                              + ",\"data\":\"" + escaped + "\"}";
+
             if (!first) batch += ",";
             first = false;
+            batch += entry;
 
-            std::string escaped = escapeTarJson(response);
-            batch += "{\"idx\":" + std::to_string(i)
-                   + ",\"data\":\"" + escaped + "\"}";
+            if (!partialFirst) partialBatch += ",";
+            partialFirst = false;
+            partialBatch += entry;
+
             ++count;
+
+            // Every BATCH_SIZE rows, broadcast a partial batch to the UI
+            if (count % BATCH_SIZE == 0)
+            {
+                std::string partial = "TAR_BATCH_PART:[" + partialBatch + "]";
+                wsServer.broadcastText(partial);
+                std::cout << "[TAR-BG] Sent partial batch (" << count << " rows so far) for relay " << relayId << "\n";
+
+                // Update cache incrementally so getTarData returns partial results
+                {
+                    std::lock_guard<std::mutex> lock(tarCacheMutex_);
+                    tarRecordsCache_[relayId] = records;
+                }
+
+                partialBatch.clear();
+                partialFirst = true;
+            }
         }
 
         batch += "]";
+
+        // Send any remaining rows that didn't fill a full batch
+        if (!partialBatch.empty())
+        {
+            std::string partial = "TAR_BATCH_PART:[" + partialBatch + "]";
+            wsServer.broadcastText(partial);
+            std::cout << "[TAR-BG] Sent final partial batch for relay " << relayId << "\n";
+        }
 
         {
             std::lock_guard<std::mutex> lock(tarCacheMutex_);
@@ -411,7 +445,7 @@ public:
 
         if (count > 0)
         {
-            // Push TAR data to all connected clients immediately
+            // Push final complete TAR data to all connected clients
             wsServer.broadcastText(batch);
             std::cout << "[TAR-BG] Background TAR collection complete for relay "
                       << relayId << " (" << count << " rows, pushed to "
@@ -568,10 +602,13 @@ public:
             }
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
+            constexpr int BATCH_SIZE = 100;  // send partial batch every N rows
 
             // Collect all TAR responses into a JSON array, then send as one batch
             std::string batch = "TAR_BATCH_ALL:[";
+            std::string partialBatch;
             bool first = true;
+            bool partialFirst = true;
 
             for (int i = 0; !abort.load(); ++i)
             {
@@ -584,37 +621,38 @@ public:
                 if (response.find("Invalid Target") != std::string::npos)
                     break;
 
+                std::string escaped = escapeTarJson(response);
+                std::string entry = "{\"idx\":" + std::to_string(i) + ",\"data\":\"" + escaped + "\"}";
+
                 if (!first) batch += ",";
                 first = false;
+                batch += entry;
 
-                // Escape the raw response text for safe JSON embedding
-                std::string escaped;
-                escaped.reserve(response.size() + 16);
-                for (unsigned char c : response)
-                {
-                    switch (c)
-                    {
-                        case '"':  escaped += "\\\""; break;
-                        case '\\': escaped += "\\\\"; break;
-                        case '\n': escaped += "\\n";  break;
-                        case '\r': escaped += "\\r";  break;
-                        case '\t': escaped += "\\t";  break;
-                        default:
-                            if (c < 0x20) {
-                                char buf[8];
-                                snprintf(buf, sizeof(buf), "\\u%04x", c);
-                                escaped += buf;
-                            } else {
-                                escaped += static_cast<char>(c);
-                            }
-                            break;
-                    }
-                }
-                batch += "{\"idx\":" + std::to_string(i) + ",\"data\":\"" + escaped + "\"}";
+                if (!partialFirst) partialBatch += ",";
+                partialFirst = false;
+                partialBatch += entry;
+
                 ++count;
+
+                // Every BATCH_SIZE rows, send a partial batch to the requesting client
+                if (count % BATCH_SIZE == 0)
+                {
+                    std::string partial = "TAR_BATCH_PART:[" + partialBatch + "]";
+                    sendFn(partial);
+                    std::cout << "[WS→Relay] Sent partial TAR batch (" << count << " rows so far)\n";
+                    partialBatch.clear();
+                    partialFirst = true;
+                }
             }
 
             batch += "]";
+
+            // Send remaining rows as a final partial
+            if (!partialBatch.empty())
+            {
+                std::string partial = "TAR_BATCH_PART:[" + partialBatch + "]";
+                sendFn(partial);
+            }
 
             // Cache the result for future requests
             {
@@ -624,7 +662,7 @@ public:
             }
             tarCacheCv_.notify_all();
 
-            // Send the entire batch as a single message
+            // Send the complete batch as final message
             std::cout << "[WS→Relay] Sending TAR_BATCH_ALL (" << batch.size() << " bytes, " << count << " rows)\n";
             sendFn(batch);
             std::cout << "[WS→Relay] FETCH_ALL_TAR done — " << count << " rows batched\n";
