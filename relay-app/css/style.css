@@ -474,6 +474,36 @@ ul, ol { list-style: none; }
   border-top: 1px solid var(--color-border-light);
 }
 
+.relay-card__remove {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px; height: 26px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: .75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  z-index: 2;
+  border: 1px solid var(--color-border);
+}
+
+.relay-card:hover .relay-card__remove {
+  opacity: 1;
+}
+
+.relay-card__remove:hover {
+  background: var(--color-danger);
+  color: #fff;
+  border-color: var(--color-danger);
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, .3);
+}
+
 .relay-card__arrow {
   display: flex;
   align-items: center;
@@ -1080,6 +1110,106 @@ ul, ol { list-style: none; }
 }
 
 /* ============================================================
+   14. CONFIRM MODAL
+   ============================================================ */
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.confirm-modal.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.confirm-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, .45);
+  backdrop-filter: blur(4px);
+}
+
+.confirm-modal__dialog {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-8);
+  max-width: 400px;
+  width: 90%;
+  box-shadow: var(--shadow-xl);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  animation: modal-in .25s var(--ease-spring);
+}
+
+.confirm-modal__icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--sp-1);
+}
+
+.confirm-modal__title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.confirm-modal__desc {
+  font-size: .85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.confirm-modal__details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: var(--sp-2) 0;
+}
+
+.confirm-modal__relay-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.confirm-modal__relay-ip {
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+  padding: 2px 10px;
+  border-radius: var(--radius-xs);
+}
+
+.confirm-modal__actions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  width: 100%;
+}
+
+.confirm-modal__actions .btn {
+  flex: 1;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(.92) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ============================================================
    14. SCROLLBAR
    ============================================================ */
 
@@ -1311,6 +1441,51 @@ ul, ol { list-style: none; }
   color: var(--color-text-secondary);
   font-size: .88rem;
   line-height: 1.6;
+}
+
+/* ===== Add Relay Form ===== */
+
+.add-relay-form {
+  min-height: auto;
+}
+
+.add-relay-form__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-5);
+  margin-top: var(--sp-4);
+}
+
+.add-relay-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 180px;
+}
+
+.add-relay-form__field label {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.add-relay-form__field select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%2394a3b8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+.add-relay-form__action {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 1px;
 }
 
 /* ===== Section Toolbar ===== */

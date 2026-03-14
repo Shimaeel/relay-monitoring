@@ -40,6 +40,56 @@
           </div>
         </div>
 
+        <!-- Add Relay Form -->
+        <div class="section-card add-relay-form" style="margin-bottom:var(--sp-6)">
+          <h2>➕ Add Relay</h2>
+          <form id="add-relay-form" class="add-relay-form__fields" autocomplete="off">
+            <div class="add-relay-form__field">
+              <label for="relay-name-input">Relay Name</label>
+              <input
+                type="text"
+                id="relay-name-input"
+                class="input"
+                placeholder="e.g. SEL-735"
+                required
+              />
+            </div>
+            <div class="add-relay-form__field">
+              <label for="relay-ip-select">IP Address</label>
+              <select id="relay-ip-select" class="input" required>
+                <option value="" disabled selected>Select IP</option>
+                <option value="192.168.0.1">192.168.0.1</option>
+                <option value="192.168.0.2">192.168.0.2</option>
+                <option value="192.168.0.3">192.168.0.3</option>
+                <option value="192.168.0.4">192.168.0.4</option>
+                <option value="192.168.0.5">192.168.0.5</option>
+                <option value="192.168.0.6">192.168.0.6</option>
+                <option value="192.168.0.7">192.168.0.7</option>
+                <option value="192.168.0.8">192.168.0.8</option>
+                <option value="192.168.0.9">192.168.0.9</option>
+                <option value="192.168.0.10">192.168.0.10</option>
+              </select>
+            </div>
+            <div class="add-relay-form__field">
+              <label for="relay-port-select">Port</label>
+              <select id="relay-port-select" class="input" required>
+                <option value="" disabled selected>Select Port</option>
+                <option value="23">23</option>
+                <option value="2023">2023</option>
+                <option value="8765">8765</option>
+                <option value="8766">8766</option>
+                <option value="8767">8767</option>
+                <option value="8768">8768</option>
+                <option value="9000">9000</option>
+                <option value="9001">9001</option>
+              </select>
+            </div>
+            <div class="add-relay-form__action">
+              <button type="submit" class="btn btn--primary">➕ Add Relay</button>
+            </div>
+          </form>
+        </div>
+
         <!-- Search Toolbar -->
         <div class="toolbar">
           <div class="search-wrap">
@@ -102,6 +152,24 @@
 
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Remove Relay Confirmation Modal -->
+  <div id="confirm-modal" class="confirm-modal" aria-hidden="true">
+    <div class="confirm-modal__backdrop"></div>
+    <div class="confirm-modal__dialog" role="dialog" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-desc">
+      <div class="confirm-modal__icon">⚠️</div>
+      <h3 id="confirm-modal-title" class="confirm-modal__title">Remove Relay</h3>
+      <p id="confirm-modal-desc" class="confirm-modal__desc">Are you sure you want to remove this relay?</p>
+      <div class="confirm-modal__details">
+        <span id="confirm-modal-name" class="confirm-modal__relay-name"></span>
+        <span id="confirm-modal-ip" class="confirm-modal__relay-ip"></span>
+      </div>
+      <div class="confirm-modal__actions">
+        <button id="confirm-modal-cancel" class="btn btn--outline" type="button">Cancel</button>
+        <button id="confirm-modal-confirm" class="btn btn--danger" type="button">Remove</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Scripts -->
   <script src="js/tabulator.min.js"></script>

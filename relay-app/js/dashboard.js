@@ -80,6 +80,7 @@ function createCardElement(relay) {
   const statusLabel = relay.status === "online" ? "Online" : "Offline";
 
   card.innerHTML = `
+    <button class="relay-card__remove" title="Remove relay" aria-label="Remove ${relay.name}">✕</button>
     <span class="relay-card__name">${relay.name}</span>
     <span class="relay-card__ip">${relay.ip}</span>
     <span class="relay-card__meta">${relay.substation} · ${relay.bay}</span>
@@ -91,6 +92,12 @@ function createCardElement(relay) {
       <span class="relay-card__arrow">→</span>
     </div>
   `;
+
+  // Remove button
+  card.querySelector(".relay-card__remove").addEventListener("click", (e) => {
+    e.stopPropagation();
+    handleRemoveRelay(relay);
+  });
 
   card.addEventListener("click", () => navigateToRelay(relay.id));
   card.addEventListener("keydown", (e) => {
@@ -207,6 +214,101 @@ function navigateToRelay(id) {
  * @param {"info"|"success"|"error"|"warning"} type
  * @param {number} duration - ms
  */
+// ============================================================
+//  Add Relay Form
+// ============================================================
+
+const addRelayForm = document.getElementById("add-relay-form");
+
+if (addRelayForm) {
+  addRelayForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("relay-name-input").value.trim();
+    const ip   = document.getElementById("relay-ip-select").value;
+    const port = parseInt(document.getElementById("relay-port-select").value, 10);
+
+    if (!name || !ip || !port) {
+      showToast("Please fill in all fields.", "warning");
+      return;
+    }
+
+    const newRelay = addRelay({
+      name,
+      ip,
+      substation: "",
+      bay: "",
+      pse: "",
+      breaker: "",
+      wsPort: port
+    });
+
+    // Re-render cards
+    allRelays = getRelays();
+    renderCards(allRelays);
+    probeOneRelay(newRelay);
+
+    showToast(`Relay "${name}" added successfully.`, "success");
+    addRelayForm.reset();
+  });
+}
+
+// ============================================================
+//  Remove Relay — Confirmation Modal
+// ============================================================
+
+const _confirmModal   = document.getElementById("confirm-modal");
+const _confirmName    = document.getElementById("confirm-modal-name");
+const _confirmIp      = document.getElementById("confirm-modal-ip");
+const _confirmCancel  = document.getElementById("confirm-modal-cancel");
+const _confirmOk      = document.getElementById("confirm-modal-confirm");
+const _confirmBackdrop = _confirmModal ? _confirmModal.querySelector(".confirm-modal__backdrop") : null;
+let _pendingRemoveRelay = null;
+
+function handleRemoveRelay(relay) {
+  if (!_confirmModal) return;
+  _pendingRemoveRelay = relay;
+  _confirmName.textContent = relay.name;
+  _confirmIp.textContent   = relay.ip;
+  _confirmModal.classList.add("visible");
+  _confirmModal.setAttribute("aria-hidden", "false");
+  _confirmOk.focus();
+}
+
+function _closeConfirmModal() {
+  _confirmModal.classList.remove("visible");
+  _confirmModal.setAttribute("aria-hidden", "true");
+  _pendingRemoveRelay = null;
+}
+
+function _executeRemoveRelay() {
+  const relay = _pendingRemoveRelay;
+  if (!relay) return;
+
+  removeRelay(relay.id);
+
+  if (_probeWsMap[relay.id]) {
+    try { _probeWsMap[relay.id].close(); } catch (_) {}
+    delete _probeWsMap[relay.id];
+  }
+  clearTimeout(_probeTimers[relay.id]);
+  delete _probeTimers[relay.id];
+
+  allRelays = getRelays();
+  renderCards(allRelays);
+  showToast(`Relay "${relay.name}" removed.`, "success");
+  _closeConfirmModal();
+}
+
+if (_confirmOk)      _confirmOk.addEventListener("click", _executeRemoveRelay);
+if (_confirmCancel)  _confirmCancel.addEventListener("click", _closeConfirmModal);
+if (_confirmBackdrop) _confirmBackdrop.addEventListener("click", _closeConfirmModal);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && _confirmModal && _confirmModal.classList.contains("visible")) {
+    _closeConfirmModal();
+  }
+});
+
 function showToast(message, type = "info", duration = 2800) {
   const icons = { info: "ℹ️", success: "✅", error: "❌", warning: "⚠️" };
   const toast = document.createElement("div");

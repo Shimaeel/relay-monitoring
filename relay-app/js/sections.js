@@ -371,6 +371,15 @@ function connectSerWebSocket() {
           _handleTarBatchPush(event.data);
           return;
         }
+        // Handle structured tarData JSON (from auto-TAR collection)
+        if (typeof event.data === "string" && event.data.startsWith('{\"type\":\"tarData\"')) {
+          try {
+            _handleTarDataResponse(JSON.parse(event.data));
+          } catch (e) {
+            console.error("[SER] Failed to parse tarData:", e);
+          }
+          return;
+        }
         try {
           const json = JSON.parse(event.data);
           if (Array.isArray(json)) {
@@ -836,6 +845,17 @@ function _rwEnsureConnection() {
         return;
       }
 
+      // ── Structured getTarData response: {"type":"tarData",...} ──
+      if (msg.startsWith('{"type":"tarData"')) {
+        try {
+          const data = JSON.parse(msg);
+          _handleTarDataResponse(data);
+        } catch (e) {
+          console.error("[RW] Failed to parse tarData response:", e);
+        }
+        return;
+      }
+
       // ── Single command response ──
       if (_rwResolve) {
         const res = _rwResolve;
@@ -1067,6 +1087,91 @@ function rwDisconnect() {
   _rwSetStatus("idle");
   _rwSetProgress(-1);
   _rwSetFetchBtn(false);
+}
+
+// ── getTarData structured response handler ──────────────────────
+
+/**
+ * Handle a {"type":"tarData",...} response from the backend.
+ * Parses each record's raw value through parseTarResponse(),
+ * populates the shared _tarCachedRows cache, and renders.
+ *
+ * @param {Object} data  Parsed JSON: {type, relay_id?, status?, records}
+ */
+function _handleTarDataResponse(data) {
+  if (data.status === "collecting") {
+    console.log("[RW] TAR data still being collected for relay", data.relay_id || "(all)");
+    return;
+  }
+
+  const records = data.records || [];
+  if (records.length === 0) {
+    console.log("[RW] getTarData returned 0 records for relay", data.relay_id || "(all)");
+    return;
+  }
+
+  const allRows = [];
+  for (const rec of records) {
+    const parsed = parseTarResponse(rec.value);
+    if (!parsed) {
+      console.warn("[RW] Failed to parse TAR record", rec.tar);
+      continue;
+    }
+    allRows.push({
+      targetRow: parsed.targetRow,
+      dnpIndex:  _rwDnpRange(parsed.targetRow),
+      bit7: { label: parsed.labels[0], value: parsed.values[0] },
+      bit6: { label: parsed.labels[1], value: parsed.values[1] },
+      bit5: { label: parsed.labels[2], value: parsed.values[2] },
+      bit4: { label: parsed.labels[3], value: parsed.values[3] },
+      bit3: { label: parsed.labels[4], value: parsed.values[4] },
+      bit2: { label: parsed.labels[5], value: parsed.values[5] },
+      bit1: { label: parsed.labels[6], value: parsed.values[6] },
+      bit0: { label: parsed.labels[7], value: parsed.values[7] }
+    });
+  }
+
+  _tarCachedRows = allRows;
+  console.log("[RW] getTarData: cached", allRows.length, "rows for relay", data.relay_id || "(all)");
+
+  // Render if Relay Word table is currently visible
+  const rwSec = document.getElementById("relayword-section");
+  if (rwTable && rwSec && rwSec.style.display !== "none") {
+    _rwPopulateFromCache();
+  }
+}
+
+/**
+ * Fetch TAR data via the new {"type":"getTarData"} WebSocket endpoint.
+ * Returns structured TARRecord data from the backend's in-memory cache.
+ * Results are parsed and cached in _tarCachedRows for instant rendering.
+ */
+async function fetchTarViaGetTarData() {
+  // If cache already exists, just render
+  if (_tarCachedRows) {
+    _rwPopulateFromCache();
+    return;
+  }
+
+  try {
+    _rwSetFetchBtn(true);
+    const ws = await _rwEnsureConnection();
+    _rwSetStatus("fetching");
+    _rwSetProgress(0, 1);
+
+    const relay = getCurrentRelay();
+    const request = { type: "getTarData" };
+    if (relay) request.relay_id = String(relay.id);
+
+    ws.send(JSON.stringify(request));
+    console.log("[RW] Sent getTarData request", request);
+    // Response will be handled by _handleTarDataResponse via onmessage
+  } catch (err) {
+    console.error("[RW] fetchTarViaGetTarData error:", err);
+    _rwSetStatus("error");
+    _rwSetProgress(-1);
+    _rwSetFetchBtn(false);
+  }
 }
 
 // ============================================================

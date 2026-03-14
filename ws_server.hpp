@@ -730,13 +730,14 @@ private:
     }
 
     /**
-     * @brief Check if a message is a JSON action (contains "action" key).
+     * @brief Check if a message is a JSON action (contains "action" or "type" key).
      */
     static bool isJsonAction(const std::string& msg)
     {
-        // Quick heuristic: starts with '{' and contains "action"
+        // Quick heuristic: starts with '{' and contains "action" or "type"
         if (msg.empty() || msg[0] != '{') return false;
-        return msg.find("\"action\"") != std::string::npos;
+        return msg.find("\"action\"") != std::string::npos
+            || msg.find("\"type\"") != std::string::npos;
     }
 
     /**

@@ -40,6 +40,16 @@
 #include <vector>
 
 /**
+ * @enum RelayProtocol
+ * @brief Communication protocol for a relay device.
+ */
+enum class RelayProtocol : uint8_t
+{
+    Telnet = 0,  ///< Telnet text-based protocol (port 23)
+    Modbus = 1   ///< Modbus TCP binary protocol (port 502)
+};
+
+/**
  * @struct RelayConfig
  * @brief Configuration for a single relay device.
  *
@@ -54,11 +64,15 @@ struct RelayConfig
     std::string id;            ///< Unique relay identifier (e.g., "1", "2", "3")
     std::string name;          ///< Display name (e.g., "SEL-751", "SEL-421")
     std::string host;          ///< IP address (e.g., "192.168.0.2")
-    int         port = 23;     ///< Telnet port (default: 23)
-    std::string username;      ///< Level 1 login username
-    std::string password;      ///< Level 1 login password
+    int         port = 23;     ///< Network port (23 for Telnet, 502 for Modbus)
+    std::string username;      ///< Level 1 login username (Telnet only)
+    std::string password;      ///< Level 1 login password (Telnet only)
     std::string substation;    ///< Substation name for UI display
     std::string bay;           ///< Bay identifier for UI display
+    RelayProtocol protocol = RelayProtocol::Telnet;  ///< Communication protocol
+
+    /// Modbus unit/slave ID (only used when protocol == Modbus)
+    uint8_t modbus_unit_id = 1;
 
     /// Connection timeout (default: 2000 ms)
     std::chrono::milliseconds timeout{2000};
