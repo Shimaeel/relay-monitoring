@@ -26,7 +26,7 @@ const _DEFAULT_RELAYS = [
     wsPort: 8765
   },
   {
-    id: "3",
+    id: "2",
     name: "SEL-451",
     ip: "192.168.0.3",
     substation: "Substation Alpha",
