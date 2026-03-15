@@ -382,7 +382,7 @@ public:
             }
 
             int count = 0;
-            constexpr int BATCH_SIZE = 50;    // send partial batch to UI every N rows
+            constexpr int BATCH_SIZE = 30;    // send partial batch to UI every N rows
             std::string batch = "TAR_BATCH_ALL:[";
             std::string partialBatch;          // accumulates current partial batch
             std::vector<TARRecord> records;    // structured TAR records
@@ -619,7 +619,7 @@ public:
             }
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
-            constexpr int BATCH_SIZE = 100;  // send partial batch every N rows
+            constexpr int BATCH_SIZE = 30;  // send partial batch every N rows
 
             // Collect all TAR responses into a JSON array, then send as one batch
             std::string batch = "TAR_BATCH_ALL:[";
