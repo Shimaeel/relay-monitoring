@@ -524,6 +524,7 @@ function serSendQuit() {
 // ── State ───────────────────────────────────────────────────
 
 let rwTable     = null;   // Tabulator instance (created once)
+let rwTableReady = Promise.resolve(); // resolves when tableBuilt fires
 let rwWs        = null;   // WebSocket connection
 let rwAbort     = false;  // Abort signal for in-flight fetch
 
@@ -587,7 +588,7 @@ function _handleTarBatchPart(msg) {
     const rwSec = document.getElementById("relayword-section");
     if (rwSec && rwSec.style.display !== "none") {
       if (!rwTable) initRwTable();
-      rwTable.updateOrAddData(newRows);
+      rwTableReady.then(() => rwTable.updateOrAddData(newRows));
     }
 
     // Update count and spinner text with live progress
@@ -800,6 +801,11 @@ function initRwTable() {
       bitCol("1", "bit1"),
       bitCol("0", "bit0")
     ]
+  });
+
+  // Expose a promise that resolves once Tabulator is fully built
+  rwTableReady = new Promise(resolve => {
+    rwTable.on("tableBuilt", resolve);
   });
 }
 
@@ -1108,9 +1114,10 @@ async function fetchAllTAR() {
 }
 
 /** Populate the Relay Word table from cached data */
-function _rwPopulateFromCache() {
+async function _rwPopulateFromCache() {
   if (!_tarCachedRows) return;
   if (!rwTable) initRwTable();
+  await rwTableReady;
   rwTable.setData(_tarCachedRows);
   _rwSetRowCount(_tarCachedRows.length); 
   _rwSetProgress(-1);
