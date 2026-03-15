@@ -134,10 +134,6 @@ function openTimeSyncWs(url) {
 
   _timeSyncWs.onopen = () => {
     updateRelayStatusBadge("online");
-    sendTimeSyncAction("read_time");
-    // Periodically refresh device time every 5s
-    clearInterval(_deviceTimePoller);
-    _deviceTimePoller = setInterval(() => sendTimeSyncAction("read_time"), 5000);
   };
 
   _timeSyncWs.onmessage = (evt) => {
@@ -151,7 +147,6 @@ function openTimeSyncWs(url) {
 
   _timeSyncWs.onclose = () => {
     updateRelayStatusBadge("offline");
-    clearInterval(_deviceTimePoller);
     // Retry after 5 s in case the server is not yet up
     setTimeout(() => {
       if (currentRelay) openTimeSyncWs(`ws://localhost:${currentRelay.wsPort}`);
@@ -177,31 +172,12 @@ function sendTimeSyncAction(action) {
 }
 
 function handleTimeSyncResponse(msg) {
-  if (msg.action === "read_time") {
-    if (msg.status === "success") {
-      deviceTimeEl.textContent = msg.relay_time;
-
-      const isSynced = msg.sync_status === "in_sync";
-      timeSyncStatusEl.textContent = isSynced
-        ? `✅ In sync`
-        : `⚠️ Drift ${msg.diff_seconds}s`;
-      timeSyncStatusEl.className = "time-display__badge " +
-        (isSynced ? "time-display__badge--ok" : "time-display__badge--warn");
-    } else {
-      deviceTimeEl.textContent = "—";
-      timeSyncStatusEl.textContent = "—";
-      timeSyncStatusEl.className = "time-display__badge";
-    }
-  }
-
   if (msg.action === "sync_time") {
     syncTimeBtn.disabled = false;
     syncTimeBtn.textContent = "⏱ Sync Time";
 
     if (msg.status === "success") {
       showToast("Relay time synced to " + msg.new_time, "success");
-      // Re-read to update display
-      sendTimeSyncAction("read_time");
     } else {
       showToast("Sync failed: " + (msg.error || "unknown"), "error");
     }

@@ -795,16 +795,16 @@ public:
                 return result;
             }
 
-            // ── Time sync (requires relay_id to know which relay) ──
-            if (action == "read_time" || action == "sync_time")
+            // ── Time sync — sync_time only (read_time removed) ──
+            if (action == "sync_time")
             {
                 std::string relayId = extractJsonField(jsonMsg, "relay_id");
                 if (relayId.empty())
-                    return "{\"action\":\"" + action + "\",\"status\":\"failed\",\"error\":\"Missing relay_id\"}";
+                    return "{\"action\":\"sync_time\",\"status\":\"failed\",\"error\":\"Missing relay_id\"}";
 
                 auto* pipeline = relayMgr->getPipeline(relayId);
                 if (!pipeline)
-                    return "{\"action\":\"" + action + "\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
+                    return "{\"action\":\"sync_time\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
 
                 RelayService svc(pipeline->getClient());
                 TimeSyncManager tsm(svc);

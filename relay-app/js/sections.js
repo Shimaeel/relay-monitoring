@@ -574,18 +574,25 @@ function _handleTarBatchPart(msg) {
     const newRows = _parseTarEntries(entries);
     if (newRows.length === 0) return;
 
-    // Append to existing cache (or create new)
+    // Append to the in-memory cache
     if (!_tarCachedRows) _tarCachedRows = [];
     _tarCachedRows = _tarCachedRows.concat(newRows);
 
-    console.log("[TAR-PART] Appended", newRows.length, "rows — total cached:", _tarCachedRows.length);
+    const total = _tarCachedRows.length;
+    console.log("[TAR-PART] Appended", newRows.length, "rows — total cached:", total);
 
-    // Render incrementally if table is visible
+    // Append ONLY the new rows to the table (updateOrAddData avoids full re-render).
+    // Do NOT call _rwPopulateFromCache here — that would hide the spinner and
+    // mark status "Done" prematurely. The spinner stays until TAR_BATCH_ALL arrives.
     const rwSec = document.getElementById("relayword-section");
-    if (rwTable && rwSec && rwSec.style.display !== "none") {
-      _rwPopulateFromCache();
+    if (rwSec && rwSec.style.display !== "none") {
+      if (!rwTable) initRwTable();
+      rwTable.updateOrAddData(newRows);
     }
-    _rwSetRowCount(_tarCachedRows.length);
+
+    // Update count and spinner text with live progress
+    _rwSetRowCount(total);
+    _rwSetProgress(total, total);   // keeps spinner visible, updates text
   } catch (e) {
     console.error("[TAR-PART] Failed to parse partial TAR batch:", e);
   }
@@ -652,6 +659,14 @@ function _rwSetProgress(current, total) {
     return;
   }
   container.style.display = "";
+
+  // Update spinner text with live row count so user sees progress
+  const textEl = document.getElementById("rw-spinner-text");
+  if (textEl) {
+    textEl.textContent = current > 0
+      ? `Collected ${current} rows — fetching more…`
+      : "Collecting all relay word data from device…";
+  }
 }
 
 function _rwSetRowCount(n) {

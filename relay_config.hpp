@@ -102,15 +102,16 @@ inline std::vector<RelayConfig> getRelayConfigs()
             "Bay 1"                 // bay
         },
         
-        {
-            "2",                    // id
-            "SEL-451",              // name
-            "192.168.0.3",          // host
-            23,                     // port
-            "ACC",                  // username
-            "OTTER",                // password
-            "Substation Alpha",     // substation
-            "Bay 3"                 // bay
-        }
+        // SEL-451 temporarily disabled — uncomment to re-enable
+        // {
+        //     "2",                    // id
+        //     "SEL-451",              // name
+        //     "192.168.0.3",          // host
+        //     23,                     // port
+        //     "ACC",                  // username
+        //     "OTTER",                // password
+        //     "Substation Alpha",     // substation
+        //     "Bay 3"                 // bay
+        // }
     };
 }
