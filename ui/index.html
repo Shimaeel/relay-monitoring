@@ -449,6 +449,7 @@
     
     <script>
         let table;
+        let knownSnos = new Set();   // tracks sno values already in the table
         const WS_URL = 'ws://localhost:8765';
         const textDecoder = new TextDecoder();
         const pollRateInput = document.getElementById('poll-rate');
@@ -865,18 +866,29 @@
                 ]
             });
             
+            data.forEach(r => knownSnos.add(r.sno));
             document.getElementById('record-count').textContent = data.length;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
         }
 
         function updateTable(data) {
-            if (table) {
-                table.updateOrAddData(data);
-            } else {
+            if (!table) {
                 initTable(data);
+                if (data.length > 0) {
+                    dataReceived = true;
+                    hideEmptyState();
+                }
+                return;
             }
 
-            const totalRows = table ? table.getDataCount() : data.length;
+            // Only append rows that aren't already in the table
+            const newRows = data.filter(r => !knownSnos.has(r.sno));
+            if (newRows.length > 0) {
+                table.addData(newRows, false);   // false = append at bottom
+                newRows.forEach(r => knownSnos.add(r.sno));
+            }
+
+            const totalRows = table.getDataCount();
             document.getElementById('record-count').textContent = totalRows;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
 

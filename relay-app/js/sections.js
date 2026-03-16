@@ -44,6 +44,7 @@ let serAutoRefresh     = null;   // Polling interval handle
 let serLastMessageAt   = 0;      // Timestamp of last WS message
 let serDataReceived    = false;  // Whether any data has arrived
 let serWorkerConnected = false;  // WebSocket connected flag
+let serKnownSnos       = new Set(); // tracks sno values already in serTable
 
 const textDecoder = new TextDecoder();
 
@@ -238,8 +239,11 @@ function serStatusFormatter(cell) {
 // ============================================================
 
 function initSerTable(data) {
+  serKnownSnos.clear();
+  data.forEach(r => serKnownSnos.add(r.sno));
   serTable = new Tabulator("#ser-table", {
     data: data,
+    index: "sno",
     layout: "fitColumns",
     pagination: true,
     paginationSize: 50,
@@ -301,10 +305,17 @@ function initSerTable(data) {
 }
 
 function updateSerTable(data) {
-  if (serTable) {
-    serTable.setData(data);
-  } else {
+  if (!serTable) {
     initSerTable(data);
+  } else {
+    // Only append rows not already in the table — no full re-render
+    const newRows = data.filter(r => !serKnownSnos.has(r.sno));
+    if (newRows.length > 0) {
+      serTable.blockRedraw();
+      serTable.addData(newRows, false);   // false = append at bottom
+      newRows.forEach(r => serKnownSnos.add(r.sno));
+      serTable.restoreRedraw();           // single flush, no flicker
+    }
   }
   serDataReceived = true;
   updateSerStats();
@@ -588,12 +599,20 @@ function _handleTarBatchPart(msg) {
     const rwSec = document.getElementById("relayword-section");
     if (rwSec && rwSec.style.display !== "none") {
       if (!rwTable) initRwTable();
-      rwTableReady.then(() => rwTable.updateOrAddData(newRows));
+      rwTableReady.then(() => {
+        rwTable.blockRedraw();
+        rwTable.updateOrAddData(newRows);
+        rwTable.restoreRedraw();
+        _rwSetRowCount(rwTable.getDataCount());
+      });
     }
 
     // Update count and spinner text with live progress
     _rwSetRowCount(total);
     _rwSetProgress(total, total);   // keeps spinner visible, updates text
+
+    // Keep I/O section in sync with streamed TAR parts when visible.
+    _ioHandleTarPart(newRows);
   } catch (e) {
     console.error("[TAR-PART] Failed to parse partial TAR batch:", e);
   }
@@ -605,12 +624,17 @@ function _handleTarBatchPush(msg) {
     const entries = JSON.parse(jsonStr);
     const allRows = _parseTarEntries(entries);
     _tarCachedRows = allRows;
+    _rwSetRowCount(allRows.length);
     console.log("[TAR-PUSH] Cached", allRows.length, "rows from server push");
-    // If Relay Word table is currently visible, render immediately
+    // If Relay Word section is visible, render immediately even if table
+    // was not initialized yet.
     const rwSec = document.getElementById("relayword-section");
-    if (rwTable && rwSec && rwSec.style.display !== "none") {
+    if (rwSec && rwSec.style.display !== "none") {
       _rwPopulateFromCache();
     }
+
+    // Also refresh I/O from the completed TAR cache.
+    _ioSyncFromTarCache();
   } catch (e) {
     console.error("[TAR-PUSH] Failed to parse pushed TAR batch:", e);
   }
@@ -651,7 +675,7 @@ function _rwSetStatus(status) {
   el.style.color = info.color;
 }
 
-function _rwSetProgress(current, total) {
+function _rwSetProgress(current, _total) {
   const container = document.getElementById("rw-spinner-container");
   if (!container) return;
 
@@ -660,14 +684,6 @@ function _rwSetProgress(current, total) {
     return;
   }
   container.style.display = "";
-
-  // Update spinner text with live row count so user sees progress
-  const textEl = document.getElementById("rw-spinner-text");
-  if (textEl) {
-    textEl.textContent = current > 0
-      ? `Collected ${current} rows — fetching more…`
-      : "Collecting all relay word data from device…";
-  }
 }
 
 function _rwSetRowCount(n) {
@@ -1118,7 +1134,9 @@ async function _rwPopulateFromCache() {
   if (!_tarCachedRows) return;
   if (!rwTable) initRwTable();
   await rwTableReady;
+  rwTable.blockRedraw();
   rwTable.setData(_tarCachedRows);
+  rwTable.restoreRedraw();
   _rwSetRowCount(_tarCachedRows.length); 
   _rwSetProgress(-1);
   _rwSetStatus("done");
@@ -1204,13 +1222,18 @@ function _handleTarDataResponse(data) {
   }
 
   _tarCachedRows = allRows;
+  _rwSetRowCount(allRows.length);
   console.log("[RW] getTarData: cached", allRows.length, "rows for relay", data.relay_id || "(all)");
 
-  // Render if Relay Word table is currently visible
+  // Render if Relay Word section is currently visible.
+  // _rwPopulateFromCache() will initialize the table if needed.
   const rwSec = document.getElementById("relayword-section");
-  if (rwTable && rwSec && rwSec.style.display !== "none") {
+  if (rwSec && rwSec.style.display !== "none") {
     _rwPopulateFromCache();
   }
+
+  // Keep I/O table aligned with the same TAR completion event.
+  _ioSyncFromTarCache();
 }
 
 /**
@@ -1304,7 +1327,7 @@ function _ioSetStatus(status) {
   el.style.color = info.color;
 }
 
-function _ioSetProgress(current, total) {
+function _ioSetProgress(current, _total) {
   const container = document.getElementById("io-spinner-container");
   if (!container) return;
 
@@ -1407,6 +1430,59 @@ function _ioApplyFilter() {
   _ioSetRowCount(data.length);
 }
 
+/**
+ * Merge streamed TAR rows into the I/O cache and refresh visible I/O table.
+ * TAR rows are unique by targetRow; this function upserts by that key.
+ */
+function _ioMergeTarRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+
+  for (const row of rows) {
+    if (!_ioRowHasIO(row)) continue;
+    const idx = _ioAllRows.findIndex(r => r.targetRow === row.targetRow);
+    if (idx >= 0) {
+      _ioAllRows[idx] = row;
+    } else {
+      _ioAllRows.push(row);
+    }
+  }
+
+  const ioSec = document.getElementById("io-section");
+  if (!(ioSec && ioSec.style.display !== "none")) return;
+
+  if (!ioTable) initIoTable();
+  _ioApplyFilter();
+}
+
+/**
+ * Handle TAR partial push updates for I/O section.
+ */
+function _ioHandleTarPart(newTarRows) {
+  const ioSec = document.getElementById("io-section");
+  if (!(ioSec && ioSec.style.display !== "none")) return;
+
+  _ioSetStatus("fetching");
+  _ioSetProgress(0, 1);
+  _ioMergeTarRows(newTarRows);
+}
+
+/**
+ * Rebuild I/O cache/table from the current full TAR cache.
+ */
+function _ioSyncFromTarCache() {
+  if (!_tarCachedRows) return;
+
+  _ioAllRows = _tarCachedRows.filter(_ioRowHasIO);
+
+  const ioSec = document.getElementById("io-section");
+  if (!(ioSec && ioSec.style.display !== "none")) return;
+
+  if (!ioTable) initIoTable();
+  _ioApplyFilter();
+  _ioSetProgress(-1);
+  _ioSetStatus("done");
+}
+
 // ── WebSocket — Connect ─────────────────────────────────────
 
 function _ioEnsureConnection() {
@@ -1429,6 +1505,12 @@ function _ioEnsureConnection() {
     ioWs.onmessage = (event) => {
       if (typeof event.data !== "string") return;
       const msg = event.data;
+
+      // ── Partial batch: TAR_BATCH_PART:[...] ──
+      if (msg.startsWith("TAR_BATCH_PART:")) {
+        _handleTarBatchPart(msg);
+        return;
+      }
 
       // ── Batch: TAR_BATCH_ALL:[...] ──
       if (msg.startsWith("TAR_BATCH_ALL:")) {

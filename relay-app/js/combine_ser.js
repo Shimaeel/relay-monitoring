@@ -19,6 +19,7 @@ let cserWs             = null;   // Single WebSocket connection
 let cserAutoRefresh    = null;   // Polling interval handle
 let cserLastMessageAt  = 0;
 let cserDataReceived   = false;
+let cserKnownUids      = new Set(); // tracks _uid values already in cserTable
 
 const _cserDecoder = new TextDecoder();
 
@@ -115,6 +116,8 @@ function _cserStatusFormatter(cell) {
 // ============================================================
 
 function _cserInitTable(data) {
+  cserKnownUids.clear();
+  data.forEach(r => cserKnownUids.add(r._uid));
   cserTable = new Tabulator("#combine-ser-table", {
     data: data,
     index: "_uid",
@@ -191,7 +194,14 @@ function _cserUpdateTable(records) {
   if (!cserTable) {
     _cserInitTable(records);
   } else {
-    cserTable.updateOrAddData(records);
+    // Only append rows not already in the table — no full re-render
+    const newRows = records.filter(r => !cserKnownUids.has(r._uid));
+    if (newRows.length > 0) {
+      cserTable.blockRedraw();
+      cserTable.addData(newRows, false);   // false = append at bottom
+      newRows.forEach(r => cserKnownUids.add(r._uid));
+      cserTable.restoreRedraw();           // single flush, no flicker
+    }
   }
   cserDataReceived = true;
   _cserUpdateStats();

@@ -127,7 +127,7 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
         
         // For SER command, use longer idle timeout to collect all data
         bool isSERCmd = (cmd == "SER" || cmd == "ser");
-        auto idleTimeout = isSERCmd ? std::chrono::milliseconds(500) : std::chrono::milliseconds(50);
+        auto idleTimeout = isSERCmd ? std::chrono::milliseconds(500) : std::chrono::milliseconds(80);
 
         // Set socket to non-blocking for idle detection
         socket_.non_blocking(true);
