@@ -366,9 +366,9 @@ public:
         std::cout << "[TAR-BG] Starting background TAR collection for relay " << relayId << "\n";
 
         // Retry loop — relay may not be ready immediately after startup.
-        // Wait 10s between attempts, up to 5 retries.
+        // Wait 3s between attempts, up to 5 retries.
         constexpr int MAX_RETRIES = 5;
-        constexpr int RETRY_DELAY_SEC = 10;
+        constexpr int RETRY_DELAY_SEC = 3;
 
         for (int attempt = 0; attempt <= MAX_RETRIES && app_running.load(); ++attempt)
         {
@@ -382,7 +382,7 @@ public:
             }
 
             int count = 0;
-            constexpr int BATCH_SIZE = 30;    // send partial batch to UI every N rows
+            constexpr int BATCH_SIZE = 15;    // send partial batch to UI every N rows
             std::string batch = "TAR_BATCH_ALL:[";
             std::string partialBatch;          // accumulates current partial batch
             std::vector<TARRecord> records;    // structured TAR records
@@ -619,7 +619,7 @@ public:
             }
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
-            constexpr int BATCH_SIZE = 30;  // send partial batch every N rows
+            constexpr int BATCH_SIZE = 15;  // send partial batch every N rows
 
             // Collect all TAR responses into a JSON array, then send as one batch
             std::string batch = "TAR_BATCH_ALL:[";
@@ -831,10 +831,10 @@ public:
             return false;
         }
 
-        // 7. Generic database WebSocket API on port 8766
-        dbApiServer = std::make_unique<WSDBServer>(serDb.getDbHandle(), 8766);
-        if (!dbApiServer->start())
-            std::cerr << "[WSDB] Warning: DB API server failed to start\n";
+        // 7. Generic database WebSocket API on port 8766 (disabled — not used by any front-end)
+        // dbApiServer = std::make_unique<WSDBServer>(serDb.getDbHandle(), 8766);
+        // if (!dbApiServer->start())
+        //     std::cerr << "[WSDB] Warning: DB API server failed to start\n";
 
         // 8. Polling callback — queue SER to ALL active relays
         threadMgr.setPollingCallback([this]() {
@@ -866,7 +866,7 @@ public:
         }
         std::cout << "\n  Shared Services:\n";
         std::cout << "    - WebSocket Server: ws://localhost:8765\n";
-        std::cout << "    - DB API Server:    ws://localhost:8766\n";
+        // std::cout << "    - DB API Server:    ws://localhost:8766\n";
         std::cout << "    - SQLite Database:  ser_records.db\n";
         std::cout << "    - Poller:           2 min interval\n";
         std::cout << "    - JSON Writer:      ui/data.json\n";
@@ -938,7 +938,7 @@ public:
 
         threadMgr.stopAll();
         shmReader.stop();
-        if (dbApiServer) dbApiServer->stop();
+        // if (dbApiServer) dbApiServer->stop();
         wsServer.stop();
         serDb.close();
 
