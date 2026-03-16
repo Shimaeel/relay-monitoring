@@ -1180,9 +1180,9 @@
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
             initTable([]);  // Initialize empty table
-            setupSharedRing();
-            connectWebSocket();
-            // No local JSON fast-path
+            // WebSocket disabled — only relay-app/ pages should connect to WS:8765
+            // setupSharedRing();
+            // connectWebSocket();
         });
     </script>
 </body>

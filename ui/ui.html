@@ -957,8 +957,9 @@ function connectWS() {
 }
 
 function scheduleReconnect() {
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(connectWS, 3000);
+    // Reconnect disabled — only relay-app/ pages should connect to WS:8765
+    // if (reconnectTimer) clearTimeout(reconnectTimer);
+    // reconnectTimer = setTimeout(connectWS, 3000);
 }
 
 // ── QUIT command ───────────────────────────────────────────────────────
@@ -1743,7 +1744,8 @@ function saveCevFile() {
 }
 
 // ── Start ───────────────────────────────────────────────────────────────
-connectWS();
+// WebSocket disabled — only relay-app/ pages should connect to WS:8765
+// connectWS();
 updateLocalTime();
 
 </script>

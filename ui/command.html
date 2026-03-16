@@ -242,7 +242,8 @@ function connect() {
     ws.onclose = () => {
         setStatus("Disconnected", "#ef4444");
         log("Disconnected", "in");
-        setTimeout(connect, 3000);
+        // Reconnect disabled — only relay-app/ pages should connect to WS:8765
+        // setTimeout(connect, 3000);
     };
 
     ws.onmessage = (event) => {
@@ -314,7 +315,8 @@ function changePassword() {
 }
 
 /* Start */
-connect();
+// WebSocket disabled — only relay-app/ pages should connect to WS:8765
+// connect();
 updateLocalTime();
 
 </script>
