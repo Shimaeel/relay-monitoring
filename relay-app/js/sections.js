@@ -2075,7 +2075,7 @@ async function setFetchSettings() {
 function setClearSettings() {
   _setDisconnectRaw();
   const container = document.getElementById("set-content");
-  if (container) container.innerHTML = '<div class="set-empty">Click <strong>Fetch Settings</strong> to retrieve relay configuration via SHOSET.</div>';
+  if (container) container.innerHTML = '<div class="set-empty">Loading relay configuration via SHOSET...</div>';
   _setSetStatus("idle");
   _setSetFetchBtn(false);
   console.log("[SET] Cleared");
@@ -2667,6 +2667,8 @@ document.addEventListener("DOMContentLoaded", function () {
   function showSettingsSection() {
     if (setSection) setSection.style.display = "";
     container.style.display = "none";
+    // Auto-fetch settings data when navigating to this section
+    setFetchSettings();
   }
 
   function hideSettingsSection() {
