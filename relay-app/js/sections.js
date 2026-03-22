@@ -377,25 +377,12 @@ function connectSerWebSocket() {
       // --- Text / JSON ---
       else {
         console.log("[SER] Received text:", event.data);
-        // Handle server-pushed TAR_BATCH_PART (partial 100-row batch)
-        if (typeof event.data === "string" && event.data.startsWith("TAR_BATCH_PART:")) {
-          _handleTarBatchPart(event.data);
-          return;
-        }
         // Handle server-pushed TAR_BATCH_ALL (from background TAR collection)
         if (typeof event.data === "string" && event.data.startsWith("TAR_BATCH_ALL:")) {
           _handleTarBatchPush(event.data);
           return;
         }
-        // Handle structured tarData JSON (from auto-TAR collection)
-        if (typeof event.data === "string" && event.data.startsWith('{\"type\":\"tarData\"')) {
-          try {
-            _handleTarDataResponse(JSON.parse(event.data));
-          } catch (e) {
-            console.error("[SER] Failed to parse tarData:", e);
-          }
-          return;
-        }
+
         try {
           const json = JSON.parse(event.data);
           if (Array.isArray(json)) {
@@ -573,49 +560,6 @@ function _parseTarEntries(entries) {
     }
   }
   return rows;
-}
-
-/**
- * Handle a server-pushed TAR_BATCH_PART message (partial batch of ~100 rows).
- * Appends to the existing cache and renders incrementally.
- */
-function _handleTarBatchPart(msg) {
-  const jsonStr = msg.substring(15);  // strip "TAR_BATCH_PART:"
-  try {
-    const entries = JSON.parse(jsonStr);
-    const newRows = _parseTarEntries(entries);
-    if (newRows.length === 0) return;
-
-    // Append to the in-memory cache
-    if (!_tarCachedRows) _tarCachedRows = [];
-    _tarCachedRows = _tarCachedRows.concat(newRows);
-
-    const total = _tarCachedRows.length;
-    console.log("[TAR-PART] Appended", newRows.length, "rows — total cached:", total);
-
-    // Append ONLY the new rows to the table (updateOrAddData avoids full re-render).
-    // Do NOT call _rwPopulateFromCache here — that would hide the spinner and
-    // mark status "Done" prematurely. The spinner stays until TAR_BATCH_ALL arrives.
-    const rwSec = document.getElementById("relayword-section");
-    if (rwSec && rwSec.style.display !== "none") {
-      if (!rwTable) initRwTable();
-      rwTableReady.then(() => {
-        rwTable.blockRedraw();
-        rwTable.updateOrAddData(newRows);
-        rwTable.restoreRedraw();
-        _rwSetRowCount(rwTable.getDataCount());
-      });
-    }
-
-    // Update count and spinner text with live progress
-    _rwSetRowCount(total);
-    _rwSetProgress(total, total);   // keeps spinner visible, updates text
-
-    // Keep I/O section in sync with streamed TAR parts when visible.
-    _ioHandleTarPart(newRows);
-  } catch (e) {
-    console.error("[TAR-PART] Failed to parse partial TAR batch:", e);
-  }
 }
 
 function _handleTarBatchPush(msg) {
@@ -909,13 +853,6 @@ function _rwEnsureConnection() {
 
       console.log("[RW] Received WS message (", msg.length, "chars), starts with:", msg.substring(0, 60));
 
-      // ── Partial batch: TAR_BATCH_PART:[...] (100-row increments) ──
-      if (msg.startsWith("TAR_BATCH_PART:")) {
-        console.log("[RW] TAR_BATCH_PART received (", msg.length, "chars)");
-        _handleTarBatchPart(msg);
-        return;
-      }
-
       // ── Batch: TAR_BATCH_ALL:[...] ──
       if (msg.startsWith("TAR_BATCH_ALL:")) {
         const jsonStr = msg.substring(14);
@@ -932,16 +869,7 @@ function _rwEnsureConnection() {
         return;
       }
 
-      // ── Structured getTarData response: {"type":"tarData",...} ──
-      if (msg.startsWith('{"type":"tarData"')) {
-        try {
-          const data = JSON.parse(msg);
-          _handleTarDataResponse(data);
-        } catch (e) {
-          console.error("[RW] Failed to parse tarData response:", e);
-        }
-        return;
-      }
+
 
       // ── Single command response ──
       if (_rwResolve) {
@@ -1179,95 +1107,7 @@ function rwDisconnect() {
   _rwSetFetchBtn(false);
 }
 
-// ── getTarData structured response handler ──────────────────────
 
-/**
- * Handle a {"type":"tarData",...} response from the backend.
- * Parses each record's raw value through parseTarResponse(),
- * populates the shared _tarCachedRows cache, and renders.
- *
- * @param {Object} data  Parsed JSON: {type, relay_id?, status?, records}
- */
-function _handleTarDataResponse(data) {
-  if (data.status === "collecting") {
-    console.log("[RW] TAR data still being collected for relay", data.relay_id || "(all)");
-    return;
-  }
-
-  const records = data.records || [];
-  if (records.length === 0) {
-    console.log("[RW] getTarData returned 0 records for relay", data.relay_id || "(all)");
-    return;
-  }
-
-  const allRows = [];
-  for (const rec of records) {
-    const parsed = parseTarResponse(rec.value);
-    if (!parsed) {
-      console.warn("[RW] Failed to parse TAR record", rec.tar);
-      continue;
-    }
-    allRows.push({
-      targetRow: parsed.targetRow,
-      dnpIndex:  _rwDnpRange(parsed.targetRow),
-      bit7: { label: parsed.labels[0], value: parsed.values[0] },
-      bit6: { label: parsed.labels[1], value: parsed.values[1] },
-      bit5: { label: parsed.labels[2], value: parsed.values[2] },
-      bit4: { label: parsed.labels[3], value: parsed.values[3] },
-      bit3: { label: parsed.labels[4], value: parsed.values[4] },
-      bit2: { label: parsed.labels[5], value: parsed.values[5] },
-      bit1: { label: parsed.labels[6], value: parsed.values[6] },
-      bit0: { label: parsed.labels[7], value: parsed.values[7] }
-    });
-  }
-
-  _tarCachedRows = allRows;
-  _rwSetRowCount(allRows.length);
-  console.log("[RW] getTarData: cached", allRows.length, "rows for relay", data.relay_id || "(all)");
-
-  // Render if Relay Word section is currently visible.
-  // _rwPopulateFromCache() will initialize the table if needed.
-  const rwSec = document.getElementById("relayword-section");
-  if (rwSec && rwSec.style.display !== "none") {
-    _rwPopulateFromCache();
-  }
-
-  // Keep I/O table aligned with the same TAR completion event.
-  _ioSyncFromTarCache();
-}
-
-/**
- * Fetch TAR data via the new {"type":"getTarData"} WebSocket endpoint.
- * Returns structured TARRecord data from the backend's in-memory cache.
- * Results are parsed and cached in _tarCachedRows for instant rendering.
- */
-async function fetchTarViaGetTarData() {
-  // If cache already exists, just render
-  if (_tarCachedRows) {
-    _rwPopulateFromCache();
-    return;
-  }
-
-  try {
-    _rwSetFetchBtn(true);
-    const ws = await _rwEnsureConnection();
-    _rwSetStatus("fetching");
-    _rwSetProgress(0, 1);
-
-    const relay = getCurrentRelay();
-    const request = { type: "getTarData" };
-    if (relay) request.relay_id = String(relay.id);
-
-    ws.send(JSON.stringify(request));
-    console.log("[RW] Sent getTarData request", request);
-    // Response will be handled by _handleTarDataResponse via onmessage
-  } catch (err) {
-    console.error("[RW] fetchTarViaGetTarData error:", err);
-    _rwSetStatus("error");
-    _rwSetProgress(-1);
-    _rwSetFetchBtn(false);
-  }
-}
 
 // ============================================================
 //  INPUT / OUTPUT (I/O) Module
@@ -1431,42 +1271,6 @@ function _ioApplyFilter() {
 }
 
 /**
- * Merge streamed TAR rows into the I/O cache and refresh visible I/O table.
- * TAR rows are unique by targetRow; this function upserts by that key.
- */
-function _ioMergeTarRows(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) return;
-
-  for (const row of rows) {
-    if (!_ioRowHasIO(row)) continue;
-    const idx = _ioAllRows.findIndex(r => r.targetRow === row.targetRow);
-    if (idx >= 0) {
-      _ioAllRows[idx] = row;
-    } else {
-      _ioAllRows.push(row);
-    }
-  }
-
-  const ioSec = document.getElementById("io-section");
-  if (!(ioSec && ioSec.style.display !== "none")) return;
-
-  if (!ioTable) initIoTable();
-  _ioApplyFilter();
-}
-
-/**
- * Handle TAR partial push updates for I/O section.
- */
-function _ioHandleTarPart(newTarRows) {
-  const ioSec = document.getElementById("io-section");
-  if (!(ioSec && ioSec.style.display !== "none")) return;
-
-  _ioSetStatus("fetching");
-  _ioSetProgress(0, 1);
-  _ioMergeTarRows(newTarRows);
-}
-
-/**
  * Rebuild I/O cache/table from the current full TAR cache.
  */
 function _ioSyncFromTarCache() {
@@ -1505,12 +1309,6 @@ function _ioEnsureConnection() {
     ioWs.onmessage = (event) => {
       if (typeof event.data !== "string") return;
       const msg = event.data;
-
-      // ── Partial batch: TAR_BATCH_PART:[...] ──
-      if (msg.startsWith("TAR_BATCH_PART:")) {
-        _handleTarBatchPart(msg);
-        return;
-      }
 
       // ── Batch: TAR_BATCH_ALL:[...] ──
       if (msg.startsWith("TAR_BATCH_ALL:")) {

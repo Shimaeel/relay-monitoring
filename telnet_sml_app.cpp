@@ -81,15 +81,6 @@ namespace
 // by RelayPipeline and coordinated by RelayManager.
 
 /**
- * @struct TARRecord
- * @brief Stores a single TAR (Target) record from a relay device.
- */
-struct TARRecord {
-    int index;              ///< TAR row index (0, 1, 2, ...)
-    std::string value;      ///< Raw TAR response text from the relay
-};
-
-/**
  * @brief Escape a string for safe JSON embedding.
  */
 inline std::string escapeTarJson(const std::string& s)
@@ -117,32 +108,6 @@ inline std::string escapeTarJson(const std::string& s)
         }
     }
     return out;
-}
-
-/**
- * @brief Serialize TAR records to the new JSON response format.
- *
- * @param relayId   Relay identifier
- * @param records   Vector of TARRecord to serialize
- * @param status    Optional status field (e.g. "collecting", "ready")
- * @return JSON string: {"type":"tarData","relay_id":"...","records":[{"tar":0,"value":"..."},...]} 
- */
-inline std::string tarRecordsToJson(const std::string& relayId,
-                                    const std::vector<TARRecord>& records,
-                                    const std::string& status = "")
-{
-    std::string json = "{\"type\":\"tarData\",\"relay_id\":\"" + relayId + "\"";
-    if (!status.empty())
-        json += ",\"status\":\"" + status + "\"";
-    json += ",\"records\":[";
-    for (size_t i = 0; i < records.size(); ++i)
-    {
-        if (i > 0) json += ",";
-        json += "{\"tar\":" + std::to_string(records[i].index)
-              + ",\"value\":\"" + escapeTarJson(records[i].value) + "\"}";
-    }
-    json += "]}";
-    return json;
 }
 
 }  // namespace
@@ -330,7 +295,6 @@ public:
     // ─── Background TAR collection & cache ───────────────────────────
     std::mutex tarCacheMutex_;                                        ///< Guards TAR cache
     std::unordered_map<std::string, std::string> tarCache_;           ///< relay_id → TAR_BATCH_ALL JSON
-    std::unordered_map<std::string, std::vector<TARRecord>> tarRecordsCache_; ///< relay_id → structured TAR records
     std::unordered_map<std::string, bool> tarFetchInProgress_;        ///< relay_id → in-progress flag
     std::condition_variable tarCacheCv_;                               ///< Notifies when TAR fetch completes
     std::vector<std::thread> tarBgThreads_;                            ///< Background TAR collection threads
@@ -382,12 +346,10 @@ public:
             }
 
             int count = 0;
-            constexpr int BATCH_SIZE = 40;    // send partial batch to UI every N rows
-            std::string batch = "TAR_BATCH_ALL:[";
-            std::string partialBatch;          // accumulates current partial batch
-            std::vector<TARRecord> records;    // structured TAR records
+            std::string batch;
+            batch.reserve(128 * 1024);  // pre-allocate ~128KB
+            batch = "TAR_BATCH_ALL:[";
             bool first = true;
-            bool partialFirst = true;
 
             for (int i = 0; app_running.load(); ++i)
             {
@@ -400,9 +362,6 @@ public:
                 if (response.find("Invalid Target") != std::string::npos)
                     break;
 
-                // Store structured record
-                records.push_back(TARRecord{i, response});
-
                 std::string escaped = escapeTarJson(response);
                 std::string entry = "{\"idx\":" + std::to_string(i)
                                   + ",\"data\":\"" + escaped + "\"}";
@@ -411,28 +370,7 @@ public:
                 first = false;
                 batch += entry;
 
-                if (!partialFirst) partialBatch += ",";
-                partialFirst = false;
-                partialBatch += entry;
-
                 ++count;
-
-                // Every BATCH_SIZE rows, broadcast a partial batch to the UI
-                if (count % BATCH_SIZE == 0)
-                {
-                    std::string partial = "TAR_BATCH_PART:[" + partialBatch + "]";
-                    wsServer.broadcastText(partial);
-                    std::cout << "[TAR-BG] Sent partial batch (" << count << " rows so far) for relay " << relayId << "\n";
-
-                    // Update cache incrementally so getTarData returns partial results
-                    {
-                        std::lock_guard<std::mutex> lock(tarCacheMutex_);
-                        tarRecordsCache_[relayId] = records;
-                    }
-
-                    partialBatch.clear();
-                    partialFirst = true;
-                }
             }
 
             // Got 0 rows — relay not ready yet, retry
@@ -441,18 +379,9 @@ public:
 
             batch += "]";
 
-            // Send any remaining rows that didn't fill a full batch
-            if (!partialBatch.empty())
-            {
-                std::string partial = "TAR_BATCH_PART:[" + partialBatch + "]";
-                wsServer.broadcastText(partial);
-                std::cout << "[TAR-BG] Sent final partial batch for relay " << relayId << "\n";
-            }
-
             {
                 std::lock_guard<std::mutex> lock(tarCacheMutex_);
                 tarCache_[relayId] = batch;
-                tarRecordsCache_[relayId] = std::move(records);
                 tarFetchInProgress_[relayId] = false;
             }
             tarCacheCv_.notify_all();
@@ -619,13 +548,12 @@ public:
             }
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
-            constexpr int BATCH_SIZE = 40;  // send partial batch every N rows
 
             // Collect all TAR responses into a JSON array, then send as one batch
-            std::string batch = "TAR_BATCH_ALL:[";
-            std::string partialBatch;
+            std::string batch;
+            batch.reserve(128 * 1024);  // pre-allocate ~128KB
+            batch = "TAR_BATCH_ALL:[";
             bool first = true;
-            bool partialFirst = true;
 
             for (int i = 0; !abort.load(); ++i)
             {
@@ -645,31 +573,10 @@ public:
                 first = false;
                 batch += entry;
 
-                if (!partialFirst) partialBatch += ",";
-                partialFirst = false;
-                partialBatch += entry;
-
                 ++count;
-
-                // Every BATCH_SIZE rows, send a partial batch to the requesting client
-                if (count % BATCH_SIZE == 0)
-                {
-                    std::string partial = "TAR_BATCH_PART:[" + partialBatch + "]";
-                    sendFn(partial);
-                    std::cout << "[WS→Relay] Sent partial TAR batch (" << count << " rows so far)\n";
-                    partialBatch.clear();
-                    partialFirst = true;
-                }
             }
 
             batch += "]";
-
-            // Send remaining rows as a final partial
-            if (!partialBatch.empty())
-            {
-                std::string partial = "TAR_BATCH_PART:[" + partialBatch + "]";
-                sendFn(partial);
-            }
 
             // Cache the result (only non-empty) and clear in-progress flag
             {
@@ -691,52 +598,6 @@ public:
         // 5. Set up action handler — relay lifecycle + time sync + password + getTarData
         wsServer.setActionHandler([this](const std::string& jsonMsg) -> std::string {
             std::string action = extractJsonField(jsonMsg, "action");
-
-            // ── getTarData: return structured TAR records from memory ──
-            //    Request:  {"type":"getTarData"}  or  {"type":"getTarData","relay_id":"1"}
-            //    Response: {"type":"tarData","relay_id":"...","records":[{"tar":0,"value":"..."},...]} 
-            if (action.empty())
-            {
-                std::string msgType = extractJsonField(jsonMsg, "type");
-                if (msgType == "getTarData")
-                {
-                    std::string relayId = extractJsonField(jsonMsg, "relay_id");
-                    std::lock_guard<std::mutex> lock(tarCacheMutex_);
-
-                    if (!relayId.empty())
-                    {
-                        // Single relay requested
-                        auto it = tarRecordsCache_.find(relayId);
-                        if (it != tarRecordsCache_.end())
-                            return tarRecordsToJson(relayId, it->second);
-
-                        // Check if collection is in progress
-                        if (tarFetchInProgress_.count(relayId) && tarFetchInProgress_[relayId])
-                            return tarRecordsToJson(relayId, {}, "collecting");
-
-                        return tarRecordsToJson(relayId, {});
-                    }
-                    else
-                    {
-                        // No relay_id — merge all active relays
-                        std::string json = "{\"type\":\"tarData\",\"records\":[";
-                        bool firstRec = true;
-                        for (const auto& [rid, recs] : tarRecordsCache_)
-                        {
-                            for (const auto& rec : recs)
-                            {
-                                if (!firstRec) json += ",";
-                                firstRec = false;
-                                json += "{\"relay_id\":\"" + rid
-                                      + "\",\"tar\":" + std::to_string(rec.index)
-                                      + ",\"value\":\"" + escapeTarJson(rec.value) + "\"}";
-                            }
-                        }
-                        json += "]}";
-                        return json;
-                    }
-                }
-            }
 
             // ── Relay lifecycle management ──
             if (action == "start_relay")
@@ -773,7 +634,6 @@ public:
                 {
                     std::lock_guard<std::mutex> lock(tarCacheMutex_);
                     tarCache_.erase(relayId);
-                    tarRecordsCache_.erase(relayId);
                     tarFetchInProgress_.erase(relayId);
                 }
                 bool ok = relayMgr->stopRelay(relayId);

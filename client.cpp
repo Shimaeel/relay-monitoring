@@ -160,7 +160,7 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
                 }
                 
                 // Small sleep to avoid busy loop
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 continue;
             }
             
