@@ -1755,6 +1755,16 @@ ul, ol { list-style: none; }
   border-bottom: 1px solid var(--color-border, #e5e7eb);
 }
 
+.set-group__subtitle {
+  margin: 0;
+  padding: 6px 16px;
+  font-size: .8rem;
+  font-weight: 500;
+  color: var(--color-text-muted, #6b7280);
+  background: var(--color-primary-subtle, rgba(37,99,235,.03));
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
 .set-group__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

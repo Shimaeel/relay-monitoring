@@ -1771,49 +1771,59 @@ function _setDisconnectRaw() {
  *   EITCI    := N           EITCV    := N
  *   Demand Metering
  *
- * Returns: [{ title: "Section", entries: [{key, value}, ...] }, ...]
+ * Returns: [{ title, subtitle, entries: [{key, value}] }, ...]
  */
 function parseShosetResponse(text) {
-  const lines   = text.split(/\r?\n/);
-  const groups  = [];
-  let current   = null;
+  const lines          = text.split(/\r?\n/);
+  const groups         = [];
+  let pendingHeaders   = [];   // headers collected before KV data
+  let current          = null; // { title, subtitle, entries }
+
+  function flushGroup() {
+    if (current && current.entries.length > 0) groups.push(current);
+    current = null;
+  }
+
+  function flushHeaders() {
+    if (pendingHeaders.length === 0) return;
+    flushGroup();
+    const title    = pendingHeaders[0];
+    const subtitle = pendingHeaders.length > 1 ? pendingHeaders.slice(1).join(" \u2014 ") : null;
+    current = { title: title, subtitle: subtitle, entries: [] };
+    pendingHeaders = [];
+  }
 
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
     if (/^\s*=>\s*$/.test(line)) continue;
     if (/^\s*SHOSET\s*$/i.test(line)) continue;
+    if (/^Press RETURN to continue$/i.test(line)) continue;
 
     // Lines containing := are key-value pairs
     if (line.includes(":=")) {
-      // If no group started yet, create a default one
-      if (!current) current = { title: "General", entries: [] };
+      // Flush any pending headers into a new group
+      if (pendingHeaders.length > 0) flushHeaders();
+      // If no group exists yet, create a default one
+      if (!current) current = { title: "General", subtitle: null, entries: [] };
 
-      // Use regex to find all  KEY := VALUE  patterns in the line.
-      // VALUE runs until the next KEY := or end-of-line.
+      // Parse all  KEY := VALUE  patterns in the line.
       const kvRegex = /([A-Za-z0-9_]+)\s*:=\s*(.*?)(?=\s{2,}[A-Za-z0-9_]+\s*:=|$)/g;
       let m;
       while ((m = kvRegex.exec(line)) !== null) {
         current.entries.push({ key: m[1].trim(), value: m[2].trim() });
       }
     } else {
-      // This is a section / sub-section header
-      // Push the previous group if it had entries
+      // Section / sub-section header line
+      // If we already have KV entries, close the current group first
       if (current && current.entries.length > 0) {
-        groups.push(current);
+        flushGroup();
+        pendingHeaders = [];
       }
-      // Start a new group (or update title if current is empty)
-      if (!current || current.entries.length > 0) {
-        current = { title: line, entries: [] };
-      } else {
-        // Consecutive headers — append as subtitle
-        current.title = line;
-      }
+      pendingHeaders.push(line);
     }
   }
-  // Push the last group if it had entries
-  if (current && current.entries.length > 0) groups.push(current);
-
+  flushGroup();
   return groups;
 }
 
@@ -1833,6 +1843,9 @@ function renderShosetSettings(groups) {
   for (const group of groups) {
     html += '<div class="set-group">';
     html += `<h3 class="set-group__title">${_escHtml(group.title)}</h3>`;
+    if (group.subtitle) {
+      html += `<div class="set-group__subtitle">${_escHtml(group.subtitle)}</div>`;
+    }
     html += '<div class="set-group__grid">';
     for (const entry of group.entries) {
       html += `<div class="set-kv">`;
