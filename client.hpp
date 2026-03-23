@@ -92,6 +92,7 @@
 #include "dll_export.hpp"
 #include <boost/asio.hpp>
 #include <string>
+#include <vector>
 #include <chrono>
 
 namespace asio = boost::asio;
@@ -222,6 +223,31 @@ public:
      */
     bool SendCmdReceiveData(const std::string& cmd,
                             std::string& outBuffer);
+
+    // ================= BATCH COMMAND SUPPORT =================
+
+    /**
+     * @brief Send multiple commands at once and collect all responses.
+     *
+     * @details Writes all commands in a single TCP write (pipelined).
+     * Then reads the response stream and splits individual responses
+     * by detecting the relay prompt ("=>") between them.
+     *
+     * This is dramatically faster than calling SendCmdReceiveData() in
+     * a loop because it eliminates per-command TCP round-trip overhead
+     * and idle-timeout waits.
+     *
+     * @param[in]  cmds       Vector of command strings (without CRLF)
+     * @param[out] responses  Vector of individual response strings, one per command
+     * @param[in]  timeout    Overall timeout for the entire batch
+     *
+     * @return true  All expected responses received
+     * @return false Connection error, timeout, or partial data
+     */
+    bool SendBatchCmdsReceiveAll(
+        const std::vector<std::string>& cmds,
+        std::vector<std::string>& responses,
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(120000));
 
     // ================= TELNET COMMAND WRAPPERS =================
     

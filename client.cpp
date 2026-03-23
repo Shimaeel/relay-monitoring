@@ -206,6 +206,143 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
     }
 }
 
+// ================= BATCH SEND =================
+bool TelnetClient::SendBatchCmdsReceiveAll(
+    const std::vector<std::string>& cmds,
+    std::vector<std::string>& responses,
+    std::chrono::milliseconds timeout)
+{
+    responses.clear();
+    if (cmds.empty()) return true;
+
+    if (!connected_ || !socket_.is_open())
+    {
+        last_io_ok_ = false;
+        return false;
+    }
+
+    try
+    {
+        // 1. Build a single mega-command: "TAR 0\r\nTAR 1\r\n...TAR N\r\n"
+        std::string mega;
+        mega.reserve(cmds.size() * 12);
+        for (const auto& c : cmds)
+        {
+            mega += c;
+            mega += "\r\n";
+        }
+
+        // 2. Single TCP write — relay queues all commands in its input buffer
+        asio::write(socket_, asio::buffer(mega));
+
+        // 3. Read the entire response stream, splitting on "=>" prompt
+        auto start = std::chrono::steady_clock::now();
+        auto lastDataTime = start;
+
+        std::string allData;
+        allData.reserve(256 * 1024);  // pre-allocate ~256KB
+
+        const int expected = static_cast<int>(cmds.size());
+        int promptsSeen = 0;
+
+        // Idle timeout: 500ms — longer than single-command because relay is
+        // processing many commands back-to-back, gaps between responses vary.
+        const auto idleTimeout = std::chrono::milliseconds(500);
+
+        socket_.non_blocking(true);
+
+        while (promptsSeen < expected)
+        {
+            std::array<char, 8192> data{};
+            boost::system::error_code ec;
+            std::size_t bytes = socket_.read_some(asio::buffer(data), ec);
+
+            if (ec == boost::asio::error::would_block)
+            {
+                auto now = std::chrono::steady_clock::now();
+
+                // Idle timeout — if we have data and nothing new for a while, done
+                if (!allData.empty() && (now - lastDataTime) > idleTimeout)
+                    break;
+
+                // Overall timeout
+                if ((now - start) > timeout)
+                    break;
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
+
+            if (ec)
+            {
+                socket_.non_blocking(false);
+                last_io_ok_ = false;
+                return false;
+            }
+
+            if (bytes > 0)
+            {
+                lastDataTime = std::chrono::steady_clock::now();
+                allData.append(data.data(), bytes);
+
+                // Count prompt markers in the total buffer so far
+                promptsSeen = 0;
+                size_t pos = 0;
+                while ((pos = allData.find("=>", pos)) != std::string::npos)
+                {
+                    ++promptsSeen;
+                    pos += 2;
+                }
+            }
+
+            // Overall timeout check
+            if ((std::chrono::steady_clock::now() - start) > timeout)
+                break;
+        }
+
+        socket_.non_blocking(false);
+
+        // 4. Split allData by "=>" prompt markers into individual responses
+        //    Each response ends with "=>" (possibly followed by whitespace).
+        //    Format: "<response text>\r\n=>\r\n<next response>..."
+        size_t searchFrom = 0;
+        for (int i = 0; i < expected; ++i)
+        {
+            size_t promptPos = allData.find("=>", searchFrom);
+            if (promptPos == std::string::npos)
+            {
+                // Fewer responses than expected — push remaining as last chunk
+                if (searchFrom < allData.size())
+                    responses.push_back(allData.substr(searchFrom));
+                break;
+            }
+
+            // Extract text from searchFrom to promptPos (excluding the "=>" itself)
+            responses.push_back(allData.substr(searchFrom, promptPos - searchFrom));
+
+            // Skip past "=>" and any trailing whitespace
+            searchFrom = promptPos + 2;
+            while (searchFrom < allData.size() &&
+                   (allData[searchFrom] == ' ' || allData[searchFrom] == '\r' ||
+                    allData[searchFrom] == '\n' || allData[searchFrom] == '\t'))
+            {
+                ++searchFrom;
+            }
+        }
+
+        last_io_ok_ = !responses.empty();
+        last_response_ = allData;
+        return last_io_ok_;
+    }
+    catch (const std::exception& e)
+    {
+        socket_.non_blocking(false);
+        std::cerr << "SendBatchCmdsReceiveAll error: " << e.what() << std::endl;
+        last_io_ok_ = false;
+        return false;
+    }
+}
+
 // ================= IS CONNECTED =================
 bool TelnetClient::isConnected() const
 {

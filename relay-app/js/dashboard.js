@@ -225,8 +225,8 @@ if (addRelayForm) {
     e.preventDefault();
 
     const name = document.getElementById("relay-name-input").value.trim();
-    const ip   = document.getElementById("relay-ip-select").value;
-    const port = parseInt(document.getElementById("relay-port-select").value, 10);
+    const ip   = document.getElementById("relay-ip-input").value.trim();
+    const port = parseInt(document.getElementById("relay-port-input").value, 10);
 
     if (!name || !ip || !port) {
       showToast("Please fill in all fields.", "warning");
