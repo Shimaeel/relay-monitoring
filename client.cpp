@@ -206,6 +206,42 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
     }
 }
 
+// ================= MULTI-PAGE SEND =================
+bool TelnetClient::SendCmdMultiPage(const std::string& cmd,
+                                    std::string& outBuffer,
+                                    int maxPages)
+{
+    outBuffer.clear();
+
+    // Send initial command and collect first page
+    std::string page;
+    if (!SendCmdReceiveData(cmd, page))
+        return false;
+    outBuffer += page;
+
+    // Keep sending RETURN while the response pauses at "Press RETURN to continue"
+    for (int i = 0; i < maxPages; ++i)
+    {
+        // Check if the accumulated buffer ends with the relay prompt =>
+        if (endsWithPrompt(outBuffer))
+            break;
+
+        // Check if the last page contained the continuation prompt
+        if (page.find("Press RETURN to continue") == std::string::npos)
+            break;
+
+        // Send bare RETURN to advance to the next page
+        page.clear();
+        if (!SendCmdReceiveData(std::string(""), page))
+            break;
+        outBuffer += page;
+    }
+
+    last_response_ = outBuffer;
+    last_io_ok_ = !outBuffer.empty();
+    return last_io_ok_;
+}
+
 // ================= IS CONNECTED =================
 bool TelnetClient::isConnected() const
 {

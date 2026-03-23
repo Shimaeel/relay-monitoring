@@ -223,6 +223,24 @@ public:
     bool SendCmdReceiveData(const std::string& cmd,
                             std::string& outBuffer);
 
+    /**
+     * @brief Send command and collect multi-page response
+     *
+     * @details Sends the initial command, then detects "Press RETURN to continue"
+     * prompts in the relay output and automatically sends carriage returns to
+     * advance through all pages. Accumulates the full response.
+     *
+     * @param[in] cmd   Command string to send (without CRLF)
+     * @param[out] outBuffer Accumulated response across all pages
+     * @param maxPages  Maximum number of continuation pages (safety limit)
+     *
+     * @return true  Full multi-page response collected
+     * @return false Connection error or timeout
+     */
+    bool SendCmdMultiPage(const std::string& cmd,
+                          std::string& outBuffer,
+                          int maxPages = 20);
+
     // ================= TELNET COMMAND WRAPPERS =================
     
     /**

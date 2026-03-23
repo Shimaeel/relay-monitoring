@@ -581,7 +581,8 @@ struct CmdSetAction
         std::string cmd = "SET";
         if (!e.args.empty()) cmd += " " + e.args;
         std::string response;
-        bool ok = client.SendCmdReceiveData(cmd, response);
+        // Use multi-page collection to handle "Press RETURN to continue"
+        bool ok = client.SendCmdMultiPage(cmd, response);
         resp.success = ok && !response.empty();
         resp.response = std::move(response);
         std::cout << "[CmdFSM] SET " << (resp.success ? "OK" : "FAIL") << "\n";
