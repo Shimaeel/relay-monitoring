@@ -390,55 +390,6 @@ public:
     }
 
     /**
-     * @brief Execute batch TAR commands via pipelined Telnet I/O.
-     *
-     * @details Sends TAR 0..maxTar as a single TCP write, then reads
-     * all responses back in one stream.  Dramatically faster than
-     * calling handleUserCommand("TAR N") in a loop.
-     *
-     * @param maxTar  Number of TAR commands to send (0..maxTar-1)
-     * @return Vector of individual TAR response strings.
-     *         Stops early if a response contains "Invalid Target".
-     */
-    std::vector<std::string> handleBatchTarCommands(int maxTar)
-    {
-        std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
-
-        if (!driveToOperational())
-            return {};
-
-        // Build command list: ["TAR 0", "TAR 1", ..., "TAR <maxTar-1>"]
-        std::vector<std::string> cmds;
-        cmds.reserve(maxTar);
-        for (int i = 0; i < maxTar; ++i)
-            cmds.push_back("TAR " + std::to_string(i));
-
-        std::vector<std::string> responses;
-        bool ok = client_.SendBatchCmdsReceiveAll(cmds, responses);
-
-        if (!ok || responses.empty())
-        {
-            std::cout << relay_tag_ << " Batch TAR failed — 0 responses\n";
-            return {};
-        }
-
-        // Trim responses: stop at first "Invalid Target"
-        std::vector<std::string> valid;
-        valid.reserve(responses.size());
-        for (auto& r : responses)
-        {
-            if (r.find("Invalid Target") != std::string::npos)
-                break;
-            if (!r.empty())
-                valid.push_back(std::move(r));
-        }
-
-        std::cout << relay_tag_ << " Batch TAR complete — "
-                  << valid.size() << " valid responses\n";
-        return valid;
-    }
-
-    /**
      * @brief Trigger FSM reconnection from external code.
      *
      * @details Fires disconnect_event so the FSM transitions from
@@ -749,18 +700,6 @@ public:
         if (rxWorker_)
             return rxWorker_->handleUserCommand(cmd);
         return "";
-    }
-
-    /**
-     * @brief Execute batch TAR commands via pipelined Telnet I/O.
-     * @param maxTar Number of TAR commands (0..maxTar-1)
-     * @return Vector of valid TAR response strings
-     */
-    std::vector<std::string> handleBatchTarCommands(int maxTar)
-    {
-        if (rxWorker_)
-            return rxWorker_->handleBatchTarCommands(maxTar);
-        return {};
     }
 
     /// @return true if pipeline is currently running

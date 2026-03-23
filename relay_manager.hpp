@@ -255,24 +255,6 @@ public:
     }
 
     /**
-     * @brief Execute batch TAR commands on a relay via pipelined Telnet I/O.
-     *
-     * @param relayId Relay identifier
-     * @param maxTar  Number of TAR commands to send (0..maxTar-1)
-     * @return Vector of valid TAR response strings
-     */
-    std::vector<std::string> handleBatchTarCommands(const std::string& relayId, int maxTar)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        auto it = active_.find(relayId);
-        if (it == active_.end())
-            return {};
-
-        return it->second->handleBatchTarCommands(maxTar);
-    }
-
-    /**
      * @brief Get the list of all known relay configurations.
      *
      * @return const reference to the relay config vector

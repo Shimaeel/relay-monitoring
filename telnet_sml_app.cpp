@@ -327,12 +327,12 @@ public:
             tarFetchInProgress_[relayId] = true;   // atomic check-and-set under lock
         }
 
-        std::cout << "[TAR-BG] Starting background TAR collection (batch) for relay " << relayId << "\n";
+        std::cout << "[TAR-BG] Starting background TAR collection for relay " << relayId << "\n";
 
         // Retry loop — relay may not be ready immediately after startup.
+        // Wait 3s between attempts, up to 5 retries.
         constexpr int MAX_RETRIES = 5;
         constexpr int RETRY_DELAY_SEC = 3;
-        constexpr int MAX_TAR_ROWS = 100;  // generous upper bound; relay will "Invalid Target" at its limit
 
         for (int attempt = 0; attempt <= MAX_RETRIES && app_running.load(); ++attempt)
         {
@@ -345,29 +345,37 @@ public:
                 if (!app_running.load()) break;
             }
 
-            // Use batch pipelined approach — send all TAR commands at once
-            auto responses = relayMgr->handleBatchTarCommands(relayId, MAX_TAR_ROWS);
-
-            if (responses.empty())
-                continue;  // relay not ready yet, retry
-
-            // Build JSON batch from valid responses
+            int count = 0;
             std::string batch;
-            batch.reserve(128 * 1024);
+            batch.reserve(128 * 1024);  // pre-allocate ~128KB
             batch = "TAR_BATCH_ALL:[";
             bool first = true;
-            int count = 0;
 
-            for (int i = 0; i < static_cast<int>(responses.size()); ++i)
+            for (int i = 0; app_running.load(); ++i)
             {
-                std::string escaped = escapeTarJson(responses[i]);
+                std::string response = relayMgr->handleUserCommand(
+                    relayId, "TAR " + std::to_string(i));
+                if (response.empty())
+                    break;
+
+                // Stop when relay signals no more TAR rows
+                if (response.find("Invalid Target") != std::string::npos)
+                    break;
+
+                std::string escaped = escapeTarJson(response);
                 std::string entry = "{\"idx\":" + std::to_string(i)
                                   + ",\"data\":\"" + escaped + "\"}";
+
                 if (!first) batch += ",";
                 first = false;
                 batch += entry;
+
                 ++count;
             }
+
+            // Got 0 rows — relay not ready yet, retry
+            if (count == 0)
+                continue;
 
             batch += "]";
 
@@ -538,25 +546,33 @@ public:
                     return false;   // background fetch still running — don't duplicate
                 tarFetchInProgress_[relayId] = true;
             }
-            std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting (pipelined) for relay " << relayId << "\n";
-
-            constexpr int MAX_TAR_ROWS = 100;
-            auto responses = relayMgr->handleBatchTarCommands(relayId, MAX_TAR_ROWS);
-
-            // Build JSON batch from valid responses
-            std::string batch;
-            batch.reserve(128 * 1024);
-            batch = "TAR_BATCH_ALL:[";
-            bool first = true;
+            std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
             int count = 0;
 
-            for (int i = 0; i < static_cast<int>(responses.size()); ++i)
+            // Collect all TAR responses into a JSON array, then send as one batch
+            std::string batch;
+            batch.reserve(128 * 1024);  // pre-allocate ~128KB
+            batch = "TAR_BATCH_ALL:[";
+            bool first = true;
+
+            for (int i = 0; !abort.load(); ++i)
             {
-                std::string escaped = escapeTarJson(responses[i]);
+                std::string response = relayMgr->handleUserCommand(
+                    relayId, "TAR " + std::to_string(i));
+                if (response.empty())
+                    break;  // no more rows — relay returned nothing
+
+                // Stop when relay signals no more TAR rows
+                if (response.find("Invalid Target") != std::string::npos)
+                    break;
+
+                std::string escaped = escapeTarJson(response);
                 std::string entry = "{\"idx\":" + std::to_string(i) + ",\"data\":\"" + escaped + "\"}";
+
                 if (!first) batch += ",";
                 first = false;
                 batch += entry;
+
                 ++count;
             }
 
