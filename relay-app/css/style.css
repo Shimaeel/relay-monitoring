@@ -1417,6 +1417,12 @@ ul, ol { list-style: none; }
   overflow: hidden;
 }
 
+#settings-section.section-card {
+  max-height: 80vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .section-card::before {
   content: '';
   position: absolute;
@@ -1726,6 +1732,28 @@ ul, ol { list-style: none; }
 
 .set-content {
   margin-top: var(--sp-3, 12px);
+  max-height: calc(80vh - 100px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary, #2563eb) transparent;
+}
+
+.set-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.set-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.set-content::-webkit-scrollbar-thumb {
+  background: var(--color-primary, #2563eb);
+  border-radius: 3px;
+}
+
+.set-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-hover, #1d4ed8);
 }
 
 .set-empty {

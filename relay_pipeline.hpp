@@ -106,6 +106,7 @@ class PipelineReceptionWorker
     RawDataRingBuffer& rawBuffer_;
     std::atomic<bool>& app_running_;
     std::string relay_tag_;       ///< Log prefix, e.g. "[Rx:SEL-751]"
+    bool screen_size_configured_{false};  ///< True after SET S sent post-login
 
     static constexpr int MAX_RETRIES = 3;             ///< Per-command retry limit
     static constexpr int RETRY_DELAY_SEC = 5;         ///< Interruptible wait (seconds)
@@ -129,7 +130,18 @@ class PipelineReceptionWorker
         while (!stop_flag_.load())
         {
             if (fsm_.is("Operational"_s))
+            {
+                // Configure large screen size once after login so the relay
+                // sends more rows per page, reducing "Press RETURN" pagination.
+                if (!screen_size_configured_)
+                {
+                    std::string discarded;
+                    client_.SendCmdReceiveData("SET S 132 99", discarded);
+                    screen_size_configured_ = true;
+                    std::cout << relay_tag_ << " Screen size set to 132x99\n";
+                }
                 return true;
+            }
 
             if (fsm_.is("Error"_s))
             {
@@ -140,6 +152,7 @@ class PipelineReceptionWorker
             // Interruptible wait for retry states
             if (fsm_.is("ConnectWait"_s) || fsm_.is("LoginRetryWait"_s))
             {
+                screen_size_configured_ = false;  // Reset on reconnect
                 std::cout << relay_tag_ << " Waiting " << RETRY_DELAY_SEC
                           << "s before retry...\n";
                 for (int s = 0; s < RETRY_DELAY_SEC && !stop_flag_.load(); ++s)
@@ -178,7 +191,15 @@ class PipelineReceptionWorker
         else if (cmd.size() >= 3 && cmd.substr(0, 3) == "TAR")
             cmdFsm_.process_event(cmd_tar_event{cmd.size() > 4 ? cmd.substr(4) : ""});
         else if (cmd == "EVE")
-            cmdFsm_.process_event(cmd_eve_event{});
+        {
+            // EVE response can be multi-page — use direct multi-page collection
+            client_.clearLastResponse();
+            std::string response;
+            bool ok = client_.SendCmdMultiPage("EVE", response);
+            cmdResponse_.success = ok && !response.empty();
+            cmdResponse_.response = std::move(response);
+            std::cout << "[CmdFSM] EVE " << (cmdResponse_.success ? "OK" : "FAIL") << "\n";
+        }
         else if (cmd == "CTRL+C")
             cmdFsm_.process_event(cmd_ctrlc_event{});
         else if (cmd == "CTRL+D")
@@ -187,10 +208,18 @@ class PipelineReceptionWorker
             cmdFsm_.process_event(cmd_set_event{cmd.size() > 4 ? cmd.substr(4) : ""});
         else
         {
-            // Generic / unknown command — send directly via SER-style action
+            // Generic / unknown command — send directly.
+            // Multi-page commands (SHOSET, FIL DIR, CTR C/D) may produce
+            // "Press RETURN to continue" pagination even with large screen.
             client_.clearLastResponse();
             std::string response;
-            bool ok = client_.SendCmdReceiveData(cmd, response);
+            bool ok;
+            if (cmd == "SHOSET" ||
+                (cmd.size() >= 3 && cmd.substr(0, 3) == "FIL") ||
+                (cmd.size() >= 3 && cmd.substr(0, 3) == "CTR"))
+                ok = client_.SendCmdMultiPage(cmd, response);
+            else
+                ok = client_.SendCmdReceiveData(cmd, response);
             cmdResponse_.success = ok && !response.empty();
             cmdResponse_.response = std::move(response);
             std::cout << "[CmdFSM] Generic '" << cmd << "' "
@@ -240,6 +269,7 @@ class PipelineReceptionWorker
             // Phase 3 — command failed → trigger Connection FSM reconnect cycle
             std::cout << relay_tag_ << " Command '" << cmd << "' failed (attempt "
                       << attempt << "/" << MAX_RETRIES << ")\n";
+            screen_size_configured_ = false;  // Will re-send after reconnect
             fsm_.process_event(disconnect_event{});
         }
 
@@ -384,6 +414,7 @@ public:
 
             std::cout << relay_tag_ << " User cmd '" << cmd << "' failed (attempt "
                       << attempt << "/" << MAX_RETRIES << ")\n";
+            screen_size_configured_ = false;  // Will re-send after reconnect
             fsm_.process_event(disconnect_event{});
         }
         return "";
@@ -397,6 +428,7 @@ public:
      */
     void resetConnection()
     {
+        screen_size_configured_ = false;
         fsm_.process_event(disconnect_event{});
     }
 };

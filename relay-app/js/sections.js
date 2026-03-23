@@ -2441,13 +2441,17 @@ document.addEventListener("DOMContentLoaded", function () {
     if (ioSection) ioSection.style.display = "";
     container.style.display = "none";
 
+    // Reset filter to 'all' so clicking the section shows all I/O rows
+    ioSetFilter('all');
+
     requestAnimationFrame(() => {
       if (!ioTable) {
         initIoTable();
       } else {
         ioTable.redraw(true);
       }
-      // Auto-fetch I/O data (uses shared TAR cache, returns instantly if available)
+      // Force fresh fetch so all I/O rows are always loaded on section click
+      _tarCachedRows = null;
       fetchAllIO();
     });
   }
