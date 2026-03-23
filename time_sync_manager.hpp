@@ -11,10 +11,11 @@
  *
  * ## Supported WebSocket Actions
  *
- * | Action        | Description                         |
- * |---------------|-------------------------------------|
- * | read_time     | Read relay DATE + local PC time     |
- * | sync_time     | Write local PC time to relay        |
+ * | Action            | Description                              |
+ * |-------------------|------------------------------------------|
+ * | read_time         | Read relay DATE + local PC time          |
+ * | sync_time         | Write local PC time to relay             |
+ * | sntp_sync_time    | Query NTP server, then write to relay    |
  *
  * ## Data Flow
  *
@@ -47,6 +48,7 @@
 
 #include "dll_export.hpp"
 #include "relay_service.hpp"
+#include "sntp_client.hpp"
 #include "client.hpp"
 
 #include <chrono>
@@ -131,18 +133,23 @@ public:
      * @brief Process a JSON action string from WebSocket and return a JSON response.
      *
      * Supported actions:
-     *   - "read_time"  → reads relay time, gets PC time, compares
-     *   - "sync_time"  → writes PC time to relay
+     *   - "read_time"       → reads relay time, gets PC time, compares
+     *   - "sync_time"       → writes PC time to relay
+     *   - "sntp_sync_time"  → queries NTP server, writes that time to relay
      *
-     * @param action  The "action" field value from the incoming JSON
+     * @param action     The "action" field value from the incoming JSON
+     * @param ntpServer  NTP server hostname (used only for sntp_sync_time)
      * @return JSON response string to send back via WebSocket
      */
-    std::string handleAction(const std::string& action)
+    std::string handleAction(const std::string& action,
+                             const std::string& ntpServer = "pool.ntp.org")
     {
         if (action == "read_time")
             return handleReadTime();
         if (action == "sync_time")
             return handleSyncTime();
+        if (action == "sntp_sync_time")
+            return handleSNTPSync(ntpServer);
 
         return buildErrorJson(action, "Unknown action: " + action);
     }
@@ -213,6 +220,61 @@ private:
         else
         {
             return buildErrorJson("sync_time", result.error);
+        }
+    }
+
+    // ── sntp_sync_time handler ───────────────────────────────────────────
+
+    /**
+     * @brief Handle the "sntp_sync_time" action.
+     * @details Queries an NTP server for the current time, then writes
+     *          that time to the relay via SETTIME.
+     * @param ntpServer  NTP server hostname (e.g. "pool.ntp.org")
+     * @return JSON string with status, ntp_server, ntp_time, and new_time.
+     */
+    std::string handleSNTPSync(const std::string& ntpServer)
+    {
+        SNTPClient sntp;
+        auto ntpResult = sntp.query(ntpServer, 5000);
+
+        if (!ntpResult.success)
+        {
+            std::ostringstream json;
+            json << "{"
+                 << "\"action\":\"sntp_sync_time\","
+                 << "\"status\":\"failed\","
+                 << "\"ntp_server\":\"" << escapeJson(ntpServer) << "\","
+                 << "\"error\":\"" << escapeJson(ntpResult.error) << "\""
+                 << "}";
+            return json.str();
+        }
+
+        // Write NTP time to relay
+        auto relayResult = relay_.syncRelayTime(ntpResult.datetime);
+
+        if (relayResult.success)
+        {
+            std::ostringstream json;
+            json << "{"
+                 << "\"action\":\"sntp_sync_time\","
+                 << "\"status\":\"success\","
+                 << "\"ntp_server\":\"" << escapeJson(ntpServer) << "\","
+                 << "\"ntp_time\":\"" << escapeJson(ntpResult.datetime) << "\","
+                 << "\"new_time\":\"" << escapeJson(relayResult.datetime) << "\""
+                 << "}";
+            return json.str();
+        }
+        else
+        {
+            std::ostringstream json;
+            json << "{"
+                 << "\"action\":\"sntp_sync_time\","
+                 << "\"status\":\"failed\","
+                 << "\"ntp_server\":\"" << escapeJson(ntpServer) << "\","
+                 << "\"ntp_time\":\"" << escapeJson(ntpResult.datetime) << "\","
+                 << "\"error\":\"" << escapeJson(relayResult.error) << "\""
+                 << "}";
+            return json.str();
         }
     }
 

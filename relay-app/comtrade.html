@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>COMTRADE Files — Relay Monitoring</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <div class="app-shell">
+    <div class="main-wrapper">
+      <main class="main-content">
+
+        <!-- Page Title -->
+        <div class="page-title-bar">
+          <div class="page-title-bar__left">
+            <h1 class="page-title">📁 COMTRADE Files</h1>
+            <p class="page-subtitle">Fetch and download COMTRADE configuration &amp; data files from connected relays</p>
+          </div>
+          <div class="page-title-bar__actions">
+            <a href="index.html" class="btn btn--outline">← Back to Dashboard</a>
+          </div>
+        </div>
+
+        <!-- Fetch Controls -->
+        <div class="section-card" style="margin-bottom:var(--sp-5)">
+          <h2>Fetch COMTRADE File</h2>
+
+          <!-- Toolbar -->
+          <div class="ser-toolbar">
+            <div class="ser-toolbar__left">
+              <span id="ctf-conn-status" style="font-weight:700">🟡 Idle</span>
+            </div>
+            <div class="ser-toolbar__right">
+              <button class="btn btn--danger btn--sm" onclick="ctfClearAll()">🗑 Clear All</button>
+            </div>
+          </div>
+
+          <!-- Relay selector + file inputs -->
+          <div class="ser-config">
+            <div class="ser-config__field">
+              <label>Relay</label>
+              <select id="ctf-relay-select" class="input"></select>
+            </div>
+            <div class="ser-config__field">
+              <label>File #</label>
+              <input id="ctf-file-num" type="number" min="1" value="1" placeholder="File number" />
+            </div>
+            <button id="ctf-c-fetch-btn" class="btn btn--primary btn--sm" onclick="ctfFetchConfig()">📄 Fetch Config (.cfg)</button>
+            <button id="ctf-d-fetch-btn" class="btn btn--primary btn--sm" onclick="ctfFetchData()">📊 Fetch Data (.dat)</button>
+            <button id="ctf-both-fetch-btn" class="btn btn--outline btn--sm" onclick="ctfFetchBoth()">⬇ Fetch Both</button>
+          </div>
+        </div>
+
+        <!-- Fetched Files List -->
+        <div class="section-card">
+          <h2>Fetched Files</h2>
+          <div id="ctf-file-list" class="ctf-file-list">
+            <div class="set-empty">No files fetched yet. Select a relay and file number above, then click Fetch.</div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/comtrade_files.js"></script>
+</body>
+</html>
