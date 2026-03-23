@@ -74,8 +74,13 @@ public:
      *
      * @param relay  RelayService wrapping TelnetClient (must outlive this manager)
      */
-    explicit TimeSyncManager(RelayService& relay)
-        : relay_(relay)
+    /**
+     * @param relay       RelayService wrapping TelnetClient
+     * @param l2Password  Level 2 password for time-set escalation
+     */
+    explicit TimeSyncManager(RelayService& relay,
+                             const std::string& l2Password = "OTTER")
+        : relay_(relay), l2Password_(l2Password)
     {
     }
 
@@ -154,6 +159,9 @@ public:
         return buildErrorJson(action, "Unknown action: " + action);
     }
 
+    /// @brief Set the Level 2 password for relay time-set
+    void setL2Password(const std::string& pw) { l2Password_ = pw; }
+
 private:
     // ── read_time handler ───────────────────────────────────────────────
 
@@ -199,13 +207,13 @@ private:
 
     /**
      * @brief Handle the "sync_time" action.
-     * @details Writes the current local PC time to the relay via SETTIME.
+     * @details Escalates to Level 2, writes PC time via DATE + TIME commands.
      * @return JSON string with status and new_time or error.
      */
     std::string handleSyncTime()
     {
         std::string pcTime = getLocalPCTime();
-        auto result = relay_.syncRelayTime(pcTime);
+        auto result = relay_.syncRelayTime(pcTime, l2Password_);
 
         if (result.success)
         {
@@ -249,8 +257,8 @@ private:
             return json.str();
         }
 
-        // Write NTP time to relay
-        auto relayResult = relay_.syncRelayTime(ntpResult.datetime);
+        // Write NTP time to relay (with Level 2 escalation)
+        auto relayResult = relay_.syncRelayTime(ntpResult.datetime, l2Password_);
 
         if (relayResult.success)
         {
@@ -340,4 +348,5 @@ private:
     }
 
     RelayService& relay_;
+    std::string   l2Password_;          ///< Level 2 password for time-set
 };

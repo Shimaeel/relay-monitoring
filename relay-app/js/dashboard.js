@@ -81,9 +81,16 @@ function createCardElement(relay) {
 
   card.innerHTML = `
     <button class="relay-card__remove" title="Remove relay" aria-label="Remove ${relay.name}">✕</button>
-    <span class="relay-card__name">${relay.name}</span>
-    <span class="relay-card__ip">${relay.ip}</span>
-    <span class="relay-card__meta">${relay.substation} · ${relay.bay}</span>
+    <div class="relay-card__body">
+      <div class="relay-card__img-wrap">
+        <img class="relay-card__img" src="images/${relay.name}.svg" alt="${relay.name}" onerror="this.src='images/SEL-relay.svg'" />
+      </div>
+      <div class="relay-card__info">
+        <span class="relay-card__name">${relay.name}</span>
+        <span class="relay-card__ip">${relay.ip}</span>
+        <span class="relay-card__meta">${relay.substation} · ${relay.bay}</span>
+      </div>
+    </div>
     <div class="relay-card__footer">
       <span class="status-badge ${statusClass}">
         <span class="status-badge__dot"></span>

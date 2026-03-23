@@ -667,7 +667,7 @@ public:
                     return "{\"action\":\"sync_time\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
 
                 RelayService svc(pipeline->getClient());
-                TimeSyncManager tsm(svc);
+                TimeSyncManager tsm(svc, pipeline->config().password);
                 return tsm.handleAction(action);
             }
 
@@ -686,7 +686,7 @@ public:
                     return "{\"action\":\"sntp_sync_time\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
 
                 RelayService svc(pipeline->getClient());
-                TimeSyncManager tsm(svc);
+                TimeSyncManager tsm(svc, pipeline->config().password);
                 return tsm.handleAction(action, ntpServer);
             }
 
