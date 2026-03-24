@@ -17,6 +17,13 @@ const relayHeaderName   = document.getElementById("relay-name");
 const relaySubtitle     = document.getElementById("relay-subtitle");
 const relayStatusBadge  = document.getElementById("relay-status-badge");
 const syncTimeBtn       = document.getElementById("sync-time-btn");
+const sntpSyncBtn       = document.getElementById("sntp-sync-btn");
+const sntpConfig        = document.getElementById("sntp-config");
+const sntpServerInput   = document.getElementById("sntp-server");
+const sntpSendBtn       = document.getElementById("sntp-send-btn");
+const sntpSyncStatusEl  = document.getElementById("sntp-sync-status");
+const sntpOldTimeEl     = document.getElementById("sntp-old-time");
+const sntpNewTimeEl     = document.getElementById("sntp-new-time");
 const backBtn           = document.getElementById("back-btn");
 const appContainer      = document.getElementById("app");
 const relayImage        = document.getElementById("relay-image");
@@ -86,6 +93,22 @@ function bindEvents() {
   // Sync time — sends local PC time to relay via WebSocket
   syncTimeBtn.addEventListener("click", () => {
     sendTimeSyncAction("sync_time");
+  });
+
+  // SNTP Sync — toggle config panel
+  sntpSyncBtn.addEventListener("click", () => {
+    const isHidden = sntpConfig.style.display === "none";
+    sntpConfig.style.display = isHidden ? "block" : "none";
+  });
+
+  // Send SNTP configuration to relay
+  sntpSendBtn.addEventListener("click", () => {
+    const server = sntpServerInput.value.trim();
+    if (!server) {
+      showToast("Enter an NTP server address", "warning");
+      return;
+    }
+    sendSntpSyncAction(server);
   });
 }
 
@@ -175,6 +198,22 @@ function sendTimeSyncAction(action) {
     syncTimeBtn.textContent = "⏳ Syncing…";
   }
 }
+
+function sendSntpSyncAction(server) {
+  if (!_timeSyncWs || _timeSyncWs.readyState !== WebSocket.OPEN) {
+    showToast("WebSocket not connected — cannot send SNTP config", "error");
+    return;
+  }
+  _timeSyncWs.send(JSON.stringify({
+    action: "sntp_sync",
+    relay_id: currentRelay.id,
+    sntp_server: server
+  }));
+
+  sntpSendBtn.disabled = true;
+  sntpSendBtn.textContent = "⏳ Configuring…";
+  sntpSyncStatusEl.textContent = "Sending SNTP configuration…";
+}
 function handleTimeSyncResponse(msg) {
   if (msg.action === "read_time") {
     if (msg.status === "success" && msg.relay_time) {
@@ -192,6 +231,32 @@ function handleTimeSyncResponse(msg) {
       showToast("Relay time synced to " + msg.new_time, "success");
     } else {
       showToast("Sync failed: " + (msg.error || "unknown"), "error");
+    }
+  }
+
+  if (msg.action === "sntp_sync") {
+    sntpSendBtn.disabled = false;
+    sntpSendBtn.textContent = "▶ Send SNTP Config";
+
+    // Always show old device time if available
+    if (msg.old_time) {
+      sntpOldTimeEl.textContent = msg.old_time;
+    }
+
+    if (msg.status === "success") {
+      sntpNewTimeEl.textContent = msg.new_time || "—";
+      sntpSyncStatusEl.textContent = "✅ SNTP enabled → " + msg.sntp_server;
+      showToast("SNTP configured: " + msg.sntp_server, "success");
+
+      // Update the main device time display too
+      if (msg.new_time) {
+        deviceTimeEl.textContent = msg.new_time;
+      }
+    } else {
+      sntpNewTimeEl.textContent = "—";
+      const step = msg.step ? ` (step: ${msg.step})` : "";
+      sntpSyncStatusEl.textContent = "❌ Failed" + step;
+      showToast("SNTP config failed: " + (msg.error || "unknown") + step, "error");
     }
   }
 }

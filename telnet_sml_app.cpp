@@ -655,20 +655,22 @@ public:
                 return result;
             }
 
-            // ── Time sync — sync_time only (read_time removed) ──
-            if (action == "sync_time")
+            // ── Time sync — sync_time / sntp_sync ──
+            if (action == "sync_time" || action == "sntp_sync")
             {
                 std::string relayId = extractJsonField(jsonMsg, "relay_id");
                 if (relayId.empty())
-                    return "{\"action\":\"sync_time\",\"status\":\"failed\",\"error\":\"Missing relay_id\"}";
+                    return "{\"action\":\"" + action + "\",\"status\":\"failed\",\"error\":\"Missing relay_id\"}";
 
                 auto* pipeline = relayMgr->getPipeline(relayId);
                 if (!pipeline)
-                    return "{\"action\":\"sync_time\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
+                    return "{\"action\":\"" + action + "\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
 
                 RelayService svc(pipeline->getClient());
                 TimeSyncManager tsm(svc);
-                return tsm.handleAction(action);
+
+                std::string sntpServer = extractJsonField(jsonMsg, "sntp_server");
+                return tsm.handleAction(action, sntpServer, pipeline->config().password);
             }
 
             // ── Password change (requires relay_id to know which relay) ──

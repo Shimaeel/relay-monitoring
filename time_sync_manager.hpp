@@ -15,6 +15,7 @@
  * |-------------------|------------------------------------------|
  * | read_time         | Read relay DATE + local PC time          |
  * | sync_time         | Write local PC time to relay             |
+ * | sntp_sync         | Enable SNTP and set NTP server on relay  |
 
  *
  * ## Data Flow
@@ -134,16 +135,23 @@ public:
      * Supported actions:
      *   - "read_time"       → reads relay time, gets PC time, compares
      *   - "sync_time"       → writes PC time to relay
+     *   - "sntp_sync"       → configure relay SNTP with given server
      *
-     * @param action     The "action" field value from the incoming JSON
+     * @param action       The "action" field value from the incoming JSON
+     * @param sntpServer   Optional SNTP server address (used by sntp_sync)
+     * @param relayPassword Relay password for Level 2 elevation (from config)
      * @return JSON response string to send back via WebSocket
      */
-    std::string handleAction(const std::string& action)
+    std::string handleAction(const std::string& action,
+                             const std::string& sntpServer = "",
+                             const std::string& relayPassword = "")
     {
         if (action == "read_time")
             return handleReadTime();
         if (action == "sync_time")
             return handleSyncTime();
+        if (action == "sntp_sync")
+            return handleSntpSync(sntpServer, relayPassword);
 
         return buildErrorJson(action, "Unknown action: " + action);
     }
@@ -215,6 +223,95 @@ private:
         {
             return buildErrorJson("sync_time", result.error);
         }
+    }
+
+    // ── sntp_sync handler ────────────────────────────────────────────────
+
+    /**
+     * @brief Handle the "sntp_sync" action.
+     * @details Sends SNTP configuration commands to the relay:
+     *          1. SET E_SNTP Y   — enable SNTP on the relay
+     *          2. SET SNTP_SERV1 <server> — set primary SNTP server address
+     * @param sntpServer  NTP server hostname or IP (e.g. "pool.ntp.org")
+     * @return JSON string with status and detail or error.
+     */
+    std::string handleSntpSync(const std::string& sntpServer,
+                               const std::string& relayPassword)
+    {
+        if (sntpServer.empty())
+            return buildErrorJson("sntp_sync", "SNTP server address is required");
+
+        if (relayPassword.empty())
+            return buildErrorJson("sntp_sync", "Relay password not available in config");
+
+        // Read device time BEFORE sync
+        auto beforeResult = relay_.readRelayTime();
+        std::string oldTime = beforeResult.success ? beforeResult.datetime : "unknown";
+
+        // Step 1: Elevate to Level 2 (SET commands require 2AC access)
+        auto loginResult = relay_.elevateToLevel2(relayPassword);
+        if (!loginResult.success)
+        {
+            std::ostringstream json;
+            json << "{"
+                 << "\"action\":\"sntp_sync\","
+                 << "\"status\":\"error\","
+                 << "\"step\":\"level2_access\","
+                 << "\"old_time\":\"" << escapeJson(oldTime) << "\","
+                 << "\"error\":\"" << escapeJson(loginResult.error) << "\""
+                 << "}";
+            return json.str();
+        }
+
+        // Step 2: Enable SNTP on the relay
+        auto enableResult = relay_.sendRelayCommandStrict("SET E_SNTP Y");
+        if (!enableResult.success)
+        {
+            relay_.sendRelayCommand("ACC");
+            std::ostringstream json;
+            json << "{"
+                 << "\"action\":\"sntp_sync\","
+                 << "\"status\":\"error\","
+                 << "\"step\":\"enable\","
+                 << "\"old_time\":\"" << escapeJson(oldTime) << "\","
+                 << "\"error\":\"" << escapeJson(enableResult.error) << "\""
+                 << "}";
+            return json.str();
+        }
+
+        // Step 3: Set the SNTP server address
+        auto serverResult = relay_.sendRelayCommandStrict("SET SNTP_SERV1 " + sntpServer);
+        if (!serverResult.success)
+        {
+            relay_.sendRelayCommand("ACC");
+            std::ostringstream json;
+            json << "{"
+                 << "\"action\":\"sntp_sync\","
+                 << "\"status\":\"error\","
+                 << "\"step\":\"set_server\","
+                 << "\"old_time\":\"" << escapeJson(oldTime) << "\","
+                 << "\"error\":\"" << escapeJson(serverResult.error) << "\""
+                 << "}";
+            return json.str();
+        }
+
+        // Step 4: Drop back to Level 1
+        relay_.sendRelayCommand("ACC");
+
+        // Read device time AFTER sync
+        auto afterResult = relay_.readRelayTime();
+        std::string newTime = afterResult.success ? afterResult.datetime : "pending";
+
+        // Success
+        std::ostringstream json;
+        json << "{"
+             << "\"action\":\"sntp_sync\","
+             << "\"status\":\"success\","
+             << "\"sntp_server\":\"" << escapeJson(sntpServer) << "\","
+             << "\"old_time\":\"" << escapeJson(oldTime) << "\","
+             << "\"new_time\":\"" << escapeJson(newTime) << "\""
+             << "}";
+        return json.str();
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────

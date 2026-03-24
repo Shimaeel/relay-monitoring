@@ -318,6 +318,126 @@ public:
         return result;
     }
 
+    /**
+     * @brief Send a command and check for errors in the response.
+     *
+     * Unlike sendRelayCommand(), this rejects responses containing
+     * error indicators (ERR, ERROR, ACCESS, DENIED, INVALID) even
+     * if the relay prompt => is present.
+     *
+     * @param cmd  Command string to send
+     * @return CommandResult with strict error checking
+     */
+    CommandResult sendRelayCommandStrict(const std::string& cmd)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        CommandResult result;
+
+        if (!client_.isConnected())
+        {
+            result.error = "Relay not connected";
+            return result;
+        }
+
+        std::string rawResponse;
+        bool ok = client_.SendCmdReceiveData(cmd, rawResponse);
+
+        if (!ok)
+        {
+            result.error = "Command failed or empty response";
+            return result;
+        }
+
+        result.response = rawResponse;
+
+        std::string upper = rawResponse;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+
+        // Check for error indicators FIRST
+        if (upper.find("ERR") != std::string::npos
+            || upper.find("ACCESS") != std::string::npos
+            || upper.find("DENIED") != std::string::npos
+            || upper.find("INVALID") != std::string::npos)
+        {
+            result.error = "Relay rejected command: " + rawResponse.substr(0, 120);
+            return result;
+        }
+
+        if (upper.find("ACK") != std::string::npos
+            || upper.find("OK") != std::string::npos
+            || upper.find("=>") != std::string::npos)
+        {
+            result.success = true;
+        }
+        else
+        {
+            result.error = "No ACK received from relay";
+        }
+
+        return result;
+    }
+
+    /**
+     * @brief Elevate to Level 2 access on the relay.
+     *
+     * @details Sends the 2AC command followed by the Level 2 password.
+     * Required before SET commands that change global relay settings.
+     *
+     * @param password  Level 2 password
+     * @return CommandResult indicating success/failure
+     */
+    CommandResult elevateToLevel2(const std::string& password)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        CommandResult result;
+
+        if (!client_.isConnected())
+        {
+            result.error = "Relay not connected";
+            return result;
+        }
+
+        // Step 1: Send 2AC command (relay will prompt for password)
+        std::string buf;
+        if (!client_.SendCmdReceiveData("2AC", buf))
+        {
+            result.error = "2AC command failed";
+            return result;
+        }
+
+        // Step 2: Send the Level 2 password
+        std::string loginBuf;
+        if (!client_.SendCmdReceiveData(password, loginBuf))
+        {
+            result.error = "Level 2 password rejected or timed out";
+            return result;
+        }
+
+        result.response = loginBuf;
+
+        // Check for Level 2 prompt
+        std::string upper = loginBuf;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+
+        if (upper.find("LEVEL 2") != std::string::npos
+            || upper.find("=>") != std::string::npos)
+        {
+            result.success = true;
+        }
+        else if (upper.find("ERR") != std::string::npos
+                 || upper.find("INVALID") != std::string::npos
+                 || upper.find("DENIED") != std::string::npos)
+        {
+            result.error = "Level 2 access denied: " + loginBuf.substr(0, 120);
+        }
+        else
+        {
+            result.error = "Unexpected response to 2AC login";
+        }
+
+        return result;
+    }
+
 private:
     /**
      * @brief Strip Telnet echo/prompts from raw response, return trimmed datetime.

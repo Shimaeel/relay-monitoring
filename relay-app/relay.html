@@ -91,6 +91,31 @@
               <button id="sync-time-btn" class="btn btn--outline btn--sm">
                 ⏱ Sync Time
               </button>
+              <button id="sntp-sync-btn" class="btn btn--outline btn--sm">
+                🌐 SNTP Sync
+              </button>
+            </div>
+
+            <!-- SNTP Configuration (hidden by default, toggled by SNTP Sync btn) -->
+            <div id="sntp-config" class="time-display" style="display:none;margin-top:8px;">
+              <div class="time-display__row">
+                <span class="time-display__label">NTP Server</span>
+                <input id="sntp-server" class="header-field__input header-field__input--mono" type="text" value="pool.ntp.org" placeholder="e.g. pool.ntp.org" style="width:160px;" />
+              </div>
+              <div class="time-display__row">
+                <span class="time-display__label">Old Device Time</span>
+                <span id="sntp-old-time" class="time-display__value time-display__value--mono">—</span>
+              </div>
+              <div class="time-display__row">
+                <span class="time-display__label">Synced Time</span>
+                <span id="sntp-new-time" class="time-display__value time-display__value--mono">—</span>
+              </div>
+              <div class="time-display__row">
+                <span id="sntp-sync-status" class="time-display__value">—</span>
+              </div>
+              <button id="sntp-send-btn" class="btn btn--primary btn--sm" style="margin-top:4px;">
+                ▶ Send SNTP Config
+              </button>
             </div>
           </div>
         </div>
