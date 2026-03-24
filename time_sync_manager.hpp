@@ -5,9 +5,9 @@
  * @brief DATE synchronization manager for relay ↔ local-PC time operations.
  *
  * @details Orchestrates reading relay time, comparing with local PC time,
- * and synchronizing the relay clock.  Designed to be called from the
- * WebSocket message handler so that incoming JSON actions are processed
- * without blocking the main I/O thread.
+ * and synchronizing the relay clock.  All relay commands are routed through
+ * a CommandSender callback (typically pipeline->handleUserCommand) to avoid
+ * race conditions with the pipeline's background worker thread.
  *
  * ## Supported WebSocket Actions
  *
@@ -16,29 +16,9 @@
  * | read_time         | Read relay DATE + local PC time          |
  * | sync_time         | Write local PC time to relay             |
  * | sntp_sync         | Enable SNTP and set NTP server on relay  |
-
  *
- * ## Data Flow
- *
- * @code
- * Browser
- *   │  { "action": "read_time" }
- *   ▼
- * WebSocket Session
- *   │
- *   ▼
- * TimeSyncManager::handleAction()
- *   │
- *   ├── readRelayTime()   → RelayService → TelnetClient → Relay
- *   ├── getLocalPCTime()  → std::chrono
- *   ├── compareTime()     → abs diff in seconds
- *   │
- *   ▼
- * JSON response → WebSocket → Browser
- * @endcode
- *
- * @see relay_service.hpp  Low-level relay I/O
- * @see ws_server.hpp      WebSocket session that calls this manager
+ * @see relay_pipeline.hpp  Pipeline that provides the CommandSender
+ * @see ws_server.hpp       WebSocket session that calls this manager
  *
  * @author Telnet-SML Development Team
  * @version 1.0.0
@@ -48,34 +28,44 @@
 #pragma once
 
 #include "dll_export.hpp"
-#include "relay_service.hpp"
-#include "client.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cctype>
 #include <ctime>
+#include <functional>
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <vector>
 
 /**
  * @class TimeSyncManager
  * @brief High-level orchestrator for DATE synchronization.
  *
- * Thread-safety: each public method acquires RelayService's internal mutex
- * through the RelayService calls, so this class itself is safe to call
- * from any thread (e.g. posted on a Boost.Asio strand).
+ * All relay I/O is routed through a CommandSender callback — typically
+ * bound to pipeline->handleUserCommand() — so that commands are
+ * serialised with the pipeline's background worker and never race.
  */
 class TELNET_SML_API TimeSyncManager
 {
 public:
+    /// Callback type: sends a single command, returns the raw response.
+    using CommandSender = std::function<std::string(const std::string&)>;
+
+    /// Callback type: sends multiple commands atomically, returns responses.
+    using BatchSender = std::function<std::vector<std::string>(const std::vector<std::string>&)>;
+
     /**
-     * @brief Construct with a RelayService instance.
+     * @brief Construct with a command-sender and optional batch-sender.
      *
-     * @param relay  RelayService wrapping TelnetClient (must outlive this manager)
+     * @param sender  Callable for single commands (thread-safe via pipeline)
+     * @param batch   Callable for atomic batch commands (holds lock for entire sequence)
      */
-    explicit TimeSyncManager(RelayService& relay)
-        : relay_(relay)
+    TimeSyncManager(CommandSender sender, BatchSender batch = nullptr)
+        : send_(std::move(sender))
+        , sendBatch_(std::move(batch))
     {
     }
 
@@ -159,37 +149,43 @@ public:
 private:
     // ── read_time handler ───────────────────────────────────────────────
 
-    /**
-     * @brief Handle the "read_time" action.
-     * @details Reads relay time via RelayService, gets local PC time,
-     *          compares both, and returns a JSON response.
-     * @return JSON string with relay_time, pc_time, sync_status, diff_seconds.
-     */
     std::string handleReadTime()
     {
-        auto relayResult = relay_.readRelayTime();
         std::string pcTime = getLocalPCTime();
+        std::string rawResponse = send_("DATE");
 
-        if (!relayResult.success)
+        if (rawResponse.empty())
         {
-            // Return what we can (PC time) plus the error
             std::ostringstream json;
             json << "{"
                  << "\"action\":\"read_time\","
                  << "\"status\":\"error\","
                  << "\"pc_time\":\"" << escapeJson(pcTime) << "\","
-                 << "\"error\":\"" << escapeJson(relayResult.error) << "\""
+                 << "\"error\":\"DATE command failed\""
                  << "}";
             return json.str();
         }
 
-        auto [syncStatus, diffSec] = compareTime(relayResult.datetime, pcTime);
+        std::string relayTime = cleanRelayText(rawResponse);
+        if (relayTime.empty())
+        {
+            std::ostringstream json;
+            json << "{"
+                 << "\"action\":\"read_time\","
+                 << "\"status\":\"error\","
+                 << "\"pc_time\":\"" << escapeJson(pcTime) << "\","
+                 << "\"error\":\"Cannot parse DATE response\""
+                 << "}";
+            return json.str();
+        }
+
+        auto [syncStatus, diffSec] = compareTime(relayTime, pcTime);
 
         std::ostringstream json;
         json << "{"
              << "\"action\":\"read_time\","
              << "\"status\":\"success\","
-             << "\"relay_time\":\"" << escapeJson(relayResult.datetime) << "\","
+             << "\"relay_time\":\"" << escapeJson(relayTime) << "\","
              << "\"pc_time\":\"" << escapeJson(pcTime) << "\","
              << "\"sync_status\":\"" << syncStatus << "\","
              << "\"diff_seconds\":" << diffSec
@@ -199,42 +195,34 @@ private:
 
     // ── sync_time handler ───────────────────────────────────────────────
 
-    /**
-     * @brief Handle the "sync_time" action.
-     * @details Writes the current local PC time to the relay via SETTIME.
-     * @return JSON string with status and new_time or error.
-     */
     std::string handleSyncTime()
     {
         std::string pcTime = getLocalPCTime();
-        auto result = relay_.syncRelayTime(pcTime);
+        std::string resp = send_("SETTIME " + pcTime);
 
-        if (result.success)
+        if (resp.empty())
+            return buildErrorJson("sync_time", "SETTIME command failed");
+
+        std::string upper = resp;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+
+        if (upper.find("ERR") != std::string::npos
+            || upper.find("DENIED") != std::string::npos)
         {
-            std::ostringstream json;
-            json << "{"
-                 << "\"action\":\"sync_time\","
-                 << "\"status\":\"success\","
-                 << "\"new_time\":\"" << escapeJson(result.datetime) << "\""
-                 << "}";
-            return json.str();
+            return buildErrorJson("sync_time", "Relay rejected SETTIME: " + resp.substr(0, 120));
         }
-        else
-        {
-            return buildErrorJson("sync_time", result.error);
-        }
+
+        std::ostringstream json;
+        json << "{"
+             << "\"action\":\"sync_time\","
+             << "\"status\":\"success\","
+             << "\"new_time\":\"" << escapeJson(pcTime) << "\""
+             << "}";
+        return json.str();
     }
 
     // ── sntp_sync handler ────────────────────────────────────────────────
 
-    /**
-     * @brief Handle the "sntp_sync" action.
-     * @details Sends SNTP configuration commands to the relay:
-     *          1. SET E_SNTP Y   — enable SNTP on the relay
-     *          2. SET SNTP_SERV1 <server> — set primary SNTP server address
-     * @param sntpServer  NTP server hostname or IP (e.g. "pool.ntp.org")
-     * @return JSON string with status and detail or error.
-     */
     std::string handleSntpSync(const std::string& sntpServer,
                                const std::string& relayPassword)
     {
@@ -244,65 +232,50 @@ private:
         if (relayPassword.empty())
             return buildErrorJson("sntp_sync", "Relay password not available in config");
 
-        // Read device time BEFORE sync
-        auto beforeResult = relay_.readRelayTime();
-        std::string oldTime = beforeResult.success ? beforeResult.datetime : "unknown";
+        // Build the full command sequence
+        std::vector<std::string> cmds = {
+            "DATE",                              // 0: read old time
+            "2AC",                               // 1: request Level 2
+            relayPassword,                       // 2: send password
+            "SET E_SNTP Y",                      // 3: enable SNTP
+            "SET SNTP_SERV1 " + sntpServer,      // 4: set NTP server
+            "ACC",                               // 5: drop to Level 1
+            "DATE"                               // 6: read new time
+        };
 
-        // Step 1: Elevate to Level 2 (SET commands require 2AC access)
-        auto loginResult = relay_.elevateToLevel2(relayPassword);
-        if (!loginResult.success)
+        // Execute atomically (single lock, no interleaving)
+        std::vector<std::string> results;
+        if (sendBatch_)
         {
-            std::ostringstream json;
-            json << "{"
-                 << "\"action\":\"sntp_sync\","
-                 << "\"status\":\"error\","
-                 << "\"step\":\"level2_access\","
-                 << "\"old_time\":\"" << escapeJson(oldTime) << "\","
-                 << "\"error\":\"" << escapeJson(loginResult.error) << "\""
-                 << "}";
-            return json.str();
+            results = sendBatch_(cmds);
+        }
+        else
+        {
+            // Fallback: send one by one (less safe but still works)
+            for (const auto& cmd : cmds)
+                results.push_back(send_(cmd));
         }
 
-        // Step 2: Enable SNTP on the relay
-        auto enableResult = relay_.sendRelayCommandStrict("SET E_SNTP Y");
-        if (!enableResult.success)
-        {
-            relay_.sendRelayCommand("ACC");
-            std::ostringstream json;
-            json << "{"
-                 << "\"action\":\"sntp_sync\","
-                 << "\"status\":\"error\","
-                 << "\"step\":\"enable\","
-                 << "\"old_time\":\"" << escapeJson(oldTime) << "\","
-                 << "\"error\":\"" << escapeJson(enableResult.error) << "\""
-                 << "}";
-            return json.str();
-        }
+        // Parse results
+        std::string oldTime = (results.size() > 0) ? cleanRelayText(results[0]) : "";
+        if (oldTime.empty()) oldTime = "unknown";
 
-        // Step 3: Set the SNTP server address
-        auto serverResult = relay_.sendRelayCommandStrict("SET SNTP_SERV1 " + sntpServer);
-        if (!serverResult.success)
-        {
-            relay_.sendRelayCommand("ACC");
-            std::ostringstream json;
-            json << "{"
-                 << "\"action\":\"sntp_sync\","
-                 << "\"status\":\"error\","
-                 << "\"step\":\"set_server\","
-                 << "\"old_time\":\"" << escapeJson(oldTime) << "\","
-                 << "\"error\":\"" << escapeJson(serverResult.error) << "\""
-                 << "}";
-            return json.str();
-        }
+        // Check Level 2 access (step 1+2)
+        if (results.size() < 3 || results[2].empty() || hasError(results[2]))
+            return buildSntpError("level2_access", "Level 2 access failed", oldTime);
 
-        // Step 4: Drop back to Level 1
-        relay_.sendRelayCommand("ACC");
+        // Check SNTP enable (step 3)
+        if (results.size() < 4 || results[3].empty() || hasError(results[3]))
+            return buildSntpError("enable", "SET E_SNTP Y failed", oldTime);
 
-        // Read device time AFTER sync
-        auto afterResult = relay_.readRelayTime();
-        std::string newTime = afterResult.success ? afterResult.datetime : "pending";
+        // Check server set (step 4)
+        if (results.size() < 5 || results[4].empty() || hasError(results[4]))
+            return buildSntpError("set_server", "SET SNTP_SERV1 failed", oldTime);
 
-        // Success
+        // Parse new time (step 6)
+        std::string newTime = (results.size() > 6) ? cleanRelayText(results[6]) : "";
+        if (newTime.empty()) newTime = "pending";
+
         std::ostringstream json;
         json << "{"
              << "\"action\":\"sntp_sync\","
@@ -314,7 +287,72 @@ private:
         return json.str();
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────
+    // ── Internal Helpers ────────────────────────────────────────────────
+
+    /// Read relay time using the DATE command through the pipeline.
+    std::string readRelayTimeViaCmd()
+    {
+        std::string resp = send_("DATE");
+        if (resp.empty()) return "unknown";
+        std::string t = cleanRelayText(resp);
+        return t.empty() ? "unknown" : t;
+    }
+
+    /// Check if a raw relay response contains error indicators.
+    static bool hasError(const std::string& resp)
+    {
+        std::string upper = resp;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        return upper.find("ERR") != std::string::npos
+            || upper.find("ACCESS") != std::string::npos
+            || upper.find("DENIED") != std::string::npos
+            || upper.find("INVALID") != std::string::npos;
+    }
+
+    /// Strip Telnet echo/prompts from raw DATE response, return datetime string.
+    static std::string cleanRelayText(const std::string& raw)
+    {
+        std::istringstream iss(raw);
+        std::string line;
+        while (std::getline(iss, line))
+        {
+            auto start = line.find_first_not_of(" \t\r\n");
+            if (start == std::string::npos) continue;
+            auto end = line.find_last_not_of(" \t\r\n");
+            std::string trimmed = line.substr(start, end - start + 1);
+
+            if (trimmed.find("DATE") == 0 || trimmed.find("date") == 0)
+                continue;
+            if (trimmed.find("=>") != std::string::npos && trimmed.size() < 5)
+                continue;
+
+            bool hasDigit = false, hasSep = false;
+            for (char c : trimmed)
+            {
+                if (std::isdigit(static_cast<unsigned char>(c))) hasDigit = true;
+                if (c == '-' || c == '/' || c == ':') hasSep = true;
+            }
+            if (hasDigit && hasSep)
+                return trimmed;
+        }
+        return {};
+    }
+
+    /// Build a JSON error for sntp_sync with step and old_time.
+    std::string buildSntpError(const std::string& step,
+                               const std::string& error,
+                               const std::string& oldTime)
+    {
+        std::ostringstream json;
+        json << "{"
+             << "\"action\":\"sntp_sync\","
+             << "\"status\":\"error\","
+             << "\"step\":\"" << step << "\","
+             << "\"old_time\":\"" << escapeJson(oldTime) << "\","
+             << "\"error\":\"" << escapeJson(error) << "\""
+             << "}";
+        return json.str();
+    }
 
     /**
      * @brief Parse "YYYY-MM-DD HH:MM:SS" to system_clock::time_point.
@@ -375,5 +413,6 @@ private:
         return json.str();
     }
 
-    RelayService& relay_;
+    CommandSender send_;
+    BatchSender sendBatch_;
 };

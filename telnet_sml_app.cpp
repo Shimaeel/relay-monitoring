@@ -655,8 +655,8 @@ public:
                 return result;
             }
 
-            // ── Time sync — sync_time / sntp_sync ──
-            if (action == "sync_time" || action == "sntp_sync")
+            // ── Time sync — read_time / sync_time / sntp_sync ──
+            if (action == "read_time" || action == "sync_time" || action == "sntp_sync")
             {
                 std::string relayId = extractJsonField(jsonMsg, "relay_id");
                 if (relayId.empty())
@@ -666,8 +666,14 @@ public:
                 if (!pipeline)
                     return "{\"action\":\"" + action + "\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
 
-                RelayService svc(pipeline->getClient());
-                TimeSyncManager tsm(svc);
+                // Route commands through pipeline (thread-safe)
+                auto sender = [pipeline](const std::string& cmd) {
+                    return pipeline->handleUserCommand(cmd);
+                };
+                auto batchSender = [pipeline](const std::vector<std::string>& cmds) {
+                    return pipeline->handleUserCommandBatch(cmds);
+                };
+                TimeSyncManager tsm(sender, batchSender);
 
                 std::string sntpServer = extractJsonField(jsonMsg, "sntp_server");
                 return tsm.handleAction(action, sntpServer, pipeline->config().password);

@@ -204,6 +204,11 @@ function sendSntpSyncAction(server) {
     showToast("WebSocket not connected — cannot send SNTP config", "error");
     return;
   }
+  // Pause device time polling during SNTP sync to reduce contention
+  if (_deviceTimePoller) {
+    clearInterval(_deviceTimePoller);
+    _deviceTimePoller = null;
+  }
   _timeSyncWs.send(JSON.stringify({
     action: "sntp_sync",
     relay_id: currentRelay.id,
@@ -237,7 +242,10 @@ function handleTimeSyncResponse(msg) {
   if (msg.action === "sntp_sync") {
     sntpSendBtn.disabled = false;
     sntpSendBtn.textContent = "▶ Send SNTP Config";
-
+    // Resume device time polling
+    if (!_deviceTimePoller) {
+      _deviceTimePoller = setInterval(() => sendTimeSyncAction("read_time"), 10000);
+    }
     // Always show old device time if available
     if (msg.old_time) {
       sntpOldTimeEl.textContent = msg.old_time;

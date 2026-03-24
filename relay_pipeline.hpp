@@ -57,6 +57,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "client.hpp"
 #include "relay_config.hpp"
@@ -393,7 +394,37 @@ public:
     std::string handleUserCommand(const std::string& cmd)
     {
         std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
+        return executeUserCommandLocked(cmd);
+    }
 
+    /**
+     * @brief Execute multiple commands atomically under a single lock.
+     *
+     * @details Acquires sync_cmd_mutex_ once and runs all commands in
+     * sequence.  This prevents the pipeline worker from interleaving
+     * commands between steps (critical for multi-step flows like
+     * 2AC → password → SET → SET → ACC).
+     *
+     * @param cmds  Vector of command strings to execute in order
+     * @return Vector of raw responses (empty string on individual failure)
+     */
+    std::vector<std::string> handleUserCommandBatch(const std::vector<std::string>& cmds)
+    {
+        std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
+        std::vector<std::string> results;
+        results.reserve(cmds.size());
+
+        for (const auto& cmd : cmds)
+        {
+            results.push_back(executeUserCommandLocked(cmd));
+        }
+        return results;
+    }
+
+private:
+    /// Execute a single command (caller must already hold sync_cmd_mutex_).
+    std::string executeUserCommandLocked(const std::string& cmd)
+    {
         for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt)
         {
             if (stop_flag_.load())
@@ -419,6 +450,8 @@ public:
         }
         return "";
     }
+
+public:
 
     /**
      * @brief Trigger FSM reconnection from external code.
@@ -732,6 +765,19 @@ public:
         if (rxWorker_)
             return rxWorker_->handleUserCommand(cmd);
         return "";
+    }
+
+    /**
+     * @brief Execute multiple commands atomically (single lock hold).
+     *
+     * @param cmds  Vector of command strings
+     * @return Vector of raw responses
+     */
+    std::vector<std::string> handleUserCommandBatch(const std::vector<std::string>& cmds)
+    {
+        if (rxWorker_)
+            return rxWorker_->handleUserCommandBatch(cmds);
+        return std::vector<std::string>(cmds.size(), "");
     }
 
     /// @return true if pipeline is currently running
