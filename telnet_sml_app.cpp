@@ -667,27 +667,8 @@ public:
                     return "{\"action\":\"sync_time\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
 
                 RelayService svc(pipeline->getClient());
-                TimeSyncManager tsm(svc, pipeline->config().password);
+                TimeSyncManager tsm(svc);
                 return tsm.handleAction(action);
-            }
-
-            // ── SNTP time sync — query NTP server then write to relay ──
-            if (action == "sntp_sync_time")
-            {
-                std::string relayId   = extractJsonField(jsonMsg, "relay_id");
-                std::string ntpServer = extractJsonField(jsonMsg, "ntp_server");
-                if (ntpServer.empty()) ntpServer = "pool.ntp.org";
-
-                if (relayId.empty())
-                    return "{\"action\":\"sntp_sync_time\",\"status\":\"failed\",\"error\":\"Missing relay_id\"}";
-
-                auto* pipeline = relayMgr->getPipeline(relayId);
-                if (!pipeline)
-                    return "{\"action\":\"sntp_sync_time\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
-
-                RelayService svc(pipeline->getClient());
-                TimeSyncManager tsm(svc, pipeline->config().password);
-                return tsm.handleAction(action, ntpServer);
             }
 
             // ── Password change (requires relay_id to know which relay) ──

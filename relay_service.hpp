@@ -207,22 +207,15 @@ public:
         return result;
     }
 
-    // ── DATE Write (SEL Protocol) ──────────────────────────────────────
+    // ── DATE Write (SETTIME) ────────────────────────────────────────────
 
     /**
-     * @brief Escalate to Level 2, set DATE and TIME on the relay, then
-     *        drop back to Level 1.
+     * @brief Send SETTIME command with the given datetime to the relay.
      *
-     * SEL relays require Level 2 access for setting date/time.
-     * The relay DATE command uses MM/DD/YYYY format.
-     * The relay TIME command uses HH:MM:SS.mmm format.
-     *
-     * @param datetime     ISO formatted string: "YYYY-MM-DD HH:MM:SS"
-     * @param l2Password   Level 2 password (default: same as Level 1)
+     * @param datetime  Formatted string: "YYYY-MM-DD HH:MM:SS"
      * @return DateResult with success/failure and any error message
      */
-    DateResult syncRelayTime(const std::string& datetime,
-                             const std::string& l2Password = "OTTER")
+    DateResult syncRelayTime(const std::string& datetime)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         DateResult result;
@@ -233,102 +226,36 @@ public:
             return result;
         }
 
-        // ── Parse ISO datetime "YYYY-MM-DD HH:MM:SS" ───────────────────
-        //    Convert to SEL format: DATE MM/DD/YYYY  and  TIME HH:MM:SS.000
-        if (datetime.size() < 19 || datetime[4] != '-' || datetime[7] != '-'
-            || datetime[10] != ' ' || datetime[13] != ':' || datetime[16] != ':')
-        {
-            result.error = "Invalid datetime format (expected YYYY-MM-DD HH:MM:SS)";
-            return result;
-        }
+        // Build ASN.1 encoded payload
+        auto payload = asn_date::encodeASN1Date(datetime);
 
-        std::string year  = datetime.substr(0, 4);
-        std::string month = datetime.substr(5, 2);
-        std::string day   = datetime.substr(8, 2);
-        std::string hms   = datetime.substr(11, 8);   // HH:MM:SS
-
-        std::string selDate = month + "/" + day + "/" + year;   // MM/DD/YYYY
-        std::string selTime = hms + ".000";                    // HH:MM:SS.mmm
-
+        // Send SETTIME command with the datetime string
+        // Relay expects: SETTIME YYYY-MM-DD HH:MM:SS
+        std::string cmd = "SETTIME " + datetime;
         std::string rawResponse;
-        bool ok = false;
+        bool ok = client_.SendCmdReceiveData(cmd, rawResponse);
 
-        // ── Step 1: Escalate to Level 2 ─────────────────────────────────
-        ok = client_.SendCmdReceiveData("2ACC", rawResponse);
         if (!ok)
         {
-            result.error = "2ACC command failed — cannot escalate to Level 2";
+            result.error = "SETTIME command failed";
             return result;
         }
 
-        // Relay prompts for password — send the Level 2 password
-        ok = client_.SendCmdReceiveData(l2Password, rawResponse);
-        if (!ok)
+        // Check for ACK in response
+        std::string upper = rawResponse;
+        std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+
+        if (upper.find("ACK") != std::string::npos
+            || upper.find("OK") != std::string::npos
+            || upper.find("=>") != std::string::npos)
         {
-            result.error = "Level 2 password rejected";
-            return result;
+            result.success  = true;
+            result.datetime = datetime;
         }
-
-        // Check that we got to Level 2 (response should contain "=>" and
-        // NOT contain "ERR" or "Invalid")
+        else
         {
-            std::string upper = rawResponse;
-            std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
-            if (upper.find("ERR") != std::string::npos
-                || upper.find("INVALID") != std::string::npos)
-            {
-                result.error = "Level 2 access denied: " + rawResponse.substr(0, 120);
-                return result;
-            }
+            result.error = "No ACK received from relay: " + rawResponse.substr(0, 120);
         }
-
-        // ── Step 2: Set DATE ────────────────────────────────────────────
-        std::string dateCmd = "DATE " + selDate;
-        ok = client_.SendCmdReceiveData(dateCmd, rawResponse);
-        if (!ok)
-        {
-            result.error = "DATE command failed";
-            return result;
-        }
-
-        // Check DATE response for errors
-        {
-            std::string upper = rawResponse;
-            std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
-            if (upper.find("ERR") != std::string::npos)
-            {
-                result.error = "DATE command error: " + rawResponse.substr(0, 120);
-                return result;
-            }
-        }
-
-        // ── Step 3: Set TIME ────────────────────────────────────────────
-        std::string timeCmd = "TIME " + selTime;
-        ok = client_.SendCmdReceiveData(timeCmd, rawResponse);
-        if (!ok)
-        {
-            result.error = "TIME command failed";
-            return result;
-        }
-
-        // Check TIME response for errors
-        {
-            std::string upper = rawResponse;
-            std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
-            if (upper.find("ERR") != std::string::npos)
-            {
-                result.error = "TIME command error: " + rawResponse.substr(0, 120);
-                return result;
-            }
-        }
-
-        // ── Step 4: Drop back to Level 1 (ACC) ─────────────────────────
-        client_.SendCmdReceiveData("ACC", rawResponse);  // best-effort
-
-        result.success  = true;
-        result.datetime = datetime;
-        std::cout << "[RelayService] Time synced → DATE " << selDate
-                  << "  TIME " << selTime << "\n";
 
         return result;
     }

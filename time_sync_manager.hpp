@@ -15,7 +15,7 @@
  * |-------------------|------------------------------------------|
  * | read_time         | Read relay DATE + local PC time          |
  * | sync_time         | Write local PC time to relay             |
- * | sntp_sync_time    | Query NTP server, then write to relay    |
+
  *
  * ## Data Flow
  *
@@ -48,7 +48,6 @@
 
 #include "dll_export.hpp"
 #include "relay_service.hpp"
-#include "sntp_client.hpp"
 #include "client.hpp"
 
 #include <chrono>
@@ -74,13 +73,8 @@ public:
      *
      * @param relay  RelayService wrapping TelnetClient (must outlive this manager)
      */
-    /**
-     * @param relay       RelayService wrapping TelnetClient
-     * @param l2Password  Level 2 password for time-set escalation
-     */
-    explicit TimeSyncManager(RelayService& relay,
-                             const std::string& l2Password = "OTTER")
-        : relay_(relay), l2Password_(l2Password)
+    explicit TimeSyncManager(RelayService& relay)
+        : relay_(relay)
     {
     }
 
@@ -140,27 +134,19 @@ public:
      * Supported actions:
      *   - "read_time"       → reads relay time, gets PC time, compares
      *   - "sync_time"       → writes PC time to relay
-     *   - "sntp_sync_time"  → queries NTP server, writes that time to relay
      *
      * @param action     The "action" field value from the incoming JSON
-     * @param ntpServer  NTP server hostname (used only for sntp_sync_time)
      * @return JSON response string to send back via WebSocket
      */
-    std::string handleAction(const std::string& action,
-                             const std::string& ntpServer = "pool.ntp.org")
+    std::string handleAction(const std::string& action)
     {
         if (action == "read_time")
             return handleReadTime();
         if (action == "sync_time")
             return handleSyncTime();
-        if (action == "sntp_sync_time")
-            return handleSNTPSync(ntpServer);
 
         return buildErrorJson(action, "Unknown action: " + action);
     }
-
-    /// @brief Set the Level 2 password for relay time-set
-    void setL2Password(const std::string& pw) { l2Password_ = pw; }
 
 private:
     // ── read_time handler ───────────────────────────────────────────────
@@ -207,13 +193,13 @@ private:
 
     /**
      * @brief Handle the "sync_time" action.
-     * @details Escalates to Level 2, writes PC time via DATE + TIME commands.
+     * @details Writes the current local PC time to the relay via SETTIME.
      * @return JSON string with status and new_time or error.
      */
     std::string handleSyncTime()
     {
         std::string pcTime = getLocalPCTime();
-        auto result = relay_.syncRelayTime(pcTime, l2Password_);
+        auto result = relay_.syncRelayTime(pcTime);
 
         if (result.success)
         {
@@ -228,61 +214,6 @@ private:
         else
         {
             return buildErrorJson("sync_time", result.error);
-        }
-    }
-
-    // ── sntp_sync_time handler ───────────────────────────────────────────
-
-    /**
-     * @brief Handle the "sntp_sync_time" action.
-     * @details Queries an NTP server for the current time, then writes
-     *          that time to the relay via SETTIME.
-     * @param ntpServer  NTP server hostname (e.g. "pool.ntp.org")
-     * @return JSON string with status, ntp_server, ntp_time, and new_time.
-     */
-    std::string handleSNTPSync(const std::string& ntpServer)
-    {
-        SNTPClient sntp;
-        auto ntpResult = sntp.query(ntpServer, 5000);
-
-        if (!ntpResult.success)
-        {
-            std::ostringstream json;
-            json << "{"
-                 << "\"action\":\"sntp_sync_time\","
-                 << "\"status\":\"failed\","
-                 << "\"ntp_server\":\"" << escapeJson(ntpServer) << "\","
-                 << "\"error\":\"" << escapeJson(ntpResult.error) << "\""
-                 << "}";
-            return json.str();
-        }
-
-        // Write NTP time to relay (with Level 2 escalation)
-        auto relayResult = relay_.syncRelayTime(ntpResult.datetime, l2Password_);
-
-        if (relayResult.success)
-        {
-            std::ostringstream json;
-            json << "{"
-                 << "\"action\":\"sntp_sync_time\","
-                 << "\"status\":\"success\","
-                 << "\"ntp_server\":\"" << escapeJson(ntpServer) << "\","
-                 << "\"ntp_time\":\"" << escapeJson(ntpResult.datetime) << "\","
-                 << "\"new_time\":\"" << escapeJson(relayResult.datetime) << "\""
-                 << "}";
-            return json.str();
-        }
-        else
-        {
-            std::ostringstream json;
-            json << "{"
-                 << "\"action\":\"sntp_sync_time\","
-                 << "\"status\":\"failed\","
-                 << "\"ntp_server\":\"" << escapeJson(ntpServer) << "\","
-                 << "\"ntp_time\":\"" << escapeJson(ntpResult.datetime) << "\","
-                 << "\"error\":\"" << escapeJson(relayResult.error) << "\""
-                 << "}";
-            return json.str();
         }
     }
 
@@ -348,5 +279,4 @@ private:
     }
 
     RelayService& relay_;
-    std::string   l2Password_;          ///< Level 2 password for time-set
 };

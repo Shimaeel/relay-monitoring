@@ -17,15 +17,12 @@ const relayHeaderName   = document.getElementById("relay-name");
 const relaySubtitle     = document.getElementById("relay-subtitle");
 const relayStatusBadge  = document.getElementById("relay-status-badge");
 const syncTimeBtn       = document.getElementById("sync-time-btn");
-const sntpSyncBtn       = document.getElementById("sntp-sync-btn");
-const ntpServerInput    = document.getElementById("ntp-server-input");
 const backBtn           = document.getElementById("back-btn");
 const appContainer      = document.getElementById("app");
 const relayImage        = document.getElementById("relay-image");
 const toastContainer    = document.getElementById("toast-container");
 const deviceTimeEl      = document.getElementById("device-time");
 const pcTimeEl          = document.getElementById("pc-time");
-const ntpTimeEl         = document.getElementById("ntp-time");
 const timeSyncStatusEl  = document.getElementById("time-sync-status");
 
 // ============================================================
@@ -90,14 +87,6 @@ function bindEvents() {
   syncTimeBtn.addEventListener("click", () => {
     sendTimeSyncAction("sync_time");
   });
-
-  // SNTP sync — queries NTP server then writes to relay
-  if (sntpSyncBtn) {
-    sntpSyncBtn.addEventListener("click", () => {
-      const server = ntpServerInput ? ntpServerInput.value.trim() : "pool.ntp.org";
-      sendSNTPSyncAction(server);
-    });
-  }
 }
 
 // ============================================================
@@ -181,44 +170,15 @@ function sendTimeSyncAction(action) {
     syncTimeBtn.textContent = "⏳ Syncing…";
   }
 }
-function sendSNTPSyncAction(ntpServer) {
-  if (!_timeSyncWs || _timeSyncWs.readyState !== WebSocket.OPEN) {
-    showToast("WebSocket not connected", "error");
-    return;
-  }
-  _timeSyncWs.send(JSON.stringify({
-    action: "sntp_sync_time",
-    relay_id: currentRelay.id,
-    ntp_server: ntpServer
-  }));
-  if (sntpSyncBtn) {
-    sntpSyncBtn.disabled = true;
-    sntpSyncBtn.textContent = "⌛ NTP Syncing…";
-  }
-}
 function handleTimeSyncResponse(msg) {
   if (msg.action === "sync_time") {
     syncTimeBtn.disabled = false;
-    syncTimeBtn.textContent = "⏱ Sync to PC";
+    syncTimeBtn.textContent = "⏱ Sync Time";
 
     if (msg.status === "success") {
       showToast("Relay time synced to " + msg.new_time, "success");
     } else {
       showToast("Sync failed: " + (msg.error || "unknown"), "error");
-    }
-  }
-
-  if (msg.action === "sntp_sync_time") {
-    if (sntpSyncBtn) {
-      sntpSyncBtn.disabled = false;
-      sntpSyncBtn.textContent = "🌐 Sync to NTP";
-    }
-
-    if (msg.status === "success") {
-      if (ntpTimeEl && msg.ntp_time) ntpTimeEl.textContent = msg.ntp_time;
-      showToast("Relay synced to NTP (" + (msg.ntp_server || "") + ") → " + msg.new_time, "success");
-    } else {
-      showToast("NTP sync failed: " + (msg.error || "unknown"), "error");
     }
   }
 }
