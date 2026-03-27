@@ -67,7 +67,6 @@
 #include "thread_manager.hpp"
 #include "password_manager.hpp"
 #include "ws_server.hpp"
-#include "ws_db_server.hpp"
 
 using namespace sml;
 
@@ -166,7 +165,6 @@ public:
     // ─── Shared resources (owned by Impl) ───────────────────────────
     SERDatabase serDb{"ser_records.db"};                 ///< Single shared SQLite database
     SERWebSocketServer wsServer{serDb, 8765};            ///< Single shared WebSocket server
-    std::unique_ptr<WSDBServer> dbApiServer;             ///< Generic DB WebSocket API (port 8766)
     SharedRingBuffer shmRing{"TelnetSmlShmRing", 500U * 1024U}; ///< Shared ring buffer (500KB)
 
     ThreadManager threadMgr{std::chrono::seconds(120)};          ///< Poller (2 min interval)
@@ -546,12 +544,7 @@ public:
             return false;
         }
 
-        // 6. Generic database WebSocket API on port 8766 (disabled — not used by any front-end)
-        // dbApiServer = std::make_unique<WSDBServer>(serDb.getDbHandle(), 8766);
-        // if (!dbApiServer->start())
-        //     std::cerr << "[WSDB] Warning: DB API server failed to start\n";
-
-        // 7. Polling callback — queue SER to ALL active relays
+        // 6. Polling callback — queue SER to ALL active relays
         threadMgr.setPollingCallback([this]() {
             if (!app_running.load())
                 return;
@@ -648,7 +641,6 @@ public:
         tarBgThreads_.clear();
 
         threadMgr.stopAll();
-        // if (dbApiServer) dbApiServer->stop();
         wsServer.stop();
         serDb.close();
 
