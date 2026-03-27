@@ -372,6 +372,9 @@ function connectSerWebSocket() {
             });
             console.log('[SER] Sent start_relay for relay', relay.id);
           }
+          // Explicitly request fresh SER data in case the initial
+          // binary push from on_accept() was missed (connection hiccup).
+          serWorker.postMessage({ type: 'send', payload: 'getData' });
           serLastMessageAt = Date.now();
           startSerAutoRefresh();
           console.log('[SER] Connected via worker');

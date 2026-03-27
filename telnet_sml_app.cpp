@@ -476,6 +476,12 @@ public:
                 bool ok = relayMgr->startRelay(relayId);
                 if (ok)
                 {
+                    // Broadcast current SER data to all clients immediately.
+                    // Covers the case where SER was fetched before any client
+                    // connected ("Broadcasting full DB to 0 clients") and the
+                    // relay is already active when the client joins.
+                    wsServer.broadcastAll();
+
                     // Only spawn background TAR collection if not already cached or in progress
                     bool shouldCollect = false;
                     {
