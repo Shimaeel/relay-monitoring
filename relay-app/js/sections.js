@@ -48,6 +48,8 @@ let serLastMessageAt   = 0;      // Timestamp of last WS message
 let serDataReceived    = false;  // Whether any data has arrived
 let serWorkerConnected = false;  // Worker WS connected flag
 let serKnownSnos       = new Set(); // tracks sno values already in serTable
+let serDirectWs        = null;   // Direct WebSocket (fallback when SharedArrayBuffer unavailable)
+let serUsingDirect     = false;  // true when using direct WS fallback
 
 const textDecoder = new TextDecoder();
 
@@ -337,9 +339,11 @@ function connectSerWebSocket() {
   stopSerAutoRefresh();
   updateSerConnectionStatus("connecting");
 
+  // Fallback: direct WebSocket from main thread when SharedArrayBuffer
+  // is unavailable (page not served with COOP/COEP headers).
   if (typeof SharedArrayBuffer === 'undefined') {
-    console.error('[SER] SharedArrayBuffer not available — enable Cross-Origin Isolation headers.');
-    updateSerConnectionStatus('error');
+    console.warn('[SER] SharedArrayBuffer not available — using direct WebSocket fallback.');
+    _connectSerDirect();
     return;
   }
 
@@ -424,6 +428,100 @@ function connectSerWebSocket() {
   serWorker.postMessage({ type: 'connect', wsUrl: url });
 }
 
+// ============================================================
+//  Direct WebSocket Fallback (no SharedArrayBuffer / Worker)
+// ============================================================
+
+let _serDirectReconnectTimer = null;
+
+function _connectSerDirect() {
+  serUsingDirect = true;
+  if (serDirectWs) {
+    try { serDirectWs.close(); } catch (_) {}
+    serDirectWs = null;
+  }
+
+  const url = buildSerWsUrl();
+  console.log('[SER-Direct] Connecting to', url);
+  const ws = new WebSocket(url);
+  ws.binaryType = 'arraybuffer';
+  serDirectWs = ws;
+
+  ws.onopen = () => {
+    serWorkerConnected = true;
+    updateSerConnectionStatus('connected');
+
+    // Start relay pipeline on the C++ backend
+    const relay = getCurrentRelay();
+    if (relay) {
+      ws.send(JSON.stringify({ action: "start_relay", relay_id: String(relay.id) }));
+      console.log('[SER-Direct] Sent start_relay for relay', relay.id);
+    }
+    // Request fresh SER data
+    ws.send('getData');
+    serLastMessageAt = Date.now();
+    startSerAutoRefresh();
+    console.log('[SER-Direct] Connected');
+  };
+
+  ws.onmessage = (event) => {
+    const data = event.data;
+
+    // Binary → TLV-encoded SER records
+    if (data instanceof ArrayBuffer) {
+      try {
+        let records = decodeSerRecordsFromTlv(data);
+        const relay = getCurrentRelay();
+        if (relay) {
+          records = records.filter(r => r.relayId === String(relay.id));
+        }
+        if (records.length > 0) {
+          updateSerTable(records);
+          serLastMessageAt = Date.now();
+        }
+      } catch (err) {
+        console.error('[SER-Direct] TLV decode error:', err);
+      }
+      return;
+    }
+
+    // Text — TAR batch push
+    if (typeof data === 'string' && data.startsWith('TAR_BATCH_ALL:')) {
+      _handleTarBatchPush(data);
+      return;
+    }
+
+    // Text — JSON array fallback
+    if (typeof data === 'string') {
+      try {
+        const json = JSON.parse(data);
+        if (Array.isArray(json)) {
+          updateSerTable(json);
+          serLastMessageAt = Date.now();
+        }
+      } catch (_) { /* non-JSON text — ignore */ }
+    }
+  };
+
+  ws.onclose = () => {
+    serWorkerConnected = false;
+    console.log('[SER-Direct] Closed');
+    updateSerConnectionStatus(serDataReceived ? 'synced' : 'disconnected');
+    stopSerAutoRefresh();
+    // Auto-reconnect after 3s
+    _serDirectReconnectTimer = setTimeout(() => {
+      if (serUsingDirect && !serDirectWs) {
+        _connectSerDirect();
+      }
+    }, 3000);
+  };
+
+  ws.onerror = () => {
+    console.error('[SER-Direct] Connection error');
+    updateSerConnectionStatus('error');
+  };
+}
+
 function _serStartRingReader() {
   if (serReaderRunning || !serRing) return;
 
@@ -493,6 +591,12 @@ function _serStopReading() {
 function disconnectSerWebSocket() {
   _serStopReading();
   stopSerAutoRefresh();
+  if (serDirectWs) {
+    serUsingDirect = false;
+    if (_serDirectReconnectTimer) { clearTimeout(_serDirectReconnectTimer); _serDirectReconnectTimer = null; }
+    try { serDirectWs.close(); } catch (_) {}
+    serDirectWs = null;
+  }
   if (serWorker) {
     serWorker.postMessage({ type: 'disconnect' });
   }
@@ -510,7 +614,9 @@ function startSerAutoRefresh() {
   stopSerAutoRefresh();
   serAutoRefresh = setInterval(() => {
     if (Date.now() - serLastMessageAt < rate) return;
-    if (serWorker && serWorkerConnected) {
+    if (serUsingDirect && serDirectWs && serDirectWs.readyState === WebSocket.OPEN) {
+      serDirectWs.send('getData');
+    } else if (serWorker && serWorkerConnected) {
       serWorker.postMessage({ type: 'send', payload: 'getData' });
     }
   }, rate);
@@ -525,7 +631,9 @@ function stopSerAutoRefresh() {
 // ============================================================
 
 function serRefresh() {
-  if (serWorker && serWorkerConnected) {
+  if (serUsingDirect && serDirectWs && serDirectWs.readyState === WebSocket.OPEN) {
+    serDirectWs.send('refresh');
+  } else if (serWorker && serWorkerConnected) {
     serWorker.postMessage({ type: 'send', payload: 'refresh' });
   } else {
     connectSerWebSocket();
