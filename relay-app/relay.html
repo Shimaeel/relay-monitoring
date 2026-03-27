@@ -295,6 +295,60 @@
           </div>
           <!-- ===== END INPUT / OUTPUT SECTION ===== -->
 
+          <!-- ===== TIME SYNC SECTION (static, toggled by sections.js) ===== -->
+          <div id="timesync-section" class="section-card" style="display:none;">
+            <h2>🕒 Time Synchronisation</h2>
+
+            <!-- Time Sync Toolbar -->
+            <div class="ser-toolbar">
+              <div class="ser-toolbar__left">
+                <span id="ts-conn-status" style="font-weight:700">🟡 Idle</span>
+              </div>
+              <div class="ser-toolbar__right">
+                <button class="btn btn--outline btn--sm" onclick="tsRefreshAll()">🔄 Refresh All</button>
+              </div>
+            </div>
+
+            <!-- SNTP Server Config -->
+            <div class="ser-config">
+              <div class="ser-config__field">
+                <label>NTP Server</label>
+                <input id="ts-ntp-server" type="text" value="pool.ntp.org" placeholder="pool.ntp.org" />
+              </div>
+            </div>
+
+            <!-- Time Display Cards -->
+            <div class="ts-cards">
+              <div class="ts-card">
+                <div class="ts-card__label">⏱ Relay Time</div>
+                <div id="ts-relay-time" class="ts-card__time">—</div>
+                <div id="ts-relay-raw" class="ts-card__raw"></div>
+              </div>
+              <div class="ts-card">
+                <div class="ts-card__label">💻 PC Time (UTC)</div>
+                <div id="ts-pc-time" class="ts-card__time">—</div>
+              </div>
+              <div class="ts-card">
+                <div class="ts-card__label">🌐 SNTP Time (UTC)</div>
+                <div id="ts-sntp-time" class="ts-card__time">—</div>
+              </div>
+            </div>
+
+            <!-- Sync Buttons -->
+            <div class="ts-actions">
+              <button id="ts-sync-pc-btn" class="btn btn--primary" onclick="tsSyncWithPcTime()">
+                💻 Sync Relay with PC Time
+              </button>
+              <button id="ts-sync-sntp-btn" class="btn btn--primary" onclick="tsSyncWithSntpTime()">
+                🌐 Sync Relay with SNTP Time
+              </button>
+            </div>
+
+            <!-- Sync Result -->
+            <div id="ts-result" class="ts-result" style="display:none;"></div>
+          </div>
+          <!-- ===== END TIME SYNC SECTION ===== -->
+
           <!-- ===== EVENT REPORT SECTION (static, toggled by sections.js) ===== -->
           <div id="event-section" class="section-card" style="display:none;">
             <h2>📄 Event Report</h2>
@@ -332,6 +386,7 @@
         <div class="right-sidebar" style="z-index:10;">
           <div class="vertical-item" data-section="settings">Settings</div>
           <div class="vertical-item" data-section="comtrade">COMTRADE Files</div>
+          <div class="vertical-item" data-section="timesync">Time Sync</div>
           <div class="vertical-item" data-section="event">Event Report</div>
           <div class="vertical-item" data-section="io">Inputs / Outputs</div>
           <div class="vertical-item" data-section="relayword">Relay Word</div>

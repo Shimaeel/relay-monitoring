@@ -2447,6 +2447,225 @@ function evDisconnect() {
 }
 
 // ============================================================
+//  Time Sync Module
+// ============================================================
+
+/**
+ * Send a JSON action over a transient WebSocket and return the parsed response.
+ * Reuses the SER WebSocket URL (same C++ backend, same port).
+ */
+function _tsSendAction(actionObj) {
+  return new Promise((resolve, reject) => {
+    const url = buildSerWsUrl();
+    const ws  = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error("WebSocket timeout"));
+    }, 8000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify(actionObj));
+    };
+
+    ws.onmessage = (event) => {
+      clearTimeout(timeout);
+      try {
+        // Ignore binary (TLV) frames — we only want text JSON responses
+        if (typeof event.data === 'string') {
+          const resp = JSON.parse(event.data);
+          resolve(resp);
+          ws.close();
+        }
+      } catch (e) {
+        reject(e);
+        ws.close();
+      }
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error("WebSocket error"));
+    };
+
+    ws.onclose = () => {
+      clearTimeout(timeout);
+    };
+  });
+}
+
+function _tsSetStatus(status) {
+  const el = document.getElementById("ts-conn-status");
+  if (!el) return;
+  const map = {
+    idle:       { text: "🟡 Idle",        color: "#d97706" },
+    fetching:   { text: "🟡 Fetching…",   color: "#d97706" },
+    syncing:    { text: "🟡 Syncing…",    color: "#d97706" },
+    success:    { text: "🟢 Done",        color: "#16a34a" },
+    error:      { text: "🔴 Error",       color: "#dc2626" }
+  };
+  const info = map[status] || map.idle;
+  el.textContent = info.text;
+  el.style.color = info.color;
+}
+
+function _tsShowResult(message, isError) {
+  const el = document.getElementById("ts-result");
+  if (!el) return;
+  el.style.display = "";
+  el.className = "ts-result " + (isError ? "ts-result--error" : "ts-result--success");
+  el.textContent = message;
+}
+
+function _tsHideResult() {
+  const el = document.getElementById("ts-result");
+  if (el) el.style.display = "none";
+}
+
+/**
+ * Fetch the relay's DATE response and display it.
+ */
+async function _tsReadRelayTime() {
+  const relay = getCurrentRelay();
+  if (!relay) return;
+  const el = document.getElementById("ts-relay-time");
+  const rawEl = document.getElementById("ts-relay-raw");
+  if (el) el.textContent = "Loading…";
+  if (rawEl) rawEl.textContent = "";
+
+  try {
+    const resp = await _tsSendAction({ action: "read_relay_time", relay_id: String(relay.id) });
+    if (resp.status === "success") {
+      // The relay_time field contains the raw DATE response from the relay
+      const raw = resp.relay_time || "—";
+      // Try to extract a clean date/time from the response
+      if (el) el.textContent = raw.trim().split("\n").find(l => l.match(/\d{2}\/\d{2}\/\d{2}/)) || raw.substring(0, 60);
+      if (rawEl) rawEl.textContent = raw;
+    } else {
+      if (el) el.textContent = "Error";
+      if (rawEl) rawEl.textContent = resp.error || "Unknown error";
+    }
+  } catch (e) {
+    if (el) el.textContent = "Error";
+    if (rawEl) rawEl.textContent = e.message;
+  }
+}
+
+/**
+ * Fetch PC time from the backend.
+ */
+async function _tsReadPcTime() {
+  const el = document.getElementById("ts-pc-time");
+  if (el) el.textContent = "Loading…";
+
+  try {
+    const resp = await _tsSendAction({ action: "read_pc_time" });
+    if (resp.status === "success") {
+      if (el) el.textContent = resp.iso8601 || resp.dateTime || "—";
+    } else {
+      if (el) el.textContent = "Error";
+    }
+  } catch (e) {
+    if (el) el.textContent = "Error";
+  }
+}
+
+/**
+ * Fetch SNTP time from the backend (which queries the NTP server).
+ */
+async function _tsReadSntpTime() {
+  const server = (document.getElementById("ts-ntp-server") || {}).value || "pool.ntp.org";
+  const el = document.getElementById("ts-sntp-time");
+  if (el) el.textContent = "Loading…";
+
+  try {
+    const resp = await _tsSendAction({ action: "read_sntp_time", server: server });
+    if (resp.status === "success") {
+      if (el) el.textContent = resp.iso8601 || resp.dateTime || "—";
+    } else {
+      if (el) el.textContent = "Error: " + (resp.error || "SNTP failed");
+    }
+  } catch (e) {
+    if (el) el.textContent = "Error: " + e.message;
+  }
+}
+
+/**
+ * Refresh all three time displays.
+ */
+async function tsRefreshAll() {
+  _tsHideResult();
+  _tsSetStatus("fetching");
+  try {
+    await Promise.all([_tsReadRelayTime(), _tsReadPcTime(), _tsReadSntpTime()]);
+    _tsSetStatus("success");
+  } catch (_) {
+    _tsSetStatus("error");
+  }
+}
+
+/**
+ * Sync the relay's clock with the PC time.
+ */
+async function tsSyncWithPcTime() {
+  const relay = getCurrentRelay();
+  if (!relay) return;
+  _tsHideResult();
+  _tsSetStatus("syncing");
+
+  try {
+    const resp = await _tsSendAction({
+      action: "sync_relay_pc_time",
+      relay_id: String(relay.id)
+    });
+    if (resp.status === "success") {
+      _tsSetStatus("success");
+      _tsShowResult("Relay time synced with PC time. Sent: " + (resp.set_date || "") + " / " + (resp.set_time || ""), false);
+      // Refresh times after sync
+      await tsRefreshAll();
+    } else {
+      _tsSetStatus("error");
+      _tsShowResult("Sync failed: " + (resp.error || "Unknown error"), true);
+    }
+  } catch (e) {
+    _tsSetStatus("error");
+    _tsShowResult("Sync failed: " + e.message, true);
+  }
+}
+
+/**
+ * Sync the relay's clock with SNTP time.
+ */
+async function tsSyncWithSntpTime() {
+  const relay = getCurrentRelay();
+  if (!relay) return;
+  const server = (document.getElementById("ts-ntp-server") || {}).value || "pool.ntp.org";
+  _tsHideResult();
+  _tsSetStatus("syncing");
+
+  try {
+    const resp = await _tsSendAction({
+      action: "sync_relay_sntp_time",
+      relay_id: String(relay.id),
+      server: server
+    });
+    if (resp.status === "success") {
+      _tsSetStatus("success");
+      _tsShowResult("Relay time synced with SNTP (" + (resp.sntp_time || server) + "). Sent: " + (resp.set_date || "") + " / " + (resp.set_time || ""), false);
+      // Refresh times after sync
+      await tsRefreshAll();
+    } else {
+      _tsSetStatus("error");
+      _tsShowResult("Sync failed: " + (resp.error || "Unknown error"), true);
+    }
+  } catch (e) {
+    _tsSetStatus("error");
+    _tsShowResult("Sync failed: " + e.message, true);
+  }
+}
+
+// ============================================================
 //  Section Loader
 // ============================================================
 
@@ -2531,6 +2750,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // --- References to COMTRADE section (static HTML in relay.html) ---
   const ctrSection   = document.getElementById("comtrade-section");
+
+  // --- References to Time Sync section (static HTML in relay.html) ---
+  const tsSection    = document.getElementById("timesync-section");
 
   // Pre-fill SER config inputs from relay context
   if (serHostInput) serHostInput.value = defaultHost;
@@ -2657,6 +2879,18 @@ document.addEventListener("DOMContentLoaded", function () {
     container.style.display = "";
   }
 
+  function showTimeSyncSection() {
+    if (tsSection) tsSection.style.display = "";
+    container.style.display = "none";
+    // Auto-refresh all times when section is opened
+    if (typeof tsRefreshAll === "function") tsRefreshAll();
+  }
+
+  function hideTimeSyncSection() {
+    if (tsSection) tsSection.style.display = "none";
+    container.style.display = "";
+  }
+
   function loadSection(section) {
 
     // Clean up previous SER resources when switching away
@@ -2695,6 +2929,11 @@ document.addEventListener("DOMContentLoaded", function () {
       hideComtradeSection();
     }
 
+    // Hide Time Sync section when switching away
+    if (section !== "timesync") {
+      hideTimeSyncSection();
+    }
+
     switch (section) {
 
       case "settings":
@@ -2703,6 +2942,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
       case "comtrade":
         showComtradeSection();
+        break;
+
+      case "timesync":
+        showTimeSyncSection();
         break;
 
       case "event":

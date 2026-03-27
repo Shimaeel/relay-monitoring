@@ -66,6 +66,7 @@
 #include "telnet_fsm.hpp"
 #include "thread_manager.hpp"
 #include "password_manager.hpp"
+#include "sntp_client.hpp"
 #include "ws_server.hpp"
 
 using namespace sml;
@@ -528,6 +529,80 @@ public:
                 }
                 result += "]}";
                 return result;
+            }
+
+            // ── Time operations — read relay time, PC time, SNTP time, sync ──
+            if (action == "read_relay_time")
+            {
+                std::string relayId = extractJsonField(jsonMsg, "relay_id");
+                std::cout << "[WS->Action] Reading relay time for " << relayId << "\n";
+                std::string response = relayMgr->handleUserCommand(relayId, "DATE");
+                if (response.empty())
+                    return R"({"action":"read_relay_time","status":"failed","error":"Relay not responding"})";
+                return "{\"action\":\"read_relay_time\",\"status\":\"success\",\"relay_id\":\""
+                     + relayId + "\",\"relay_time\":\"" + escapeTarJson(response) + "\"}";
+            }
+
+            if (action == "read_pc_time")
+            {
+                auto pcTime = SntpClient::getPcTime();
+                return "{\"action\":\"read_pc_time\",\"status\":\"success\",\"iso8601\":\""
+                     + pcTime.iso8601 + "\",\"dateTime\":\"" + pcTime.dateTime
+                     + "\",\"epoch\":" + std::to_string(pcTime.epochSeconds) + "}";
+            }
+
+            if (action == "read_sntp_time")
+            {
+                std::string server = extractJsonField(jsonMsg, "server");
+                if (server.empty()) server = "pool.ntp.org";
+                SntpClient sntp(server);
+                auto sntpTime = sntp.queryTime();
+                if (!sntpTime.success)
+                    return "{\"action\":\"read_sntp_time\",\"status\":\"failed\",\"error\":\""
+                         + escapeTarJson(sntpTime.error) + "\"}";
+                return "{\"action\":\"read_sntp_time\",\"status\":\"success\",\"iso8601\":\""
+                     + sntpTime.iso8601 + "\",\"dateTime\":\"" + sntpTime.dateTime
+                     + "\",\"epoch\":" + std::to_string(sntpTime.epochSeconds) + "}";
+            }
+
+            if (action == "sync_relay_pc_time")
+            {
+                std::string relayId = extractJsonField(jsonMsg, "relay_id");
+                std::cout << "[WS->Action] Syncing relay " << relayId << " with PC time\n";
+                auto pcTime = SntpClient::getPcTime();
+                // SEL relays accept: DATE MM/DD/YY and TIME HH:MM:SS.mmm
+                std::string dateCmd = "DATE " + pcTime.dateTime.substr(0, 8);
+                std::string timeCmd = "TIME " + pcTime.dateTime.substr(9);
+                std::string resp1 = relayMgr->handleUserCommand(relayId, dateCmd);
+                std::string resp2 = relayMgr->handleUserCommand(relayId, timeCmd);
+                bool ok = !resp1.empty() && !resp2.empty();
+                return "{\"action\":\"sync_relay_pc_time\",\"relay_id\":\"" + relayId
+                     + "\",\"status\":\"" + (ok ? "success" : "failed")
+                     + "\",\"set_date\":\"" + escapeTarJson(dateCmd)
+                     + "\",\"set_time\":\"" + escapeTarJson(timeCmd) + "\"}";
+            }
+
+            if (action == "sync_relay_sntp_time")
+            {
+                std::string relayId = extractJsonField(jsonMsg, "relay_id");
+                std::string server  = extractJsonField(jsonMsg, "server");
+                if (server.empty()) server = "pool.ntp.org";
+                std::cout << "[WS->Action] Syncing relay " << relayId << " with SNTP (" << server << ")\n";
+                SntpClient sntp(server);
+                auto sntpTime = sntp.queryTime();
+                if (!sntpTime.success)
+                    return "{\"action\":\"sync_relay_sntp_time\",\"status\":\"failed\",\"error\":\""
+                         + escapeTarJson(sntpTime.error) + "\"}";
+                std::string dateCmd = "DATE " + sntpTime.dateTime.substr(0, 8);
+                std::string timeCmd = "TIME " + sntpTime.dateTime.substr(9);
+                std::string resp1 = relayMgr->handleUserCommand(relayId, dateCmd);
+                std::string resp2 = relayMgr->handleUserCommand(relayId, timeCmd);
+                bool ok = !resp1.empty() && !resp2.empty();
+                return "{\"action\":\"sync_relay_sntp_time\",\"relay_id\":\"" + relayId
+                     + "\",\"status\":\"" + (ok ? "success" : "failed")
+                     + "\",\"sntp_time\":\"" + sntpTime.iso8601
+                     + "\",\"set_date\":\"" + escapeTarJson(dateCmd)
+                     + "\",\"set_time\":\"" + escapeTarJson(timeCmd) + "\"}";
             }
 
             // ── Password change (requires relay_id to know which relay) ──

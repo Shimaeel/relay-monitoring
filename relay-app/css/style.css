@@ -1693,6 +1693,91 @@ ul, ol { list-style: none; }
   box-shadow: 0 0 5px rgba(239, 68, 68, .4);
 }
 
+/* ============================================================
+   Time Sync Section
+   ============================================================ */
+
+.ts-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.ts-card {
+  background: var(--surface-1, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px;
+  text-align: center;
+  transition: box-shadow .2s;
+}
+
+.ts-card:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .06);
+}
+
+.ts-card__label {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.ts-card__time {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  color: var(--text-primary, #1e293b);
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.ts-card__raw {
+  font-size: .75rem;
+  color: var(--text-secondary, #9ca3af);
+  margin-top: 6px;
+  white-space: pre-wrap;
+  max-height: 60px;
+  overflow: auto;
+}
+
+.ts-actions {
+  display: flex;
+  gap: 12px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+
+.ts-actions .btn {
+  flex: 1;
+  min-width: 200px;
+  padding: 12px 20px;
+  font-size: .95rem;
+}
+
+.ts-result {
+  margin: 16px 0;
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 8px);
+  font-size: .88rem;
+  line-height: 1.5;
+}
+
+.ts-result--success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.ts-result--error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
 .ser-status--deassert {
   color: var(--color-success);
 }
