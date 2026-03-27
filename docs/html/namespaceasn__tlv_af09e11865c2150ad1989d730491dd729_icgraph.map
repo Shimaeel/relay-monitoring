@@ -1,7 +1,0 @@
-<map id="asn_tlv::decodeSerRecordsFromTlv" name="asn_tlv::decodeSerRecordsFromTlv">
-<area shape="rect" id="Node000001" title="Decode ASN.1 BER/TLV payload to SER records." alt="" coords="438,5,620,48"/>
-<area shape="rect" id="Node000002" href="$class_shared_ser_reader.html#a9ca0e190a57fd3c195a860076ac729c7" title="Main worker thread loop." alt="" coords="212,13,390,40"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="420,27,391,29,390,24,425,27"/>
-<area shape="rect" id="Node000003" href="$class_shared_ser_reader.html#aabd6c5c15122509fe63d3eef072ff6df" title="Starts the worker thread." alt="" coords="5,13,164,40"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="194,27,164,29,164,24,199,26"/>
-</map>

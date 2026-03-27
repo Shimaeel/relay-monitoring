@@ -1,5 +1,0 @@
-<map id="getRelayConfigs" name="getRelayConfigs">
-<area shape="rect" id="Node000001" title="Get all known relay configurations." alt="" coords="251,5,369,32"/>
-<area shape="rect" id="Node000002" href="$class_relay_manager.html#a6be7adf0421f9d21c772fbdd8704193e" title="Construct a RelayManager." alt="" coords="5,5,203,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="232,19,203,21,203,16,238,19"/>
-</map>

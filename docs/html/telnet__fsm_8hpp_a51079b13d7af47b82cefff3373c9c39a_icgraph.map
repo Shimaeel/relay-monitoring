@@ -1,7 +1,0 @@
-<map id="hasPrompt" name="hasPrompt">
-<area shape="rect" id="Node000001" title="Check if buffer contains a command prompt." alt="" coords="249,43,333,69"/>
-<area shape="rect" id="Node000002" href="$struct_login1_complete_guard.html#a09b327fb3ba790784df03f831db1ad6a" title="Evaluate login completion." alt="" coords="28,5,178,48"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="231,48,178,41,178,36,236,47"/>
-<area shape="rect" id="Node000003" href="$struct_ser_complete_guard.html#a9c929b1959e4c484e43b90c7accea21b" title="Evaluate SER polling completion." alt="" coords="5,72,201,99"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="236,64,193,74,192,69,231,65"/>
-</map>

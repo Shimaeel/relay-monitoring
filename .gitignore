@@ -6,6 +6,10 @@
 *.tmp
 *.out
 
+# Build error logs
+build_err*.txt
+build_errors.txt
+
 # VS Code
 .vscode/
 

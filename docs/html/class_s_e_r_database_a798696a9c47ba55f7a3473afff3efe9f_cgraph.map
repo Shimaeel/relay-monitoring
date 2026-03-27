@@ -1,5 +1,0 @@
-<map id="SERDatabase::exportToJSON" name="SERDatabase::exportToJSON">
-<area shape="rect" id="Node000001" title="Export all records to a JSON file for UI consumption." alt="" coords="5,5,205,32"/>
-<area shape="rect" id="Node000002" href="$class_s_e_r_database.html#a1a997738e16c0b0153823c259b33b071" title="Retrieve all SER records ordered by timestamp (newest first)." alt="" coords="253,5,448,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="205,16,240,19,235,19,205,21"/>
-</map>

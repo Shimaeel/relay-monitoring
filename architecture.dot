@@ -120,11 +120,9 @@ digraph TelnetSmlArchitecture {
         subgraph cluster_services {
             label="Service Managers (via WS actions)";
             style=filled; fillcolor="#eceff1"; color="#546e7a";
-            relayService [label="RelayService\n(mutex-protected)\n· readRelayTime()\n· writeRelayTime()", fillcolor="#cfd8dc"];
-            timeSyncMgr  [label="TimeSyncManager\n· handleAction(action)\n· getLocalPCTime()\n· compareTime()", fillcolor="#cfd8dc"];
+            relayService [label="RelayService\n(mutex-protected)\n· sendRelayCommand()\n· sendRelayCommandStrict()\n· elevateToLevel2()", fillcolor="#cfd8dc"];
             passwordMgr  [label="PasswordManager\n· handleAction(jsonMsg)\n· validatePassword()\n· changePassword()", fillcolor="#cfd8dc"];
         }
-        timeSyncMgr  -> relayService [label="calls"];
         passwordMgr  -> relayService [label="calls"];
         relayService -> client       [label="locked I/O"];
 
@@ -157,7 +155,7 @@ digraph TelnetSmlArchitecture {
         jsWorker   [label="JS Worker\n(shm_worker.js)", fillcolor="#a5d6a7"];
         mainJS     [label="Main JS Thread\n(DOM Access)", fillcolor="#a5d6a7"];
         tabulator  [label="Tabulator / JSON\n(relay.html / index.html)", fillcolor="#81c784"];
-        uiPages    [label="ui.html / status.html\nTimeSyncManager + PasswordManager", fillcolor="#81c784"];
+        uiPages    [label="ui.html / status.html\nPasswordManager", fillcolor="#81c784"];
     }
     wsClient   -> jsWorker  [label="onmessage"];
     jsWorker   -> mainJS    [label="postMessage"];
@@ -193,7 +191,6 @@ digraph TelnetSmlArchitecture {
     wsSess    -> db         [label="getAllRecords()", style=dashed, color="#ef6c00"];
 
     // WS action routing
-    wsServer  -> timeSyncMgr [label="action:\nread_time\nsync_time", style=dashed, color="#546e7a"];
     wsServer  -> passwordMgr [label="action:\nchange_password", style=dashed, color="#546e7a"];
     wsServer  -> recvWorker  [label="UI cmds\n(FIL DIR etc.)", style=dashed, color="#546e7a"];
 
@@ -213,8 +210,6 @@ digraph TelnetSmlArchitecture {
     impl -> db          [style=dotted, arrowhead=diamond, color="#9e9e9e"];
     impl -> rawRing     [style=dotted, arrowhead=diamond, color="#9e9e9e"];
     impl -> shmRing     [style=dotted, arrowhead=diamond, color="#9e9e9e"];
-    impl -> relayService[style=dotted, arrowhead=diamond, color="#9e9e9e"];
-    impl -> timeSyncMgr [style=dotted, arrowhead=diamond, color="#9e9e9e"];
     impl -> passwordMgr [style=dotted, arrowhead=diamond, color="#9e9e9e"];
     impl -> fsm         [style=dotted, arrowhead=diamond, color="#9e9e9e"];
 

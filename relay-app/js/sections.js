@@ -39,11 +39,14 @@ function _prefixCmd(cmd) {
 //  SER Module State
 // ============================================================
 let serTable           = null;   // Tabulator instance
-let serWs              = null;   // WebSocket connection
+let serWorker          = null;   // SER Web Worker
+let serRing            = null;   // SharedArrayBuffer ring buffer handle
+let serReaderId        = -1;     // Ring buffer reader slot
+let serReaderRunning   = false;  // Ring reader loop active
 let serAutoRefresh     = null;   // Polling interval handle
 let serLastMessageAt   = 0;      // Timestamp of last WS message
 let serDataReceived    = false;  // Whether any data has arrived
-let serWorkerConnected = false;  // WebSocket connected flag
+let serWorkerConnected = false;  // Worker WS connected flag
 let serKnownSnos       = new Set(); // tracks sno values already in serTable
 
 const textDecoder = new TextDecoder();
@@ -326,129 +329,172 @@ function updateSerTable(data) {
 }
 
 // ============================================================
-//  Direct WebSocket Connection
+//  Worker + Ring Buffer Connection (SER)
 // ============================================================
 
 function connectSerWebSocket() {
-  disconnectSerWebSocket();
+  _serStopReading();
+  stopSerAutoRefresh();
   updateSerConnectionStatus("connecting");
 
-  const url = buildSerWsUrl();
-  console.log("[SER] Connecting to", url);
-  serWs = new WebSocket(url);
-  serWs.binaryType = "arraybuffer";
+  if (typeof SharedArrayBuffer === 'undefined') {
+    console.error('[SER] SharedArrayBuffer not available — enable Cross-Origin Isolation headers.');
+    updateSerConnectionStatus('error');
+    return;
+  }
 
-  serWs.onopen = () => {
-    serWorkerConnected = true;
-    updateSerConnectionStatus("connected");
+  // Create ring + worker once, reuse on reconnect
+  if (!serWorker) {
+    serRing = createRingBuffer(512 * 1024);  // 512 KB ring
+    serWorker = new Worker('js/ser_worker.js');
 
-    // Start the relay pipeline on the C++ backend (on-demand)
-    const relay = getCurrentRelay();
-    if (relay) {
-      try {
-        const startCmd = JSON.stringify({ action: "start_relay", relay_id: String(relay.id) });
-        serWs.send(startCmd);
-        console.log("[SER] Sent start_relay for relay", relay.id);
-      } catch (_) { /* ignore */ }
-    }
+    serWorker.postMessage({
+      type: 'init',
+      buffer: serRing.buffer,
+      capacity: serRing.capacity
+    });
 
-    // Server already sends initial data on connect — no need for explicit getData.
-    // Start polling only after the initial server push arrives.
-    serLastMessageAt = Date.now();
-    startSerAutoRefresh();
-    console.log("[SER] WebSocket connected");
-  };
+    serWorker.onmessage = (event) => {
+      const msg = event.data;
+      if (!msg || !msg.type) return;
 
-  serWs.onmessage = async (event) => {
-    try {
-      let bytes;
+      if (msg.type === 'ws_status') {
+        serWorkerConnected = msg.status === 'connected';
 
-      // --- Blob ---
-      if (event.data instanceof Blob) {
-        console.log("[SER] Received Blob:", event.data.size, "bytes");
-        const ab = await event.data.arrayBuffer();
-        bytes = new Uint8Array(ab);
-      }
-      // --- ArrayBuffer ---
-      else if (event.data instanceof ArrayBuffer) {
-        console.log("[SER] Received ArrayBuffer:", event.data.byteLength, "bytes");
-        bytes = new Uint8Array(event.data);
-      }
-      // --- Text / JSON ---
-      else {
-        console.log("[SER] Received text:", event.data);
-        // Handle server-pushed TAR_BATCH_ALL (from background TAR collection)
-        if (typeof event.data === "string" && event.data.startsWith("TAR_BATCH_ALL:")) {
-          _handleTarBatchPush(event.data);
+        if (msg.status === 'connected') {
+          updateSerConnectionStatus('connected');
+          // Start relay pipeline on the C++ backend (on-demand)
+          const relay = getCurrentRelay();
+          if (relay) {
+            serWorker.postMessage({
+              type: 'send',
+              payload: JSON.stringify({ action: "start_relay", relay_id: String(relay.id) })
+            });
+            console.log('[SER] Sent start_relay for relay', relay.id);
+          }
+          serLastMessageAt = Date.now();
+          startSerAutoRefresh();
+          console.log('[SER] Connected via worker');
+        } else if (msg.status === 'disconnected') {
+          console.log('[SER] Disconnected');
+          updateSerConnectionStatus(serDataReceived ? 'synced' : 'disconnected');
+          stopSerAutoRefresh();
+        } else if (msg.status === 'error') {
+          console.error('[SER] Worker WS error');
+          updateSerConnectionStatus('error');
+        }
+      } else if (msg.type === 'ws_text') {
+        // Text messages from server (TAR push, JSON fallback)
+        const data = msg.data;
+
+        // TAR batch push (server broadcasts to all connections)
+        if (typeof data === 'string' && data.startsWith('TAR_BATCH_ALL:')) {
+          _handleTarBatchPush(data);
           return;
         }
 
+        // JSON fallback
         try {
-          const json = JSON.parse(event.data);
+          const json = JSON.parse(data);
           if (Array.isArray(json)) {
             updateSerTable(json);
             serLastMessageAt = Date.now();
           }
         } catch (_) { /* non-JSON text */ }
-        return;
+      } else if (msg.type === 'error') {
+        console.error('[SER] Worker error:', msg.message);
+      }
+    };
+
+    serWorker.onerror = (event) => {
+      console.error('[SER] Worker error:', event.message);
+      updateSerConnectionStatus('error');
+    };
+  }
+
+  // Start ring reader
+  _serStartRingReader();
+
+  // Connect via worker
+  const url = buildSerWsUrl();
+  console.log('[SER] Connecting via worker to', url);
+  serWorker.postMessage({ type: 'connect', wsUrl: url });
+}
+
+function _serStartRingReader() {
+  if (serReaderRunning || !serRing) return;
+
+  serReaderId = serRing.registerReader();
+  if (serReaderId < 0) {
+    console.error('[SER] All ring reader slots full');
+    return;
+  }
+
+  serReaderRunning = true;
+  let lastSignal = Atomics.load(serRing.header, 1);
+
+  const pump = async () => {
+    while (serReaderRunning) {
+      // Wait for signal from writer
+      if (typeof Atomics.waitAsync === 'function') {
+        const result = Atomics.waitAsync(serRing.header, 1, lastSignal);
+        if (result && result.value && typeof result.value.then === 'function') {
+          await result.value;
+        } else {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      } else {
+        await new Promise(r => setTimeout(r, 50));
       }
 
-      if (!bytes || bytes.length === 0) {
-        console.warn("[SER] Empty binary payload");
-        return;
+      const current = Atomics.load(serRing.header, 1);
+      if (current === lastSignal) continue;
+      lastSignal = current;
+
+      // Drain all available payloads
+      let payload = serRing.readPayload(serReaderId);
+      while (payload) {
+        try {
+          const buf = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+          let records = decodeSerRecordsFromTlv(buf);
+
+          // Filter to current relay (shared WS sends all relays' records)
+          const relay = getCurrentRelay();
+          if (relay) {
+            records = records.filter(r => r.relayId === String(relay.id));
+          }
+
+          if (records.length > 0) {
+            updateSerTable(records);
+            serLastMessageAt = Date.now();
+          }
+        } catch (err) {
+          console.error('[SER] Ring decode error:', err);
+        }
+        payload = serRing.readPayload(serReaderId);
       }
-
-      console.log("[SER] Binary length:", bytes.length, "| First byte:", "0x" + bytes[0].toString(16));
-
-      // Slice exact payload region (critical for correct TLV parsing)
-      const exactBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-      let records = decodeSerRecordsFromTlv(exactBuffer);
-
-      // Filter to current relay (shared WS sends all relays' records)
-      const relay = getCurrentRelay();
-      if (relay) {
-        records = records.filter(r => r.relayId === String(relay.id));
-      }
-
-      console.log("[SER] Decoded", records.length, "records (filtered for relay", relay ? relay.id : "all", ")");
-
-      if (records.length > 0) {
-        updateSerTable(records);
-        serLastMessageAt = Date.now();
-      }
-    } catch (err) {
-      console.error("[SER] Decode error:", err);
     }
   };
 
-  serWs.onclose = () => {
-    serWorkerConnected = false;
-    console.log("[SER] WebSocket closed");
-    updateSerConnectionStatus(serDataReceived ? "synced" : "disconnected");
-    stopSerAutoRefresh();
-    // Auto-reconnect after 3 s (only if SER section still visible)
-    setTimeout(() => {
-      if (!serWorkerConnected && document.getElementById("ser-table")) {
-        connectSerWebSocket();
-      }
-    }, 3000);
-  };
+  pump();
+}
 
-  serWs.onerror = (err) => {
-    console.error("[SER] WebSocket error:", err);
-    updateSerConnectionStatus("error");
-  };
+function _serStopReading() {
+  serReaderRunning = false;
+  if (serRing && serReaderId >= 0) {
+    serRing.unregisterReader(serReaderId);
+    serReaderId = -1;
+  }
 }
 
 function disconnectSerWebSocket() {
+  _serStopReading();
   stopSerAutoRefresh();
-  if (serWs) {
-    serWs.onclose = null;
-    serWs.onerror = null;
-    serWs.close();
-    serWs = null;
+  if (serWorker) {
+    serWorker.postMessage({ type: 'disconnect' });
   }
   serWorkerConnected = false;
+  updateSerConnectionStatus('disconnected');
 }
 
 // ============================================================
@@ -461,8 +507,8 @@ function startSerAutoRefresh() {
   stopSerAutoRefresh();
   serAutoRefresh = setInterval(() => {
     if (Date.now() - serLastMessageAt < rate) return;
-    if (serWs && serWs.readyState === WebSocket.OPEN) {
-      serWs.send("getData");
+    if (serWorker && serWorkerConnected) {
+      serWorker.postMessage({ type: 'send', payload: 'getData' });
     }
   }, rate);
 }
@@ -476,8 +522,8 @@ function stopSerAutoRefresh() {
 // ============================================================
 
 function serRefresh() {
-  if (serWs && serWs.readyState === WebSocket.OPEN) {
-    serWs.send("refresh");
+  if (serWorker && serWorkerConnected) {
+    serWorker.postMessage({ type: 'send', payload: 'refresh' });
   } else {
     connectSerWebSocket();
   }
@@ -488,20 +534,19 @@ function serExportCSV() {
 }
 
 function serSendQuit() {
-  if (serWs && serWs.readyState === WebSocket.OPEN) {
+  if (serWorker && serWorkerConnected) {
     // Stop the relay pipeline on the C++ backend
     const relay = getCurrentRelay();
     if (relay) {
-      try {
-        serWs.send(JSON.stringify({ action: "stop_relay", relay_id: String(relay.id) }));
-        console.log("[SER] Sent stop_relay for relay", relay.id);
-      } catch (_) { /* ignore */ }
+      serWorker.postMessage({
+        type: 'send',
+        payload: JSON.stringify({ action: "stop_relay", relay_id: String(relay.id) })
+      });
+      console.log('[SER] Sent stop_relay for relay', relay.id);
     }
-    serWs.send("QUIT");
-    serWs.close();
-    stopSerAutoRefresh();
-    updateSerConnectionStatus("disconnected");
+    serWorker.postMessage({ type: 'send', payload: 'QUIT' });
   }
+  disconnectSerWebSocket();
 }
 
 // ============================================================
@@ -2408,7 +2453,7 @@ document.addEventListener("DOMContentLoaded", function () {
         serTable.redraw(true);
       }
       // Auto-connect if not already connected
-      if (!serWs || serWs.readyState !== WebSocket.OPEN) connectSerWebSocket();
+      if (!serWorkerConnected) connectSerWebSocket();
     });
   }
 

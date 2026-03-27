@@ -1,5 +1,0 @@
-<map id="DatabaseWriter::stop" name="DatabaseWriter::stop">
-<area shape="rect" id="Node000001" title="Stop the writer thread." alt="" coords="237,13,381,40"/>
-<area shape="rect" id="Node000002" href="$class_database_writer.html#a1549710f967d0fe08e5a182814842cda" title="Destructor that stops the writer thread." alt="" coords="5,5,189,48"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="218,27,189,29,189,24,224,26"/>
-</map>

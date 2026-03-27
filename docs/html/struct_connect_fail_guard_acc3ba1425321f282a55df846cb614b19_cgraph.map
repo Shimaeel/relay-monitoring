@@ -1,5 +1,0 @@
-<map id="ConnectFailGuard::operator()" name="ConnectFailGuard::operator()">
-<area shape="rect" id="Node000001" title="Evaluate connection failure." alt="" coords="5,5,195,32"/>
-<area shape="rect" id="Node000002" href="$class_telnet_client.html#a6555ca7753fe6733a191cb2f9ce941d4" title="Get the result of the last I/O operation." alt="" coords="243,5,433,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,16,230,19,225,19,195,21"/>
-</map>

@@ -231,12 +231,11 @@ class PipelineReceptionWorker
     // ─── Command Execution ──────────────────────────────────────────────────
 
     /**
-     * @brief Execute a Telnet command via Command FSM with reconnection.
+     * @brief Execute a Telnet command via Command FSM with smart retry.
      *
-     * @details Up to MAX_RETRIES attempts.  Each attempt drives the
-     * Connection FSM to Operational, then fires the command through
-     * the Command FSM.  On failure fires disconnect_event to trigger
-     * the reconnection cycle.
+     * @details Up to MAX_RETRIES attempts with failure-aware retry:
+     * - TIMEOUT:   Retry directly (no reconnect needed)
+     * - CONN_LOST: Trigger reconnect cycle, then retry
      *
      * @param cmd  Telnet command string (e.g. "SER", "FIL DIR")
      */
@@ -267,11 +266,18 @@ class PipelineReceptionWorker
                 return;
             }
 
-            // Phase 3 — command failed → trigger Connection FSM reconnect cycle
-            std::cout << relay_tag_ << " Command '" << cmd << "' failed (attempt "
-                      << attempt << "/" << MAX_RETRIES << ")\n";
-            screen_size_configured_ = false;  // Will re-send after reconnect
-            fsm_.process_event(disconnect_event{});
+            // Phase 3 — smart retry based on failure reason
+            std::cout << relay_tag_ << " Command '" << cmd << "' failed ("
+                      << (cmdResponse_.failReason == CmdFailReason::CONN_LOST ? "CONN_LOST" : "TIMEOUT")
+                      << ", attempt " << attempt << "/" << MAX_RETRIES << ")\n";
+
+            if (cmdResponse_.failReason == CmdFailReason::CONN_LOST)
+            {
+                // Connection dropped — full reconnect needed
+                screen_size_configured_ = false;
+                fsm_.process_event(disconnect_event{});
+            }
+            // TIMEOUT — retry directly without reconnect
         }
 
         std::cout << relay_tag_ << " All retries failed for '" << cmd << "'\n";
@@ -397,30 +403,6 @@ public:
         return executeUserCommandLocked(cmd);
     }
 
-    /**
-     * @brief Execute multiple commands atomically under a single lock.
-     *
-     * @details Acquires sync_cmd_mutex_ once and runs all commands in
-     * sequence.  This prevents the pipeline worker from interleaving
-     * commands between steps (critical for multi-step flows like
-     * 2AC → password → SET → SET → ACC).
-     *
-     * @param cmds  Vector of command strings to execute in order
-     * @return Vector of raw responses (empty string on individual failure)
-     */
-    std::vector<std::string> handleUserCommandBatch(const std::vector<std::string>& cmds)
-    {
-        std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
-        std::vector<std::string> results;
-        results.reserve(cmds.size());
-
-        for (const auto& cmd : cmds)
-        {
-            results.push_back(executeUserCommandLocked(cmd));
-        }
-        return results;
-    }
-
 private:
     /// Execute a single command (caller must already hold sync_cmd_mutex_).
     std::string executeUserCommandLocked(const std::string& cmd)
@@ -443,27 +425,20 @@ private:
                 return cmdResponse_.response;
             }
 
-            std::cout << relay_tag_ << " User cmd '" << cmd << "' failed (attempt "
-                      << attempt << "/" << MAX_RETRIES << ")\n";
-            screen_size_configured_ = false;  // Will re-send after reconnect
-            fsm_.process_event(disconnect_event{});
+            std::cout << relay_tag_ << " User cmd '" << cmd << "' failed ("
+                      << (cmdResponse_.failReason == CmdFailReason::CONN_LOST ? "CONN_LOST" : "TIMEOUT")
+                      << ", attempt " << attempt << "/" << MAX_RETRIES << ")\n";
+
+            if (cmdResponse_.failReason == CmdFailReason::CONN_LOST)
+            {
+                screen_size_configured_ = false;
+                fsm_.process_event(disconnect_event{});
+            }
+            // TIMEOUT — retry directly without reconnect
         }
         return "";
     }
 
-public:
-
-    /**
-     * @brief Trigger FSM reconnection from external code.
-     *
-     * @details Fires disconnect_event so the FSM transitions from
-     * Operational back to Connecting on the next step.
-     */
-    void resetConnection()
-    {
-        screen_size_configured_ = false;
-        fsm_.process_event(disconnect_event{});
-    }
 };
 
 // ============================================================================
@@ -767,31 +742,4 @@ public:
         return "";
     }
 
-    /**
-     * @brief Execute multiple commands atomically (single lock hold).
-     *
-     * @param cmds  Vector of command strings
-     * @return Vector of raw responses
-     */
-    std::vector<std::string> handleUserCommandBatch(const std::vector<std::string>& cmds)
-    {
-        if (rxWorker_)
-            return rxWorker_->handleUserCommandBatch(cmds);
-        return std::vector<std::string>(cmds.size(), "");
-    }
-
-    /// @return true if pipeline is currently running
-    bool isRunning() const { return running_; }
-
-    /// @return Relay configuration for this pipeline
-    const RelayConfig& config() const { return config_; }
-
-    /// @return Relay identifier
-    const std::string& relayId() const { return config_.id; }
-
-    /// @return Relay display name
-    const std::string& relayName() const { return config_.name; }
-
-    /// @return Reference to the underlying TelnetClient for per-relay operations
-    TelnetClient& getClient() { return client_; }
 };

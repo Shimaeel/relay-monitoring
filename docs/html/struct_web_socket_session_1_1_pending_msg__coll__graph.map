@@ -1,9 +1,0 @@
-<map id="WebSocketSession::PendingMsg" name="WebSocketSession::PendingMsg">
-<area shape="rect" id="Node000001" title="Pending message: binary payload or text string, with mode flag." alt="" coords="27,281,232,351"/>
-<area shape="rect" id="Node000002" title=" " alt="" coords="5,140,141,209"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="73,207,77,233,83,256,89,268,83,268,78,258,72,234,71,212"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="166,140,234,209"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="188,208,166,259,161,269,157,265,161,256,184,211"/>
-<area shape="rect" id="Node000004" title=" " alt="" coords="142,5,257,91"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="201,103,202,141,197,139,199,108"/>
-</map>

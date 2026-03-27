@@ -1,3 +1,0 @@
-<map id="MaxRetriesReachedGuard" name="MaxRetriesReachedGuard">
-<area shape="rect" id="Node000001" title="FSM Guard: Check if max retries reached after invalid login." alt="" coords="5,5,170,75"/>
-</map>

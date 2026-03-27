@@ -177,14 +177,6 @@ public:
      */
     void stop();
 
-    /**
-     * @brief Check if the application is currently running.
-     *
-     * @return true if the application is running
-     * @return false if the application is stopped
-     */
-    bool isRunning() const;
-
 private:
     class Impl;                     ///< Forward declaration of implementation
     std::unique_ptr<Impl> impl_;    ///< PIMPL pointer to implementation

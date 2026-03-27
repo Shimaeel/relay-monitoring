@@ -1,5 +1,0 @@
-<map id="RawDataRingBuffer::waitPop" name="RawDataRingBuffer::waitPop">
-<area shape="rect" id="Node000001" title="Wait for and pop a message for a specific registered reader." alt="" coords="5,5,151,48"/>
-<area shape="rect" id="Node000002" href="$class_raw_data_ring_buffer.html#a2ba63725396bb97b8be6db8bbb36f4a8" title="Remove messages that ALL active readers have consumed." alt="" coords="199,5,344,48"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="151,24,186,26,180,27,151,29"/>
-</map>

@@ -1,7 +1,0 @@
-<map id="SERDatabase::close" name="SERDatabase::close">
-<area shape="rect" id="Node000001" title="Close database connection." alt="" coords="259,31,403,57"/>
-<area shape="rect" id="Node000002" href="$class_s_e_r_database.html#ab9a60e734536bd80a75f9e8bacf86882" title=" " alt="" coords="24,5,192,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="240,34,193,31,193,26,246,34"/>
-<area shape="rect" id="Node000003" href="$class_s_e_r_database.html#a7ae66f851404b0d3c2c0ee6d807f6087" title="Destructor that closes the database connection." alt="" coords="5,56,211,83"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="240,54,212,60,211,55,246,54"/>
-</map>

@@ -1,9 +1,0 @@
-<map id="recordsToJsonTable" name="recordsToJsonTable">
-<area shape="rect" id="Node000001" title="Convert SER records to a JSON array string." alt="" coords="438,35,575,61"/>
-<area shape="rect" id="Node000002" href="$class_shared_ser_reader.html#a9ca0e190a57fd3c195a860076ac729c7" title="Main worker thread loop." alt="" coords="212,5,390,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="420,36,390,34,391,29,426,36"/>
-<area shape="rect" id="Node000004" href="$class_telnet_sml_app_1_1_impl.html#a64957945d93500acea2140ec59b07802" title="Starts all application components." alt="" coords="233,56,368,99"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="425,60,369,70,369,65,420,60"/>
-<area shape="rect" id="Node000003" href="$class_shared_ser_reader.html#aabd6c5c15122509fe63d3eef072ff6df" title="Starts the worker thread." alt="" coords="5,5,164,32"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="194,19,165,21,164,16,199,18"/>
-</map>

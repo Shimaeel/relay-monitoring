@@ -1,8 +1,0 @@
-<map id="SERDatabase::getAllRecords" name="SERDatabase::getAllRecords">
-<area shape="rect" id="Node000001" title="Retrieve all SER records ordered by timestamp (newest first)." alt="" coords="469,31,664,57"/>
-<area shape="rect" id="Node000002" href="$class_s_e_r_database.html#a798696a9c47ba55f7a3473afff3efe9f" title="Export all records to a JSON file for UI consumption." alt="" coords="222,5,421,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="451,32,421,32,422,26,456,32"/>
-<area shape="rect" id="Node000003" href="$class_s_e_r_database.html#ab9a60e734536bd80a75f9e8bacf86882" title=" " alt="" coords="5,31,174,57"/>
-<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="454,47,174,47,174,41,454,41"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="204,32,174,37,174,32,209,31"/>
-</map>

@@ -1,7 +1,0 @@
-<map id="PipelineReceptionWorker::executeCommand" name="PipelineReceptionWorker::executeCommand">
-<area shape="rect" id="Node000001" title="Execute a Telnet command via Command FSM with reconnection." alt="" coords="436,5,603,48"/>
-<area shape="rect" id="Node000002" href="$class_pipeline_reception_worker.html#ab14d5bb4804a5832c44af615fd377077" title=" " alt="" coords="221,5,388,48"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="418,27,389,29,389,24,423,27"/>
-<area shape="rect" id="Node000003" href="$class_pipeline_reception_worker.html#aa7a9a74adca175b92d629d36cd7329a7" title="Start the reception worker thread." alt="" coords="5,5,173,48"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="202,27,173,29,173,24,207,26"/>
-</map>

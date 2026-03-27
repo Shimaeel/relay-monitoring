@@ -1,9 +1,0 @@
-<map id="TimeSyncManager::compareTime" name="TimeSyncManager::compareTime">
-<area shape="rect" id="Node000001" title="Compare relay time and PC time." alt="" coords="734,13,952,40"/>
-<area shape="rect" id="Node000002" href="$class_time_sync_manager.html#a6d7aefdf9577ff2f38b502ddbe603d66" title="Handle the &quot;read_time&quot; action." alt="" coords="450,13,686,40"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="716,27,687,29,687,24,721,27"/>
-<area shape="rect" id="Node000003" href="$class_time_sync_manager.html#ab7e1061ae8a4a1bae60ed0411ff4b825" title="Process a JSON action string from WebSocket and return a JSON response." alt="" coords="189,13,402,40"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="432,27,402,29,402,24,437,27"/>
-<area shape="rect" id="Node000004" href="$class_telnet_sml_app_1_1_impl.html#a64957945d93500acea2140ec59b07802" title="Starts all application components." alt="" coords="5,5,141,48"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="170,27,141,29,141,24,176,26"/>
-</map>

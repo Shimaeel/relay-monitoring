@@ -1,5 +1,0 @@
-<map id="RelayManager::RelayManager" name="RelayManager::RelayManager">
-<area shape="rect" id="Node000001" title="Construct a RelayManager." alt="" coords="5,5,203,32"/>
-<area shape="rect" id="Node000002" href="$relay__config_8hpp.html#ad7f790c1b0f73e7c7a53e5f49b5a9918" title="Get all known relay configurations." alt="" coords="251,5,369,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="203,16,238,19,233,19,203,21"/>
-</map>

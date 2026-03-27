@@ -1,7 +1,0 @@
-<map id="TelnetClient" name="TelnetClient">
-<area shape="rect" id="Node000001" title="TCP/Telnet client for substation relay communication." alt="" coords="5,281,171,628"/>
-<area shape="rect" id="Node000002" title=" " alt="" coords="54,140,123,209"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="89,206,91,265,86,264,88,212"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="31,5,146,91"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="89,103,91,140,86,140,88,108"/>
-</map>

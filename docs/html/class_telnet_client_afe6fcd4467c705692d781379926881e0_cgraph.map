@@ -1,5 +1,0 @@
-<map id="TelnetClient::isResponseComplete" name="TelnetClient::isResponseComplete">
-<area shape="rect" id="Node000001" title="Check if response is complete." alt="" coords="5,5,173,48"/>
-<area shape="rect" id="Node000002" href="$class_telnet_client.html#a9406bd467aec4aed263851fc076c360b" title="Check if buffer ends with a command prompt." alt="" coords="221,13,416,40"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="173,24,208,26,202,27,173,29"/>
-</map>

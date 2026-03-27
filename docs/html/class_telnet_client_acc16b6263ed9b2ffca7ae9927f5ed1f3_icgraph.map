@@ -1,9 +1,0 @@
-<map id="TelnetClient::getLastResponse" name="TelnetClient::getLastResponse">
-<area shape="rect" id="Node000001" title="Get the last response received." alt="" coords="249,80,449,107"/>
-<area shape="rect" id="Node000002" href="$struct_invalid_login_guard.html#a1fc21f065fac43e612cc6f6734f87572" title="Evaluate for invalid credentials response." alt="" coords="36,5,170,48"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="280,77,170,47,170,42,285,74"/>
-<area shape="rect" id="Node000003" href="$struct_login1_complete_guard.html#a09b327fb3ba790784df03f831db1ad6a" title="Evaluate login completion." alt="" coords="28,72,178,115"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="231,94,179,96,178,91,236,93"/>
-<area shape="rect" id="Node000004" href="$struct_ser_complete_guard.html#a9c929b1959e4c484e43b90c7accea21b" title="Evaluate SER polling completion." alt="" coords="5,139,201,165"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="278,110,163,141,161,135,273,111"/>
-</map>

@@ -1,7 +1,0 @@
-<map id="RelayService::DateResult" name="RelayService::DateResult">
-<area shape="rect" id="Node000001" title="Result of a relay DATE operation." alt="" coords="5,303,168,372"/>
-<area shape="rect" id="Node000002" title=" " alt="" coords="52,140,121,209"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="88,207,89,286,84,285,85,211"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="29,5,144,91"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="87,103,89,140,84,140,86,108"/>
-</map>

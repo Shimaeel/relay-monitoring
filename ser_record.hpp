@@ -100,38 +100,6 @@ struct TELNET_SML_API SERRecord
      * @details Creates an empty SERRecord with all fields initialized to empty strings.
      */
     SERRecord() = default;
-
-    /**
-     * @brief Legacy parameterized constructor (no relay info).
-     *
-     * @param id Record identifier
-     * @param ts Timestamp string
-     * @param stat Status/state string
-     * @param desc Description/element string
-     */
-    SERRecord(const std::string& id, const std::string& ts,
-              const std::string& stat, const std::string& desc)
-        : record_id(id), timestamp(ts), status(stat), description(desc)
-    {
-    }
-
-    /**
-     * @brief Full parameterized constructor with relay identification.
-     *
-     * @param rid  Relay identifier (e.g., "1")
-     * @param rname Relay display name (e.g., "SEL-751")
-     * @param id   Record identifier
-     * @param ts   Timestamp string
-     * @param stat Status/state string
-     * @param desc Description/element string
-     */
-    SERRecord(const std::string& rid, const std::string& rname,
-              const std::string& id, const std::string& ts,
-              const std::string& stat, const std::string& desc)
-        : relay_id(rid), relay_name(rname)
-        , record_id(id), timestamp(ts), status(stat), description(desc)
-    {
-    }
 };
 
 /**

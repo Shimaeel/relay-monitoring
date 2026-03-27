@@ -142,69 +142,6 @@ namespace net = boost::asio;
 using tcp = boost::asio::ip::tcp;
 
 /**
- * @brief Convert vector of SER records to JSON string
- * 
- * @details Formats SER records as JSON array compatible with web UI.
- * Handles timestamp parsing and special character escaping.
- * 
- * @param records Vector of SERRecord to convert
- * 
- * @return std::string JSON array string
- * 
- * @note Splits timestamp into separate date and time fields
- * @note Escapes quotes and backslashes in element description
- * 
- * @see WebSocketSession::sendData() Uses this for client responses
- */
-inline std::string recordsToJSON(const std::vector<SERRecord>& records)
-{
-    std::string json = "[\n";
-    
-    for (size_t i = 0; i < records.size(); ++i)
-    {
-        const auto& rec = records[i];
-        
-        // Parse timestamp to extract date and time
-        std::string date = rec.timestamp;
-        std::string time = "";
-        
-        size_t spacePos = rec.timestamp.find(' ');
-        if (spacePos != std::string::npos)
-        {
-            date = rec.timestamp.substr(0, spacePos);
-            time = rec.timestamp.substr(spacePos + 1);
-        }
-        
-        // Escape special characters in description
-        std::string element = rec.description;
-        for (size_t j = 0; j < element.length(); ++j)
-        {
-            if (element[j] == '"' || element[j] == '\\')
-            {
-                element.insert(j, "\\");
-                ++j;
-            }
-        }
-        
-        json += "  {\n";
-        json += "    \"sno\": " + rec.record_id + ",\n";  // Use original # from relay
-        json += "    \"date\": \"" + date + "\",\n";
-        json += "    \"time\": \"" + time + "\",\n";
-        json += "    \"element\": \"" + element + "\",\n";
-        json += "    \"state\": \"" + rec.status + "\"\n";
-        json += "  }";
-        
-        if (i < records.size() - 1)
-            json += ",";
-        
-        json += "\n";
-    }
-    
-    json += "]";
-    return json;
-}
-
-/**
  * @class SessionManager
  * @brief Manages all active WebSocket sessions for broadcast
  * 
@@ -1098,41 +1035,6 @@ public:
     }
 
     /**
-     * @brief Check if server is currently running
-     * 
-     * @return true Server is accepting connections
-     * @return false Server is stopped
-     */
-    bool isRunning() const { return running_; }
-    
-    /**
-     * @brief Broadcast data to all connected clients (push model)
-     * 
-     * @details Called after FSM processing to push new data to all browsers.
-     * This enables real-time updates without polling.
-     * 
-     * @param records Vector of SER records to broadcast
-     */
-    void broadcast(const std::vector<SERRecord>& records)
-    {
-        if (!running_)
-            return;
-        
-        auto payload = asn_tlv::encodeSerRecordsToTlv(records);
-        if (payload.empty())
-            return;
-        
-        auto sessions = sessionMgr_.getSessions();
-        std::cout << "[WS] Broadcasting to " << sessions.size() << " clients\n";
-        
-        for (auto& session : sessions)
-        {
-            if (session)
-                session->sendBroadcast(payload);
-        }
-    }
-
-    /**
      * @brief Broadcast all SER records from the database to all clients.
      *
      * @details Useful after a SER poll to refresh the full table in the UI.
@@ -1150,24 +1052,6 @@ public:
         auto sessions = sessionMgr_.getSessions();
         std::cout << "[WS] Broadcasting full DB to " << sessions.size() << " clients\n";
 
-        for (auto& session : sessions)
-        {
-            if (session)
-                session->sendBroadcast(payload);
-        }
-    }
-    
-    /**
-     * @brief Broadcast raw binary payload to all connected clients
-     * 
-     * @param payload Pre-encoded ASN.1 BER/TLV data
-     */
-    void broadcastRaw(const std::vector<uint8_t>& payload)
-    {
-        if (!running_ || payload.empty())
-            return;
-        
-        auto sessions = sessionMgr_.getSessions();
         for (auto& session : sessions)
         {
             if (session)

@@ -1,5 +1,0 @@
-<map id="SERDatabase::open" name="SERDatabase::open">
-<area shape="rect" id="Node000001" title="Open database connection and initialize schema." alt="" coords="5,5,147,32"/>
-<area shape="rect" id="Node000002" href="$class_s_e_r_database.html#ad55583b39ff6c9cc9d2d44f20f34ad47" title="Create SER records table and indexes." alt="" coords="195,5,375,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="147,16,182,19,176,19,147,21"/>
-</map>

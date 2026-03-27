@@ -1,5 +1,0 @@
-<map id="RelayPipeline::start" name="RelayPipeline::start">
-<area shape="rect" id="Node000001" title="Start the pipeline (connect, start workers)." alt="" coords="5,5,141,32"/>
-<area shape="rect" id="Node000002" href="$class_relay_pipeline.html#afed5db8124653b62dd1d43fd14469fbd" title="Queue a command for execution by this relay&#39;s ReceptionWorker." alt="" coords="189,5,393,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="141,16,176,18,171,19,141,21"/>
-</map>

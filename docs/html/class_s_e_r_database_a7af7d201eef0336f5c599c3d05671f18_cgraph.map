@@ -1,5 +1,0 @@
-<map id="SERDatabase::insertRecord" name="SERDatabase::insertRecord">
-<area shape="rect" id="Node000001" title="Insert a single SER record into the database." alt="" coords="5,5,193,32"/>
-<area shape="rect" id="Node000002" href="$class_s_e_r_database.html#a77ac29d719dfce9ffe151bb73c9295bd" title="Check if a record already exists in the database." alt="" coords="241,5,427,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="193,16,228,19,223,19,193,21"/>
-</map>

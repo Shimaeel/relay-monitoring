@@ -172,12 +172,6 @@ struct cmd_ser_event {};
 struct cmd_tar_event { std::string args; };
 
 /**
- * @brief Event: User requested EVE (Event) command.
- * @details Fired when user clicks EVE button in the browser.
- */
-struct cmd_eve_event {};
-
-/**
  * @brief Event: User requested Ctrl+C (break/interrupt).
  * @details Sends ASCII 0x03 to the relay device.
  */
@@ -198,6 +192,20 @@ struct cmd_set_event { std::string args; };
 // ================= COMMAND RESPONSE HOLDER =================
 
 /**
+ * @brief Reason a command failed (for smart retry logic).
+ *
+ * @details Classified by CommandFSM actions after SendCmdReceiveData().
+ * The caller uses this to decide whether to retry directly (TIMEOUT),
+ * reconnect first (CONN_LOST), or give up immediately (NONE on success).
+ */
+enum class CmdFailReason
+{
+    NONE,       ///< No failure — command succeeded
+    TIMEOUT,    ///< Still connected but relay didn't respond in time
+    CONN_LOST   ///< Connection dropped during command execution
+};
+
+/**
  * @brief Shared holder for the last command FSM response.
  *
  * @details Written by RelayCommandFSM actions, read by the calling
@@ -205,8 +213,9 @@ struct cmd_set_event { std::string args; };
  */
 struct CmdResponseHolder
 {
-    std::string response;   ///< Raw relay response text
-    bool success = false;   ///< true if command succeeded
+    std::string response;          ///< Raw relay response text
+    bool success = false;          ///< true if command succeeded
+    CmdFailReason failReason = CmdFailReason::NONE;  ///< Failure classification
 };
 
 // ================= CONFIG =================
@@ -334,96 +343,6 @@ struct Login1Action
 };
 
 /**
- * @brief FSM Action: Poll for System Event Records
- * 
- * @details Called on entry to "Polling" state.
- * Sends SER command, parses response, and stores records in database.
- * 
- * ## Data Flow
- * 
- * @dot
- * digraph PollFlow {
- *     rankdir=LR;
- *     node [shape=box];
- *     
- *     SER [label="Send SER"];
- *     Parse [label="Parse Response"];
- *     Store [label="Store in DB"];
- *     
- *     SER -> Parse -> Store;
- * }
- * @enddot
- * 
- * @tparam Event The triggering event type
- * @see parseSERResponse Function for parsing SER response
- * @see SerCompleteGuard Guard for checking poll success
- */
-struct PollSerAction
-{
-    /**
-     * @brief Execute SER polling and storage
-     * 
-     * @param event The triggering event (unused)
-     * @param client TelnetClient for sending SER command
-     * @param db Database for storing parsed records
-     */
-    template <class Event>
-    void operator()(const Event&, TelnetClient& client, SERDatabase& db, SharedRingBuffer& ring) const
-    {
-        client.clearLastResponse();
-        std::string buffer;
-        client.SendCmdReceiveData("SER", buffer);
-
-        // Parse and store SER records in database
-        auto records = parseSERResponse(buffer);
-        
-        if (!records.empty())
-        {
-            int inserted = db.insertRecords(records);
-            std::cout << "[SER] Parsed " << records.size() << " records, stored " << inserted << " in database\n";
-            std::cout << "Records size before TLV encode: "
-          << records.size() << std::endl;
-
-            auto payload = asn_tlv::encodeSerRecordsToTlv(records);
-            if (!payload.empty())
-            {
-                ring.write(payload.data(), payload.size());
-            }
-        }
-        else
-        {
-            std::cout << "[SER] No records parsed - check response format!\n";
-        }
-    }
-};
-
-/**
- * @brief FSM Action: Wait before retry attempt
- * 
- * @details Called on entry to "WaitingRetry" state.
- * Increments retry counter and sleeps for configured delay.
- * 
- * @tparam Event The triggering event type
- */
-struct RetryWaitAction
-{
-    /**
-     * @brief Execute retry wait
-     * 
-     * @param event The triggering event (unused)
-     * @param retry Retry state to increment and read delay from
-     */
-    template <class Event>
-    void operator()(const Event&, RetryState& retry) const
-    {
-        retry.increment();
-        std::cout << "[RETRY] Attempt " << retry.current_attempt << "/" << retry.max_retries 
-                  << " - Waiting " << retry.retry_delay.count() << "s before retry...\n";
-        std::this_thread::sleep_for(retry.retry_delay);
-    }
-};
-
-/**
  * @brief FSM Action: Reset retry counter
  * 
  * @details Called on entry to "Operational" state.
@@ -495,6 +414,9 @@ struct CmdSerAction
         bool ok = client.SendCmdReceiveData("SER", response);
         resp.success = ok && !response.empty();
         resp.response = std::move(response);
+        resp.failReason = resp.success ? CmdFailReason::NONE
+                        : !client.isConnected() ? CmdFailReason::CONN_LOST
+                        : CmdFailReason::TIMEOUT;
         std::cout << "[CmdFSM] SER " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
@@ -514,24 +436,10 @@ struct CmdTarAction
         bool ok = client.SendCmdReceiveData(cmd, response);
         resp.success = ok && !response.empty();
         resp.response = std::move(response);
+        resp.failReason = resp.success ? CmdFailReason::NONE
+                        : !client.isConnected() ? CmdFailReason::CONN_LOST
+                        : CmdFailReason::TIMEOUT;
         std::cout << "[CmdFSM] TAR " << (resp.success ? "OK" : "FAIL") << "\n";
-    }
-};
-
-/**
- * @brief Command Action: Send EVE command to relay.
- * @details Sends "EVE" and stores response.
- */
-struct CmdEveAction
-{
-    void operator()(const cmd_eve_event&, TelnetClient& client, CmdResponseHolder& resp) const
-    {
-        client.clearLastResponse();
-        std::string response;
-        bool ok = client.SendCmdReceiveData("EVE", response);
-        resp.success = ok && !response.empty();
-        resp.response = std::move(response);
-        std::cout << "[CmdFSM] EVE " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
 
@@ -548,6 +456,9 @@ struct CmdCtrlCAction
         bool ok = client.SendCmdReceiveData(std::string(1, '\x03'), response);
         resp.success = ok;
         resp.response = std::move(response);
+        resp.failReason = resp.success ? CmdFailReason::NONE
+                        : !client.isConnected() ? CmdFailReason::CONN_LOST
+                        : CmdFailReason::TIMEOUT;
         std::cout << "[CmdFSM] CTRL+C " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
@@ -565,6 +476,9 @@ struct CmdCtrlDAction
         bool ok = client.SendCmdReceiveData(std::string(1, '\x04'), response);
         resp.success = ok;
         resp.response = std::move(response);
+        resp.failReason = resp.success ? CmdFailReason::NONE
+                        : !client.isConnected() ? CmdFailReason::CONN_LOST
+                        : CmdFailReason::TIMEOUT;
         std::cout << "[CmdFSM] CTRL+D " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
@@ -585,6 +499,9 @@ struct CmdSetAction
         bool ok = client.SendCmdMultiPage(cmd, response);
         resp.success = ok && !response.empty();
         resp.response = std::move(response);
+        resp.failReason = resp.success ? CmdFailReason::NONE
+                        : !client.isConnected() ? CmdFailReason::CONN_LOST
+                        : CmdFailReason::TIMEOUT;
         std::cout << "[CmdFSM] SET " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
@@ -783,50 +700,6 @@ struct MaxRetriesReachedGuard
     }
 };
 
-/**
- * @brief FSM Guard: Check if SER polling completed successfully
- * 
- * @details Returns true if:
- * - Last I/O operation succeeded
- * - Response contains completion marker or prompt
- */
-struct SerCompleteGuard
-{
-    /**
-     * @brief Evaluate SER polling completion
-     * 
-     * @param event The step_event triggering guard evaluation
-     * @param client TelnetClient to check state of
-     * @return true if SER data received successfully
-     */
-    bool operator()(const step_event&, const TelnetClient& client) const
-    {
-        const std::string& response = client.getLastResponse();
-        return client.getLastIoResult() &&
-               (response.find("SER Response Complete") != std::string::npos || hasPrompt(response));
-    }
-};
-
-/**
- * @brief FSM Guard: Check if SER polling failed
- * 
- * @details Inverse of SerCompleteGuard.
- */
-struct SerFailGuard
-{
-    /**
-     * @brief Evaluate SER polling failure
-     * 
-     * @param event The step_event triggering guard evaluation
-     * @param client TelnetClient to check state of
-     * @return true if SER polling did not complete successfully
-     */
-    bool operator()(const step_event&, const TelnetClient& client) const
-    {
-        return !SerCompleteGuard{}(step_event{}, client);
-    }
-};
-
 // ================= SAFETY HANDLERS =================
 
 /**
@@ -843,115 +716,6 @@ inline auto on_unhandled = [](const unhandled_event&) {
  */
 inline auto on_unexpected = [](const auto&) {
     std::cout << "[UNEXPECTED EVENT]\n";
-};
-
-// ================= FSM =================
-
-/**
- * @brief Boost.SML State Machine for Telnet Communication
- * 
- * @details Defines the complete state machine transition table for managing
- * Telnet communication workflow. Uses Boost.SML DSL for declarative state
- * machine definition.
- * 
- * ## States
- * 
- * | State | Description |
- * |-------|-------------|
- * | Idle | Initial state, waiting for start event |
- * | Connecting | Establishing TCP connection |
- * | Login_L1 | Performing Level 1 authentication |
- * | WaitingRetry | Waiting before retry attempt |
- * | Operational | Successfully authenticated |
- * | Polling | Querying SER data |
- * | Done | Successfully completed |
- * | Error | Terminal error state |
- * 
- * ## Transition Table
- * 
- * @dot
- * digraph Transitions {
- *     rankdir=LR;
- *     node [shape=box, style=filled, fillcolor=lightyellow];
- *     
- *     table [shape=none, label=<
- *         <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0">
- *             <TR><TD><B>Source</B></TD><TD><B>Event</B></TD><TD><B>Guard</B></TD><TD><B>Target</B></TD></TR>
- *             <TR><TD>Idle</TD><TD>start</TD><TD>-</TD><TD>Connecting</TD></TR>
- *             <TR><TD>Connecting</TD><TD>step</TD><TD>ConnectOk</TD><TD>Login_L1</TD></TR>
- *             <TR><TD>Connecting</TD><TD>step</TD><TD>ConnectFail</TD><TD>Error</TD></TR>
- *             <TR><TD>Login_L1</TD><TD>step</TD><TD>LoginComplete</TD><TD>Operational</TD></TR>
- *             <TR><TD>Login_L1</TD><TD>step</TD><TD>CanRetry</TD><TD>WaitingRetry</TD></TR>
- *             <TR><TD>Login_L1</TD><TD>step</TD><TD>MaxRetries</TD><TD>Error</TD></TR>
- *             <TR><TD>WaitingRetry</TD><TD>step</TD><TD>-</TD><TD>Connecting</TD></TR>
- *             <TR><TD>Operational</TD><TD>step</TD><TD>-</TD><TD>Polling</TD></TR>
- *             <TR><TD>Polling</TD><TD>step</TD><TD>SerComplete</TD><TD>Done</TD></TR>
- *             <TR><TD>Polling</TD><TD>step</TD><TD>SerFail</TD><TD>Error</TD></TR>
- *         </TABLE>
- *     >];
- * }
- * @enddot
- * 
- * ## Dependencies (injected via FSM constructor)
- * - TelnetClient& client - Network communication
- * - ConnectionConfig& conn - Connection parameters
- * - LoginConfig& creds - Authentication credentials
- * - RetryState& retry - Retry state tracking
- * - SERDatabase& db - Record storage
- * - SharedRingBuffer& ring - ASN payload transfer
- */
-struct TelnetFSM
-{
-    /**
-     * @brief Define FSM transition table
-     * 
-     * @details Uses Boost.SML DSL to define:
-     * - Entry actions for states
-     * - Event-driven transitions with guards
-     * - Safety handlers for unexpected events
-     * 
-     * @return auto The complete transition table
-     */
-    auto operator()() const
-    {
-        using namespace sml;
-
-        return make_transition_table(
-            // Entry / Exit
-            "Connecting"_s + on_entry<_> / ConnectAction{},
-            "Login_L1"_s + on_entry<_> / Login1Action{},
-            "Polling"_s + on_entry<_> / PollSerAction{},
-            "WaitingRetry"_s + on_entry<_> / RetryWaitAction{},
-            "Operational"_s + on_entry<_> / ResetRetryAction{},
-
-            // Transitions
-            *"Idle"_s + event<start_event> = "Connecting"_s,
-
-            "Connecting"_s + event<step_event> [ ConnectOkGuard{} ] = "Login_L1"_s,
-            "Connecting"_s + event<step_event> [ ConnectFailGuard{} ] = "Error"_s,
-
-            // Login with retry logic
-            "Login_L1"_s + event<step_event> [ Login1CompleteGuard{} ] = "Operational"_s,
-            "Login_L1"_s + event<step_event> [ CanRetryGuard{} ] = "WaitingRetry"_s,
-            "Login_L1"_s + event<step_event> [ MaxRetriesReachedGuard{} ] = "Error"_s,
-
-            // After waiting, retry connection
-            "WaitingRetry"_s + event<step_event> = "Connecting"_s,
-
-            "Operational"_s + event<step_event> = "Polling"_s,
-
-            // After successful poll, go to Done state (poll only once)
-            "Polling"_s + event<step_event> [ SerCompleteGuard{} ] = "Done"_s,
-            "Polling"_s + event<step_event> [ SerFailGuard{} ] = "Error"_s,
-
-            // Done state - stay here (no more polling)
-            "Done"_s + event<step_event> = "Done"_s,
-
-            // Safety
-            state<_> + event<unhandled_event> / on_unhandled = "Error"_s,
-            state<_> + unexpected_event<_> / on_unexpected = "Error"_s
-        );
-    }
 };
 
 // ================= RELAY CONNECTION FSM =================
@@ -1108,9 +872,6 @@ struct RelayCommandFSM
 
             // TAR command
             "Idle"_s + event<cmd_tar_event>   / CmdTarAction{}   = "Idle"_s,
-
-            // EVE command
-            "Idle"_s + event<cmd_eve_event>   / CmdEveAction{}   = "Idle"_s,
 
             // Ctrl+C (break)
             "Idle"_s + event<cmd_ctrlc_event> / CmdCtrlCAction{} = "Idle"_s,

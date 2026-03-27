@@ -1,5 +1,0 @@
-<map id="PipelineProcessingWorker::runLoop" name="PipelineProcessingWorker::runLoop">
-<area shape="rect" id="Node000001" title=" " alt="" coords="227,5,400,48"/>
-<area shape="rect" id="Node000002" href="$class_pipeline_processing_worker.html#ab0168acad7f6865fe4244c69c3046d32" title="Start the processing worker: register a reader and launch its thread." alt="" coords="5,5,179,48"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="209,27,179,29,179,24,214,26"/>
-</map>

@@ -62,12 +62,10 @@
 #include "relay_pipeline.hpp"
 #include "relay_service.hpp"
 #include "ser_database.hpp"
-#include "ser_json_writer.hpp"
 #include "shared_memory/shared_ring_buffer.hpp"
 #include "telnet_fsm.hpp"
 #include "thread_manager.hpp"
 #include "password_manager.hpp"
-#include "time_sync_manager.hpp"
 #include "ws_server.hpp"
 #include "ws_db_server.hpp"
 
@@ -113,120 +111,6 @@ inline std::string escapeTarJson(const std::string& s)
 }  // namespace
 
 /**
- * @class SharedSerReader
- * @brief Thread 5 - Reads from SharedRingBuffer and writes JSON to file.
- *
- * @details Consumes ASN.1 TLV-encoded SER records from the shared ring buffer,
- * decodes them, and writes to data.json for the web UI.
- *
- * ## Thread Role
- * This is Thread 5 in the architecture, running independently to provide
- * file-based data export without blocking the main processing pipeline.
- *
- * ## Data Flow
- * @code
- * SharedRingBuffer (from ProcessingWorker)
- *       │
- *       ▼
- * ASN.1 TLV Decode
- *       │
- *       ▼
- * JSON Serialization
- *       │
- *       ▼
- * ui/data.json (file output)
- * @endcode
- *
- * @see ProcessingWorker Produces data for this consumer
- * @see asn_tlv::decodeSerRecordsFromTlv Decoding function
- */
-class SharedSerReader
-{
-    SharedRingBuffer& ring_;                    ///< Shared ring buffer input
-    std::string output_path_;                   ///< Output file path (e.g., "ui/data.json")
-    std::atomic<bool> stop_flag_{false};        ///< Flag to signal worker termination
-    std::thread worker_thread_;                  ///< Worker thread handle
-    SharedRingBuffer::ReaderId readerId_{SharedRingBuffer::kInvalidReader}; ///< Registered reader ID
-
-    /**
-     * @brief Main worker thread loop.
-     *
-     * @details Continuously reads from shared ring buffer:
-     * 1. Wait for TLV payload (blocking)
-     * 2. Decode ASN.1 TLV to SERRecord vector
-     * 3. Convert records to JSON string
-     * 4. Write JSON to output file
-     */
-    void runLoop()
-    {
-        std::vector<uint8_t> payload;
-        while (!stop_flag_.load())
-        {
-            if (!ring_.waitRead(readerId_, payload, stop_flag_))
-                continue;
-
-            std::vector<SERRecord> records;
-            std::string error;
-            if (!asn_tlv::decodeSerRecordsFromTlv(payload.data(), payload.size(), records, &error))
-            {
-                std::cout << "[SHM] Decode error: " << error << "\n";
-                continue;
-            }
-
-            std::string json = recordsToJsonTable(records);
-            std::string writeError;
-            if (!writeJsonToFile(output_path_, json, &writeError))
-            {
-                std::cout << "[SHM] JSON write error: " << writeError << "\n";
-            }
-        }
-    }
-
-public:
-    /**
-     * @brief Constructs a SharedSerReader instance.
-     *
-     * @param ring Shared ring buffer to read TLV payloads from
-     * @param output_path File path for JSON output (e.g., "ui/data.json")
-     */
-    SharedSerReader(SharedRingBuffer& ring, std::string output_path)
-        : ring_(ring), output_path_(std::move(output_path))
-    {
-    }
-
-    /**
-     * @brief Starts the worker thread.
-     */
-    void start()
-    {
-        stop_flag_ = false;
-        readerId_ = ring_.registerReader();
-        if (readerId_ == SharedRingBuffer::kInvalidReader)
-        {
-            std::cerr << "[SHM] Failed to register reader — max readers reached\n";
-            return;
-        }
-        worker_thread_ = std::thread([this]() { runLoop(); });
-    }
-
-    /**
-     * @brief Stops the worker thread gracefully.
-     */
-    void stop()
-    {
-        stop_flag_ = true;
-        ring_.notifyAll();
-        if (worker_thread_.joinable())
-            worker_thread_.join();
-        if (readerId_ != SharedRingBuffer::kInvalidReader)
-        {
-            ring_.unregisterReader(readerId_);
-            readerId_ = SharedRingBuffer::kInvalidReader;
-        }
-    }
-};
-
-/**
  * @class TelnetSmlApp::Impl
  * @brief Private implementation (PIMPL) of TelnetSmlApp.
  *
@@ -267,7 +151,6 @@ public:
  * | shmRing         | SharedRingBuffer     | Impl      |
  * | threadMgr       | ThreadManager        | Impl      |
  * | relayMgr        | RelayManager         | Impl      |
- * | shmReader       | SharedSerReader      | Impl      |
  * | per-relay stuff | RelayPipeline        | relayMgr  |
  *
  * @see TelnetSmlApp      Public interface
@@ -286,8 +169,7 @@ public:
     std::unique_ptr<WSDBServer> dbApiServer;             ///< Generic DB WebSocket API (port 8766)
     SharedRingBuffer shmRing{"TelnetSmlShmRing", 500U * 1024U}; ///< Shared ring buffer (500KB)
 
-    ThreadManager threadMgr{serDb, std::chrono::seconds(120)};   ///< Poller (2 min interval)
-    SharedSerReader shmReader{shmRing, "ui/data.json"};          ///< JSON file writer thread
+    ThreadManager threadMgr{std::chrono::seconds(120)};          ///< Poller (2 min interval)
 
     // ─── Multi-relay management ─────────────────────────────────────
     std::unique_ptr<RelayManager> relayMgr;              ///< On-demand pipeline coordinator
@@ -454,24 +336,13 @@ public:
         }
         std::cout << "[DB] Database opened. Existing records: " << serDb.getRecordCount() << "\n";
 
-        // 2. Export existing records to data.json
-        {
-            auto existing = serDb.getAllRecords();
-            std::string json = recordsToJsonTable(existing);
-            std::string err;
-            if (writeJsonToFile("ui/data.json", json, &err))
-                std::cout << "[Init] Exported " << existing.size() << " records to ui/data.json\n";
-            else
-                std::cerr << "[Init] data.json export failed: " << err << "\n";
-        }
-
-        // 3. Create RelayManager (no pipelines started yet — on-demand)
+        // 2. Create RelayManager (no pipelines started yet — on-demand)
         relayMgr = std::make_unique<RelayManager>(
             serDb, wsServer, shmRing, app_running);
         std::cout << "[RelayMgr] Initialized with " << relayMgr->getConfigs().size()
                   << " relay configurations\n";
 
-        // 4. Set up WS command handler — routes commands to the correct relay pipeline
+        // 3. Set up WS command handler — routes commands to the correct relay pipeline
         //    Browser sends: "relay_id:command" (e.g. "1:SER", "2:TAR 0", "2:EVE")
         //    Fallback: if no colon, try to route to first active relay
         wsServer.setCommandHandler([this](const std::string& cmd) -> std::string {
@@ -595,7 +466,7 @@ public:
             return true;
         });
 
-        // 5. Set up action handler — relay lifecycle + time sync + password + getTarData
+        // 4. Set up action handler — relay lifecycle + time sync + password + getTarData
         wsServer.setActionHandler([this](const std::string& jsonMsg) -> std::string {
             std::string action = extractJsonField(jsonMsg, "action");
 
@@ -655,30 +526,6 @@ public:
                 return result;
             }
 
-            // ── Time sync — read_time / sync_time / sntp_sync ──
-            if (action == "read_time" || action == "sync_time" || action == "sntp_sync")
-            {
-                std::string relayId = extractJsonField(jsonMsg, "relay_id");
-                if (relayId.empty())
-                    return "{\"action\":\"" + action + "\",\"status\":\"failed\",\"error\":\"Missing relay_id\"}";
-
-                auto* pipeline = relayMgr->getPipeline(relayId);
-                if (!pipeline)
-                    return "{\"action\":\"" + action + "\",\"status\":\"failed\",\"error\":\"Relay not active\"}";
-
-                // Route commands through pipeline (thread-safe)
-                auto sender = [pipeline](const std::string& cmd) {
-                    return pipeline->handleUserCommand(cmd);
-                };
-                auto batchSender = [pipeline](const std::vector<std::string>& cmds) {
-                    return pipeline->handleUserCommandBatch(cmds);
-                };
-                TimeSyncManager tsm(sender, batchSender);
-
-                std::string sntpServer = extractJsonField(jsonMsg, "sntp_server");
-                return tsm.handleAction(action, sntpServer, pipeline->config().password);
-            }
-
             // ── Password change (requires relay_id to know which relay) ──
             // TODO: Route to per-relay PasswordManager when available
             if (action == "change_password")
@@ -691,7 +538,7 @@ public:
             return "{\"status\":\"failed\",\"error\":\"Unknown action\"}";
         });
 
-        // 6. Start WebSocket server
+        // 5. Start WebSocket server
         if (!wsServer.start())
         {
             std::cerr << "Failed to start WebSocket server\n";
@@ -699,12 +546,12 @@ public:
             return false;
         }
 
-        // 7. Generic database WebSocket API on port 8766 (disabled — not used by any front-end)
+        // 6. Generic database WebSocket API on port 8766 (disabled — not used by any front-end)
         // dbApiServer = std::make_unique<WSDBServer>(serDb.getDbHandle(), 8766);
         // if (!dbApiServer->start())
         //     std::cerr << "[WSDB] Warning: DB API server failed to start\n";
 
-        // 8. Polling callback — queue SER to ALL active relays
+        // 7. Polling callback — queue SER to ALL active relays
         threadMgr.setPollingCallback([this]() {
             if (!app_running.load())
                 return;
@@ -718,8 +565,7 @@ public:
                 relayMgr->queueCommand(id, "SER");
         });
 
-        // 9. Start support threads
-        shmReader.start();
+        // 8. Start support threads
         threadMgr.startAll();
 
         // ─── Summary ─────────────────────────────────────────────
@@ -737,11 +583,10 @@ public:
         // std::cout << "    - DB API Server:    ws://localhost:8766\n";
         std::cout << "    - SQLite Database:  ser_records.db\n";
         std::cout << "    - Poller:           2 min interval\n";
-        std::cout << "    - JSON Writer:      ui/data.json\n";
         std::cout << "\n  Auto-starting all configured relays...\n";
         std::cout << "========================================\n";
 
-        // 10. Auto-start all configured relays and begin TAR collection
+        // 9. Auto-start all configured relays and begin TAR collection
         for (const auto& cfg : relayMgr->getConfigs())
         {
             std::cout << "[Auto-TAR] Auto-starting relay " << cfg.id
@@ -779,10 +624,8 @@ public:
      * 1. app_running = false
      * 2. Stop all relay pipelines (via RelayManager)
      * 3. Stop ThreadManager (polling)
-     * 4. Stop SharedSerReader
-     * 5. Stop DB API server
-     * 6. Stop WebSocket server
-     * 7. Close database
+     * 4. Stop WebSocket server
+     * 5. Close database
      */
     void stop()
     {
@@ -805,7 +648,6 @@ public:
         tarBgThreads_.clear();
 
         threadMgr.stopAll();
-        shmReader.stop();
         // if (dbApiServer) dbApiServer->stop();
         wsServer.stop();
         serDb.close();
@@ -876,14 +718,4 @@ void TelnetSmlApp::waitForExit()
 void TelnetSmlApp::stop()
 {
     impl_->stop();
-}
-
-/**
- * @brief Checks if the application is currently running.
- *
- * @return true if running, false otherwise
- */
-bool TelnetSmlApp::isRunning() const
-{
-    return impl_ && impl_->running;
 }

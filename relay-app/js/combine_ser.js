@@ -3,19 +3,23 @@
  *  combine_ser.js — Combined SER Table for Dashboard
  * ============================================================
  *
- *  Connects to the single shared WebSocket server (port 8765)
- *  and aggregates all SER records into a single Tabulator table.
- *  Each record carries relay_id / relay_name from the server,
- *  so a "Relay" column is populated from the TLV payload itself.
+ *  Uses a Web Worker + SharedArrayBuffer ring buffer to receive
+ *  SER records from the shared WebSocket server (port 8765).
+ *  Binary TLV data flows through the ring buffer (zero-copy),
+ *  while text messages are forwarded via postMessage.
  *
- *  Dependencies: data.js (getRelays), Tabulator (CDN)
+ *  Dependencies: ring_buffer.js, ser_worker.js, data.js, Tabulator
  */
 
 // ============================================================
 //  State
 // ============================================================
 let cserTable          = null;   // Tabulator instance
-let cserWs             = null;   // Single WebSocket connection
+let cserWorker         = null;   // SER Web Worker
+let cserRing           = null;   // SharedArrayBuffer ring buffer handle
+let cserReaderId       = -1;     // Ring buffer reader slot
+let cserReaderRunning  = false;  // Ring reader loop active
+let cserConnected      = false;  // Worker WS connected flag
 let cserAutoRefresh    = null;   // Polling interval handle
 let cserLastMessageAt  = 0;
 let cserDataReceived   = false;
@@ -217,7 +221,7 @@ function _cserUpdateStats() {
 function _cserUpdateConnectionStatus() {
   const el = document.getElementById("cser-conn-status");
   if (!el) return;
-  if (cserWs && cserWs.readyState === WebSocket.OPEN) {
+  if (cserConnected) {
     el.textContent = "🟢 Connected";
     el.style.color = "#16a34a";
   } else {
@@ -227,79 +231,124 @@ function _cserUpdateConnectionStatus() {
 }
 
 // ============================================================
-//  Single Shared WebSocket Connection
+//  Worker + Ring Buffer Connection
 // ============================================================
 
-function _cserConnect() {
-  if (cserWs && cserWs.readyState === WebSocket.OPEN) return;
+function _cserSetupWorker() {
+  if (cserWorker) return;
 
-  const host = "localhost";
-  const port = 8765;
-  const url  = `ws://${host}:${port}`;
+  if (typeof SharedArrayBuffer === 'undefined') {
+    console.error('[CSER] SharedArrayBuffer not available — enable Cross-Origin Isolation headers.');
+    return;
+  }
 
-  console.log("[CSER] Connecting to shared WS at", url);
-  cserWs = new WebSocket(url);
-  cserWs.binaryType = "arraybuffer";
+  cserRing = createRingBuffer(512 * 1024);  // 512 KB ring
+  cserWorker = new Worker('js/ser_worker.js');
 
-  cserWs.onopen = () => {
-    console.log("[CSER] Connected");
-    _cserUpdateConnectionStatus();
-    // Server sends initial data on connect — set timestamp so first poll doesn't fire immediately
-    cserLastMessageAt = Date.now();
-    _cserStartAutoRefresh();
-  };
+  cserWorker.postMessage({
+    type: 'init',
+    buffer: cserRing.buffer,
+    capacity: cserRing.capacity
+  });
 
-  cserWs.onmessage = async (event) => {
-    try {
-      let bytes;
-      if (event.data instanceof Blob) {
-        const ab = await event.data.arrayBuffer();
-        bytes = new Uint8Array(ab);
-      } else if (event.data instanceof ArrayBuffer) {
-        bytes = new Uint8Array(event.data);
-      } else {
-        // JSON text fallback
-        try {
-          const json = JSON.parse(event.data);
-          if (Array.isArray(json)) {
-            const enriched = json.map(r => ({
-              ...r,
-              _uid:  (r.relay_name || "Unknown") + "_" + r.sno,
-              relay: r.relay_name || "Unknown"
-            }));
-            _cserUpdateTable(enriched);
-            cserLastMessageAt = Date.now();
-          }
-        } catch (_) {}
-        return;
-      }
-      if (!bytes || bytes.length === 0) return;
+  cserWorker.onmessage = (event) => {
+    const msg = event.data;
+    if (!msg || !msg.type) return;
 
-      const exactBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-      const records = _cserDecodeTlv(exactBuffer);
-      if (records.length > 0) {
-        _cserUpdateTable(records);
+    if (msg.type === 'ws_status') {
+      cserConnected = msg.status === 'connected';
+      _cserUpdateConnectionStatus();
+      if (cserConnected) {
+        console.log('[CSER] Connected via worker');
         cserLastMessageAt = Date.now();
+        _cserStartAutoRefresh();
+      } else if (msg.status === 'disconnected') {
+        console.log('[CSER] Disconnected');
+        _cserStopAutoRefresh();
       }
-    } catch (err) {
-      console.error("[CSER] Decode error:", err);
+    } else if (msg.type === 'ws_text') {
+      // JSON text fallback (non-binary path)
+      try {
+        const json = JSON.parse(msg.data);
+        if (Array.isArray(json)) {
+          const enriched = json.map(r => ({
+            ...r,
+            _uid:  (r.relay_name || "Unknown") + "_" + r.sno,
+            relay: r.relay_name || "Unknown"
+          }));
+          _cserUpdateTable(enriched);
+          cserLastMessageAt = Date.now();
+        }
+      } catch (_) {}
+    } else if (msg.type === 'error') {
+      console.error('[CSER] Worker error:', msg.message);
     }
   };
 
-  cserWs.onclose = () => {
-    console.log("[CSER] Disconnected");
-    _cserStopAutoRefresh();
-    _cserUpdateConnectionStatus();
-    // Auto-reconnect after 5 s
-    setTimeout(() => {
-      if (document.getElementById("combine-ser-table")) _cserConnect();
-    }, 5000);
+  cserWorker.onerror = (event) => {
+    console.error('[CSER] Worker error:', event.message);
   };
 
-  cserWs.onerror = (err) => {
-    console.error("[CSER] WebSocket error:", err);
-    _cserUpdateConnectionStatus();
+  _cserStartRingReader();
+}
+
+function _cserStartRingReader() {
+  if (cserReaderRunning || !cserRing) return;
+
+  cserReaderId = cserRing.registerReader();
+  if (cserReaderId < 0) {
+    console.error('[CSER] All ring reader slots full');
+    return;
+  }
+
+  cserReaderRunning = true;
+  let lastSignal = Atomics.load(cserRing.header, 1);
+
+  const pump = async () => {
+    while (cserReaderRunning) {
+      // Wait for signal from writer
+      if (typeof Atomics.waitAsync === 'function') {
+        const result = Atomics.waitAsync(cserRing.header, 1, lastSignal);
+        if (result && result.value && typeof result.value.then === 'function') {
+          await result.value;
+        } else {
+          await new Promise(r => setTimeout(r, 50));
+        }
+      } else {
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      const current = Atomics.load(cserRing.header, 1);
+      if (current === lastSignal) continue;
+      lastSignal = current;
+
+      // Drain all available payloads
+      let payload = cserRing.readPayload(cserReaderId);
+      while (payload) {
+        try {
+          const buf = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+          const records = _cserDecodeTlv(buf);
+          if (records.length > 0) {
+            _cserUpdateTable(records);
+            cserLastMessageAt = Date.now();
+          }
+        } catch (err) {
+          console.error('[CSER] Ring decode error:', err);
+        }
+        payload = cserRing.readPayload(cserReaderId);
+      }
+    }
   };
+
+  pump();
+}
+
+function _cserStopReading() {
+  cserReaderRunning = false;
+  if (cserRing && cserReaderId >= 0) {
+    cserRing.unregisterReader(cserReaderId);
+    cserReaderId = -1;
+  }
 }
 
 function _cserStartAutoRefresh() {
@@ -307,7 +356,9 @@ function _cserStartAutoRefresh() {
   const rateEl = document.getElementById("cser-poll-rate");
   const rate = rateEl ? (parseInt(rateEl.value, 10) || 2000) : 2000;
   cserAutoRefresh = setInterval(() => {
-    if (cserWs && cserWs.readyState === WebSocket.OPEN) cserWs.send("getData");
+    if (cserWorker && cserConnected) {
+      cserWorker.postMessage({ type: 'send', payload: 'getData' });
+    }
   }, rate);
 }
 
@@ -323,22 +374,26 @@ function _cserStopAutoRefresh() {
 // ============================================================
 
 function cserConnectAll() {
-  _cserConnect();
+  _cserSetupWorker();
+  if (cserWorker) {
+    cserWorker.postMessage({ type: 'connect', wsUrl: 'ws://localhost:8765' });
+  }
 }
 
 function cserDisconnectAll() {
   _cserStopAutoRefresh();
-  if (cserWs) {
-    cserWs.onclose = null;
-    cserWs.onerror = null;
-    cserWs.close();
-    cserWs = null;
+  _cserStopReading();
+  if (cserWorker) {
+    cserWorker.postMessage({ type: 'disconnect' });
   }
+  cserConnected = false;
   _cserUpdateConnectionStatus();
 }
 
 function cserRefreshAll() {
-  if (cserWs && cserWs.readyState === WebSocket.OPEN) cserWs.send("getData");
+  if (cserWorker && cserConnected) {
+    cserWorker.postMessage({ type: 'send', payload: 'getData' });
+  }
 }
 
 function cserExportCSV() {
@@ -350,15 +405,13 @@ function cserExportCSV() {
 // ============================================================
 document.addEventListener("DOMContentLoaded", () => {
   _cserInitTable([]);
-  _cserConnect();
+  cserConnectAll();
 
   // Update poll rate on change
   const pollEl = document.getElementById("cser-poll-rate");
   if (pollEl) {
     pollEl.addEventListener("change", () => {
-      if (cserWs && cserWs.readyState === WebSocket.OPEN) {
-        _cserStartAutoRefresh();
-      }
+      if (cserConnected) _cserStartAutoRefresh();
     });
   }
 });

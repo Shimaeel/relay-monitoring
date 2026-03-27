@@ -1,9 +1,0 @@
-<map id="asn_date::encodeASN1Date" name="asn_date::encodeASN1Date">
-<area shape="rect" id="Node000001" title="Encode a datetime string as ASN.1 BER TLV with Tag 33." alt="" coords="5,5,193,32"/>
-<area shape="rect" id="Node000002" href="$namespaceasn__tlv.html#a0cc9af3d4e8aba5f164c66bb47750767" title="Append a string as a TLV structure." alt="" coords="241,5,408,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="193,16,228,19,222,19,193,21"/>
-<area shape="rect" id="Node000003" href="$namespaceasn__tlv.html#a4a9f3333d71c851f9002020ffd417b18" title="Append a complete TLV structure to an output buffer." alt="" coords="456,5,607,32"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="408,16,444,19,438,19,408,21"/>
-<area shape="rect" id="Node000004" href="$namespaceasn__tlv.html#af1ae5498c52c5e99d18f2cd5cb4f2609" title="Append BER length encoding to an output buffer." alt="" coords="655,5,828,32"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="608,16,642,19,637,19,608,21"/>
-</map>

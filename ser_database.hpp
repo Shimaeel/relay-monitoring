@@ -256,28 +256,6 @@ public:
     std::vector<SERRecord> getAllRecords();
 
     /**
-     * @brief Retrieve records filtered by status.
-     *
-     * @param status Status to filter by (e.g., "Asserted", "Deasserted")
-     *
-     * @return std::vector<SERRecord> Matching records ordered by timestamp
-     *
-     * @pre isOpen() == true
-     */
-    std::vector<SERRecord> getRecordsByStatus(const std::string& status);
-
-    /**
-     * @brief Retrieve records filtered by relay identifier.
-     *
-     * @param relayId Relay ID to filter by (e.g., "1", "2")
-     *
-     * @return std::vector<SERRecord> Matching records ordered by timestamp
-     *
-     * @pre isOpen() == true
-     */
-    std::vector<SERRecord> getRecordsByRelay(const std::string& relayId);
-
-    /**
      * @brief Get total count of records in the database.
      *
      * @return int Number of records, or 0 if error
@@ -296,34 +274,6 @@ public:
      * @post getRecordCount() == 0
      */
     bool clearAllRecords();
-
-    /**
-     * @brief Export all records to a JSON file for UI consumption.
-     *
-     * @details Generates a JSON array compatible with web UI format.
-     *
-     * Output Format:
-     * @code{.json}
-     * [
-     *   {
-     *     "sno": 45,
-     *     "date": "02/14/22",
-     *     "time": "12:47:19.970",
-     *     "element": "Power loss",
-     *     "state": ""
-     *   },
-     *   ...
-     * ]
-     * @endcode
-     *
-     * @param filePath Path to output JSON file (default: "ui/data.json")
-     *
-     * @return true if export succeeded
-     * @return false if export failed (check getLastError())
-     *
-     * @pre isOpen() == true
-     */
-    bool exportToJSON(const std::string& filePath = "ui/data.json");
 
     /**
      * @brief Get last error message.

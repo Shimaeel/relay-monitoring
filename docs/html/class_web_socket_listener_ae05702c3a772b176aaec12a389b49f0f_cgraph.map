@@ -1,8 +1,0 @@
-<map id="WebSocketListener::run" name="WebSocketListener::run">
-<area shape="rect" id="Node000001" title="Start the accept loop." alt="" coords="5,13,166,40"/>
-<area shape="rect" id="Node000002" href="$class_web_socket_listener.html#a4a02860b171ce2a28c38c07b8a241763" title="Initiate async accept for next connection." alt="" coords="214,5,356,48"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="166,24,201,26,195,27,166,29"/>
-<area shape="rect" id="Node000003" href="$class_web_socket_listener.html#a0bc0ecdf40bbd64fe6b8c8317c3dd9bf" title="Handle accepted connection." alt="" coords="404,5,546,48"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="357,33,391,36,386,36,357,38"/>
-<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="401,18,372,20,372,15,406,18"/>
-</map>

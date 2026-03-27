@@ -1,5 +1,0 @@
-<map id="ConnectOkGuard::operator()" name="ConnectOkGuard::operator()">
-<area shape="rect" id="Node000001" title="Evaluate connection success." alt="" coords="5,5,191,32"/>
-<area shape="rect" id="Node000002" href="$class_telnet_client.html#a6555ca7753fe6733a191cb2f9ce941d4" title="Get the result of the last I/O operation." alt="" coords="239,5,429,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="191,16,226,19,220,19,191,21"/>
-</map>

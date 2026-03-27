@@ -1,5 +1,0 @@
-<map id="SharedSerReader::runLoop" name="SharedSerReader::runLoop">
-<area shape="rect" id="Node000001" title="Main worker thread loop." alt="" coords="212,5,390,32"/>
-<area shape="rect" id="Node000002" href="$class_shared_ser_reader.html#aabd6c5c15122509fe63d3eef072ff6df" title="Starts the worker thread." alt="" coords="5,5,164,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="194,19,164,21,164,16,199,19"/>
-</map>

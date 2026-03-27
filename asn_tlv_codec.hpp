@@ -72,7 +72,6 @@
  * @endcode
  *
  * @see SERWebSocketServer Uses this codec for WebSocket messages
- * @see SharedSerReader Uses this codec for shared memory data
  *
  * @author Telnet-SML Development Team
  * @version 1.0.0

@@ -1,7 +1,0 @@
-<map id="SERDatabase::createTable" name="SERDatabase::createTable">
-<area shape="rect" id="Node000001" title="Create SER records table and indexes." alt="" coords="411,5,591,32"/>
-<area shape="rect" id="Node000002" href="$class_s_e_r_database.html#a4526bdbd509f3fc64952fa3a7f33bd5f" title="Open database connection and initialize schema." alt="" coords="222,5,363,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="393,19,363,21,363,16,398,19"/>
-<area shape="rect" id="Node000003" href="$class_s_e_r_database.html#ab9a60e734536bd80a75f9e8bacf86882" title=" " alt="" coords="5,5,174,32"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="204,19,174,21,174,16,209,19"/>
-</map>

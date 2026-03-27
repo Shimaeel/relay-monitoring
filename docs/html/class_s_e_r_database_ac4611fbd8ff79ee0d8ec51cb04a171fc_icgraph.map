@@ -1,7 +1,0 @@
-<map id="SERDatabase::insertRecords" name="SERDatabase::insertRecords">
-<area shape="rect" id="Node000001" title="Insert multiple SER records with transaction support." alt="" coords="222,31,416,57"/>
-<area shape="rect" id="Node000002" href="$struct_poll_ser_action.html#a80290394273450b8c46083cc224c529f" title="Execute SER polling and storage." alt="" coords="8,5,171,32"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,32,172,30,172,25,209,31"/>
-<area shape="rect" id="Node000003" href="$class_s_e_r_database.html#ab9a60e734536bd80a75f9e8bacf86882" title=" " alt="" coords="5,56,174,83"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="204,57,175,63,174,57,209,56"/>
-</map>
