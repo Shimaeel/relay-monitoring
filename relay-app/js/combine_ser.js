@@ -239,6 +239,12 @@ function _cserSetupWorker() {
 
   if (typeof SharedArrayBuffer === 'undefined') {
     console.error('[CSER] SharedArrayBuffer not available — enable Cross-Origin Isolation headers.');
+    // Show clear error in UI instead of staying on "Connecting"
+    const el = document.getElementById("cser-conn-status");
+    if (el) {
+      el.textContent = "❌ SharedArrayBuffer unavailable — serve via serve.ps1";
+      el.style.color = "#dc2626";
+    }
     return;
   }
 

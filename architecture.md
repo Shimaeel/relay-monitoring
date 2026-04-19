@@ -77,9 +77,12 @@ graph TB
 
     PARSER --> STAMP
     STAMP -->|"insertAndGetNewRecords()"| DB
-    STAMP -->|"broadcastAll() TLV"| WS
+    STAMP -->|"calls broadcastAll()"| WS
     STAMP -->|"write(tlv_payload)"| SHM
     PROC --> PRUNE -->|"pruneOldRecords(90)"| DB
+
+    %% KEY: WebSocket reads ALL records from SQLite before broadcasting
+    WS -->|"db_.getAllRecords()<br/>+ encodeSerRecordsToTlv()"| DB
 
     TARCOL -->|"handleUserCommand(TAR N)"| RM
     TARCOL -->|"cache result"| TARCACHE

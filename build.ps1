@@ -131,3 +131,13 @@ Write-Host "    ./build.ps1 -DLL     - Build DLL library" -ForegroundColor Gray
 Write-Host "    ./build.ps1 -Example - Build DLL example" -ForegroundColor Gray
 Write-Host "    ./build.ps1 -Clean   - Clean artifacts" -ForegroundColor Gray
 Write-Host "========================================" -ForegroundColor Cyan
+
+# Auto-start serve.ps1 for relay-app (COOP/COEP headers for SharedArrayBuffer)
+$servePath = Join-Path $PSScriptRoot "relay-app\serve.ps1"
+if (Test-Path $servePath) {
+    Write-Host ""
+    Write-Host "Starting relay-app HTTP server (port 3000)..." -ForegroundColor Yellow
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\relay-app'; .\serve.ps1"
+    Write-Host "  relay-app server started in new window" -ForegroundColor Green
+    Write-Host "  Open: http://localhost:3000/index.html" -ForegroundColor Cyan
+}
