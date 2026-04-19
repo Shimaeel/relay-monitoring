@@ -98,6 +98,9 @@ bool SERDatabase::open()
         return false;
     }
 
+    // Enable WAL mode for better concurrent read/write performance (24/7 operation)
+    sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+
     // Create table if it doesn't exist
     if (!createTable())
     {
@@ -479,6 +482,58 @@ bool SERDatabase::clearAllRecords()
     }
 
     return true;
+}
+
+// ================= PRUNING =================
+
+/**
+ * @brief Delete records older than the specified number of days.
+ *
+ * @details Deletes rows whose `created_at` timestamp is older than
+ *          `now - days`.  Uses SQLite's `datetime()` function for
+ *          portable date arithmetic.  Intended for periodic housekeeping
+ *          during 24/7 continuous operation.
+ *
+ * @param days  Number of days to retain (default: 90).
+ *
+ * @return int  Number of records deleted, or -1 on error.
+ *
+ * @pre isOpen() == true
+ */
+int SERDatabase::pruneOldRecords(int days)
+{
+    if (!db_)
+    {
+        last_error_ = "Database not open";
+        return -1;
+    }
+
+    const char* sql = "DELETE FROM ser_records WHERE created_at < datetime('now', ?);";
+
+    sqlite3_stmt* stmt;
+    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK)
+    {
+        last_error_ = "Failed to prepare prune statement: " + std::string(sqlite3_errmsg(db_));
+        return -1;
+    }
+
+    std::string modifier = "-" + std::to_string(days) + " days";
+    sqlite3_bind_text(stmt, 1, modifier.c_str(), -1, SQLITE_TRANSIENT);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE)
+    {
+        last_error_ = "Failed to prune records: " + std::string(sqlite3_errmsg(db_));
+        return -1;
+    }
+
+    int deleted = sqlite3_changes(db_);
+    if (deleted > 0)
+        std::cout << "[DB] Pruned " << deleted << " records older than " << days << " days\n";
+    return deleted;
 }
 
 // ================= HELPER FUNCTIONS =================

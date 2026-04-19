@@ -47,10 +47,12 @@
 #include "telnet_sml_app.hpp"
 
 #include <atomic>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -68,6 +70,7 @@
 #include "password_manager.hpp"
 #include "sntp_client.hpp"
 #include "ws_server.hpp"
+#include "app_logger.hpp"
 
 using namespace sml;
 
@@ -168,7 +171,11 @@ public:
     SERWebSocketServer wsServer{serDb, 8765};            ///< Single shared WebSocket server
     SharedRingBuffer shmRing{"TelnetSmlShmRing", 500U * 1024U}; ///< Shared ring buffer (500KB)
 
-    ThreadManager threadMgr{std::chrono::seconds(120)};          ///< Poller (2 min interval)
+    /// Interval between SER polls across all active relays. Tune down for
+    /// lower event-capture latency at the cost of more relay load.
+    static constexpr std::chrono::seconds kSerPollInterval{120};
+
+    ThreadManager threadMgr{kSerPollInterval};                    ///< Poller (2 min interval)
 
     // ─── Multi-relay management ─────────────────────────────────────
     std::unique_ptr<RelayManager> relayMgr;              ///< On-demand pipeline coordinator
@@ -178,7 +185,47 @@ public:
     std::unordered_map<std::string, std::string> tarCache_;           ///< relay_id → TAR_BATCH_ALL JSON
     std::unordered_map<std::string, bool> tarFetchInProgress_;        ///< relay_id → in-progress flag
     std::condition_variable tarCacheCv_;                               ///< Notifies when TAR fetch completes
-    std::vector<std::thread> tarBgThreads_;                            ///< Background TAR collection threads
+    struct TarBgTask
+    {
+        std::thread thread;
+        std::shared_ptr<std::atomic<bool>> done;
+    };
+    std::mutex tarBgThreadsMutex_;                                    ///< Guards tarBgThreads_
+    std::vector<TarBgTask> tarBgThreads_;                             ///< Background TAR collection threads
+
+    /// Join and erase any tarBgThreads_ entries whose work has completed.
+    /// Caller must hold tarBgThreadsMutex_.
+    void reapFinishedTarThreadsLocked_()
+    {
+        for (auto it = tarBgThreads_.begin(); it != tarBgThreads_.end();)
+        {
+            if (it->done && it->done->load())
+            {
+                if (it->thread.joinable())
+                    it->thread.join();
+                it = tarBgThreads_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    /// Spawn a background TAR collection thread, reaping any finished ones first.
+    void spawnTarBgThread_(const std::string& relayId)
+    {
+        auto done = std::make_shared<std::atomic<bool>>(false);
+        std::lock_guard<std::mutex> lock(tarBgThreadsMutex_);
+        reapFinishedTarThreadsLocked_();
+        tarBgThreads_.push_back(TarBgTask{
+            std::thread([this, relayId, done]() {
+                collectTarBackground(relayId);
+                done->store(true);
+            }),
+            done
+        });
+    }
 
     bool running = false;                                ///< Application running state
 
@@ -483,18 +530,21 @@ public:
                     // relay is already active when the client joins.
                     wsServer.broadcastAll();
 
-                    // Only spawn background TAR collection if not already cached or in progress
+                    // Only spawn background TAR collection if not already cached or in progress.
+                    // Claim the in-progress slot under the same lock as the check so two
+                    // concurrent start_relay calls for the same relay cannot both spawn.
                     bool shouldCollect = false;
                     {
                         std::lock_guard<std::mutex> lock(tarCacheMutex_);
                         if (!tarCache_.count(relayId) && !tarFetchInProgress_[relayId])
+                        {
+                            tarFetchInProgress_[relayId] = true;
                             shouldCollect = true;
+                        }
                     }
                     if (shouldCollect)
                     {
-                        tarBgThreads_.emplace_back([this, relayId]() {
-                            collectTarBackground(relayId);
-                        });
+                        spawnTarBgThread_(relayId);
                     }
                 }
                 return ok
@@ -668,9 +718,19 @@ public:
             bool ok = relayMgr->startRelay(cfg.id);
             if (ok)
             {
-                tarBgThreads_.emplace_back([this, id = cfg.id]() {
-                    collectTarBackground(id);
-                });
+                bool shouldCollect = false;
+                {
+                    std::lock_guard<std::mutex> lock(tarCacheMutex_);
+                    if (!tarCache_.count(cfg.id) && !tarFetchInProgress_[cfg.id])
+                    {
+                        tarFetchInProgress_[cfg.id] = true;
+                        shouldCollect = true;
+                    }
+                }
+                if (shouldCollect)
+                {
+                    spawnTarBgThread_(cfg.id);
+                }
             }
             else
             {
@@ -709,20 +769,28 @@ public:
         std::cout << "\n[Main] Shutting down...\n";
         app_running = false;
 
-        // Stop all relay pipelines first
+        // Stop the poller first so it doesn't queue more work.
+        threadMgr.stopAll();
+
+        // Stop the WebSocket server and join all handler threads. This must
+        // happen BEFORE relayMgr->stopAll()/serDb.close() because detached
+        // WS handler threads capture references to RelayManager and SERDatabase.
+        wsServer.stop();
+
+        // Join background TAR collection threads (also reference relayMgr).
+        {
+            std::lock_guard<std::mutex> lock(tarBgThreadsMutex_);
+            for (auto& task : tarBgThreads_)
+            {
+                if (task.thread.joinable())
+                    task.thread.join();
+            }
+            tarBgThreads_.clear();
+        }
+
+        // Now safe to tear down relay pipelines and the database.
         if (relayMgr)
             relayMgr->stopAll();
-
-        // Join background TAR collection threads
-        for (auto& t : tarBgThreads_)
-        {
-            if (t.joinable())
-                t.join();
-        }
-        tarBgThreads_.clear();
-
-        threadMgr.stopAll();
-        wsServer.stop();
         serDb.close();
 
         running = false;

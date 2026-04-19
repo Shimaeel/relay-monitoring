@@ -399,6 +399,23 @@ struct LoginRetryIncrAction
     }
 };
 
+/**
+ * @brief FSM Action: Log Error state entry and reset retry counter for recovery.
+ *
+ * @details Called on entry to Error state.  Logs the failure and resets
+ * the retry counter so that a subsequent disconnect_event can trigger
+ * a fresh reconnect cycle (24/7 auto-recovery).
+ */
+struct ErrorRecoveryAction
+{
+    template <class Event>
+    void operator()(const Event&, RetryState& retry) const
+    {
+        retry.reset();
+        std::cout << "[FSM] Error state entered \xe2\x80\x94 retries reset for auto-recovery\n";
+    }
+};
+
 // ================= COMMAND FSM ACTIONS =================
 
 /**
@@ -796,6 +813,7 @@ struct RelayConnectionFSM
             "ConnectWait"_s    + on_entry<_> / ConnectWaitLogAction{},
             "LoginRetryWait"_s + on_entry<_> / LoginRetryIncrAction{},
             "Operational"_s    + on_entry<_> / ResetRetryAction{},
+            "Error"_s          + on_entry<_> / ErrorRecoveryAction{},
 
             // Idle -> start
             *"Idle"_s + event<start_event> = "Connecting"_s,
@@ -817,6 +835,9 @@ struct RelayConnectionFSM
             // Operational (self-loop; disconnect triggers reconnect)
             "Operational"_s + event<step_event>       = "Operational"_s,
             "Operational"_s + event<disconnect_event>  = "Connecting"_s,
+
+            // Error recovery: disconnect_event triggers fresh reconnection cycle (24/7)
+            "Error"_s + event<disconnect_event>  = "Connecting"_s,
 
             // Safety
             state<_> + event<unhandled_event> / on_unhandled = "Error"_s,

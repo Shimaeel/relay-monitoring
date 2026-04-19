@@ -47,6 +47,11 @@ let ws = null;
 /** @type {string|null} */
 let wsUrl = null;
 
+/** @type {number} Reconnect delay with exponential backoff (ms) */
+let reconnectDelay = 3000;
+const RECONNECT_MIN = 3000;
+const RECONNECT_MAX = 30000;
+
 /**
  * Post a WebSocket status update to the main thread.
  * @param {string} status
@@ -75,6 +80,7 @@ function connectWebSocket(url) {
     ws.binaryType = 'arraybuffer';
 
     ws.onopen = () => {
+        reconnectDelay = RECONNECT_MIN;  // Reset backoff on successful connect
         sendStatus('connected');
     };
 
@@ -94,9 +100,10 @@ function connectWebSocket(url) {
 
     ws.onclose = () => {
         sendStatus('disconnected');
-        // Auto-reconnect (wsUrl is cleared on explicit disconnect)
+        // Auto-reconnect with exponential backoff (wsUrl is cleared on explicit disconnect)
         if (wsUrl) {
-            setTimeout(() => connectWebSocket(wsUrl), 3000);
+            setTimeout(() => connectWebSocket(wsUrl), reconnectDelay);
+            reconnectDelay = Math.min(reconnectDelay * 1.5, RECONNECT_MAX);
         }
     };
 

@@ -36,6 +36,12 @@
 #include <array>
 #include <thread>
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <mstcpip.h>
+#endif
+
 // ================= CONSTRUCTOR =================
 TelnetClient::TelnetClient()
     : socket_(io_), connected_(false), last_io_ok_(false), io_timeout_(std::chrono::milliseconds(5000))
@@ -88,6 +94,47 @@ bool TelnetClient::connectCheck(const std::string& host,
 
         connected_ = connected;
         last_io_ok_ = connected;
+
+        // Enable TCP keep-alive for long-running 24/7 connections.
+        // Detects dead relay connections when network drops silently.
+        // Default Windows keep-alive is ~2 hours — far too slow for 24/7.
+        // Tuned: probe after 30s idle, retry every 5s, give up after 3 probes (~45s detection).
+        if (connected)
+        {
+            boost::asio::socket_base::keep_alive keepAlive(true);
+            boost::system::error_code ka_ec;
+            socket_.set_option(keepAlive, ka_ec);
+            if (ka_ec)
+                std::cerr << "[TCP] Failed to set keep-alive: " << ka_ec.message() << "\n";
+
+#ifdef _WIN32
+            // Windows: use SIO_KEEPALIVE_VALS to set idle + interval
+            struct tcp_keepalive ka_vals{};
+            ka_vals.onoff = 1;
+            ka_vals.keepalivetime = 30000;     // 30s before first probe
+            ka_vals.keepaliveinterval = 5000;  // 5s between probes
+            DWORD bytesReturned = 0;
+            int result = WSAIoctl(
+                socket_.native_handle(),
+                SIO_KEEPALIVE_VALS,
+                &ka_vals, sizeof(ka_vals),
+                nullptr, 0,
+                &bytesReturned, nullptr, nullptr);
+            if (result == SOCKET_ERROR)
+                std::cerr << "[TCP] Failed to set keep-alive timers: WSA error "
+                          << WSAGetLastError() << "\n";
+#else
+            // Linux/macOS: set individual socket options
+            int idle_sec = 30;   // seconds before first probe
+            int intvl_sec = 5;   // seconds between probes
+            int cnt = 3;         // number of probes before giving up
+            auto fd = socket_.native_handle();
+            setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE,  &idle_sec,  sizeof(idle_sec));
+            setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl_sec, sizeof(intvl_sec));
+            setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT,   &cnt,       sizeof(cnt));
+#endif
+        }
+
         return connected;
     }
     catch (const std::exception& e)

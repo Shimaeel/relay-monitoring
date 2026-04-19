@@ -276,6 +276,20 @@ public:
     bool clearAllRecords();
 
     /**
+     * @brief Delete records older than the specified number of days.
+     *
+     * @details Uses the created_at column to determine record age.
+     * Intended for periodic housekeeping during 24/7 operation to
+     * prevent unbounded database growth.
+     *
+     * @param days Number of days to retain (default: 90)
+     * @return int Number of records deleted, or -1 on error
+     *
+     * @pre isOpen() == true
+     */
+    int pruneOldRecords(int days = 90);
+
+    /**
      * @brief Get last error message.
      *
      * @return const std::string& Error message from last failed operation

@@ -127,6 +127,7 @@
 #include <iostream>
 #include <set>
 #include <mutex>
+#include <atomic>
 
 #include "asn_tlv_codec.hpp"
 #include "ser_database.hpp"
@@ -210,9 +211,73 @@ public:
         return sessions_.size();
     }
 
+    // ── Handler-thread tracking (for safe shutdown) ─────────────────────
+    // Detached handler threads spawned by sessions register themselves here
+    // so that SERWebSocketServer::stop() can join them before resources
+    // captured by the handlers (RelayManager, SERDatabase) are torn down.
+    struct HandlerTask
+    {
+        std::thread thread;
+        std::shared_ptr<std::atomic<bool>> done;
+    };
+
+    /// Spawn a tracked handler thread. The returned shared_ptr's atomic<bool>
+    /// is set true by the wrapper after `fn` returns; reapFinishedHandlers()
+    /// or joinAllHandlers() then joins and removes the entry.
+    template <typename Fn>
+    void spawnHandlerThread(Fn&& fn)
+    {
+        auto done = std::make_shared<std::atomic<bool>>(false);
+        std::lock_guard<std::mutex> lock(handlerMutex_);
+        reapFinishedHandlersLocked_();
+        handlerTasks_.push_back(HandlerTask{
+            std::thread([fn = std::forward<Fn>(fn), done]() mutable {
+                try { fn(); }
+                catch (const std::exception& e) {
+                    std::cerr << "[WS] Handler thread exception: " << e.what() << "\n";
+                }
+                catch (...) {
+                    std::cerr << "[WS] Handler thread unknown exception\n";
+                }
+                done->store(true);
+            }),
+            done
+        });
+    }
+
+    /// Join all outstanding handler threads. Call from server stop() before
+    /// any captured resources (RelayManager, SERDatabase) are destroyed.
+    void joinAllHandlers()
+    {
+        std::lock_guard<std::mutex> lock(handlerMutex_);
+        for (auto& task : handlerTasks_)
+        {
+            if (task.thread.joinable())
+                task.thread.join();
+        }
+        handlerTasks_.clear();
+    }
+
 private:
+    void reapFinishedHandlersLocked_()
+    {
+        for (auto it = handlerTasks_.begin(); it != handlerTasks_.end();)
+        {
+            if (it->done && it->done->load())
+            {
+                if (it->thread.joinable())
+                    it->thread.join();
+                it = handlerTasks_.erase(it);
+            }
+            else { ++it; }
+        }
+    }
+
     mutable std::mutex mutex_;
     std::set<std::shared_ptr<WebSocketSession>> sessions_;
+
+    std::mutex handlerMutex_;
+    std::vector<HandlerTask> handlerTasks_;
 };
 
 
@@ -284,7 +349,12 @@ private:
     CommandHandler cmdHandler_;                   ///< Optional handler for relay commands
     ActionHandler actionHandler_;                 ///< Optional handler for JSON actions (time sync)
     StreamCommandHandler streamCmdHandler_;       ///< Optional handler for streaming commands
-    std::atomic<bool> streaming_abort_{false};    ///< Abort flag for in-flight streaming
+    /// Per-request abort flag for the CURRENT streaming handler.  Reassigned
+    /// (not mutated) when a new streaming command starts so the previously
+    /// spawned handler thread retains its own flag and no race occurs on
+    /// the shared atomic between overlapping handler lifetimes.
+    std::shared_ptr<std::atomic<bool>> streaming_abort_
+        = std::make_shared<std::atomic<bool>>(false);
 
     // ── Write queue for guaranteed delivery ─────────────────────────────
     /// Pending message: binary payload or text string, with mode flag
@@ -369,8 +439,14 @@ public:
      */
     void run()
     {
-        // Set suggested timeout settings for the websocket
-        ws_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
+        // Set explicit timeout settings for 24/7 operation:
+        // - Idle timeout: 5 minutes (detects dead/half-open connections)
+        // - Keep-alive pings: enabled (probes silent clients)
+        websocket::stream_base::timeout opt{};
+        opt.handshake_timeout = std::chrono::seconds(30);
+        opt.idle_timeout      = std::chrono::seconds(300);
+        opt.keep_alive_pings  = true;
+        ws_.set_option(opt);
 
         // Set a decorator to change the Server of the handshake
         ws_.set_option(websocket::stream_base::decorator(
@@ -558,14 +634,16 @@ private:
             auto self = shared_from_this();
             auto handler = actionHandler_;
             auto fullMsg = msg;
-            std::thread([self, handler, fullMsg]() {
-                std::string response = handler(fullMsg);
-                // Post text response back onto the session's strand
-                net::post(self->ws_.get_executor(), [self, response]() {
-                    self->sendTextResponse(response);
-                    self->do_read();
+            if (sessionMgr_)
+            {
+                sessionMgr_->spawnHandlerThread([self, handler, fullMsg]() {
+                    std::string response = handler(fullMsg);
+                    net::post(self->ws_.get_executor(), [self, response]() {
+                        self->sendTextResponse(response);
+                        self->do_read();
+                    });
                 });
-            }).detach();
+            }
         }
         else if (streamCmdHandler_ || cmdHandler_)
         {
@@ -575,32 +653,39 @@ private:
             auto streamHandler = streamCmdHandler_;
             auto handler = cmdHandler_;
             auto cmdMsg = msg;
-            streaming_abort_.store(false);
-            std::thread([self, streamHandler, handler, cmdMsg]() {
-                bool streamed = false;
-                if (streamHandler)
-                {
-                    streamed = streamHandler(cmdMsg,
-                        [self](const std::string& text) {
-                            net::post(self->ws_.get_executor(), [self, text]() {
-                                self->sendTextResponse(text);
-                            });
-                        },
-                        self->streaming_abort_
-                    );
-                }
-                if (!streamed && handler)
-                {
-                    std::string response = handler(cmdMsg);
-                    net::post(self->ws_.get_executor(), [self, response]() {
-                        if (!response.empty())
-                            self->sendTextResponse(response);
+            // Allocate a fresh abort flag for this request.  The previous
+            // handler (if any) still holds its own shared_ptr, so resetting
+            // here cannot affect it.
+            streaming_abort_ = std::make_shared<std::atomic<bool>>(false);
+            auto abortFlag = streaming_abort_;
+            if (sessionMgr_)
+            {
+                sessionMgr_->spawnHandlerThread([self, streamHandler, handler, cmdMsg, abortFlag]() {
+                    bool streamed = false;
+                    if (streamHandler)
+                    {
+                        streamed = streamHandler(cmdMsg,
+                            [self](const std::string& text) {
+                                net::post(self->ws_.get_executor(), [self, text]() {
+                                    self->sendTextResponse(text);
+                                });
+                            },
+                            *abortFlag
+                        );
+                    }
+                    if (!streamed && handler)
+                    {
+                        std::string response = handler(cmdMsg);
+                        net::post(self->ws_.get_executor(), [self, response]() {
+                            if (!response.empty())
+                                self->sendTextResponse(response);
+                        });
+                    }
+                    net::post(self->ws_.get_executor(), [self]() {
+                        self->do_read();
                     });
-                }
-                net::post(self->ws_.get_executor(), [self]() {
-                    self->do_read();
                 });
-            }).detach();
+            }
         }
         else
         {
@@ -650,7 +735,7 @@ private:
         if (ec)
         {
             std::cerr << "[WS] Write error: " << ec.message() << "\n";
-            streaming_abort_.store(true);
+            if (streaming_abort_) streaming_abort_->store(true);
             write_queue_.clear();
             return;
         }
@@ -1029,7 +1114,11 @@ public:
         ioc_.stop();
         if (server_thread_.joinable())
             server_thread_.join();
-        
+
+        // Join any in-flight handler threads before captured resources
+        // (RelayManager, SERDatabase) are torn down by the caller.
+        sessionMgr_.joinAllHandlers();
+
         running_ = false;
         std::cout << "[WS] Server stopped\n";
     }

@@ -81,12 +81,31 @@ struct RelayConfig
 /**
  * @brief Get all known relay configurations.
  *
- * @details Returns the static list of relay devices. In production this
- * could be loaded from a JSON file or database; for now it is hardcoded.
+ * @details Returns the static list of relay devices.  In production this
+ * could be loaded from a JSON configuration file or database; for now the
+ * entries are hardcoded.
+ *
+ * Each @ref RelayConfig in the returned vector is self-contained: it
+ * carries the network address, credentials, protocol, and UI display
+ * metadata needed by @ref RelayManager to create a @ref RelayPipeline.
  *
  * @return std::vector<RelayConfig> List of all relay configurations.
+ *         The vector is never empty in a correctly configured build.
  *
- * @note To add a relay, append a new entry to the returned vector.
+ * @par Example
+ * @code{.cpp}
+ * for (const auto& cfg : getRelayConfigs())
+ *     std::cout << cfg.id << ": " << cfg.name
+ *               << " @ " << cfg.host << ":" << cfg.port << "\n";
+ * @endcode
+ *
+ * @note To add a relay, append a new @ref RelayConfig entry to the
+ *       returned vector.
+ * @note IDs must be unique — duplicates will cause RelayManager to
+ *       overwrite an existing pipeline.
+ *
+ * @see RelayManager::startRelay() Consumer of these configurations
+ * @see RelayPipeline              Created from a single RelayConfig
  */
 inline std::vector<RelayConfig> getRelayConfigs()
 {

@@ -91,6 +91,7 @@
 
 #include <iostream>
 #include "telnet_sml_app.hpp"
+#include "app_logger.hpp"
 
 /**
  * @brief Main entry point for the Telnet-SML application
@@ -117,11 +118,20 @@
  */
 int main()
 {
+    // Rotate at 5 MB, keep 3 prior files. Required for 24/7 operation so
+    // redirected console output does not grow without bound.
+    AppLogger::init("app.log", 5 * 1024 * 1024, 3);
+
     TelnetSmlApp app;
     if (!app.start())
+    {
+        AppLogger::shutdown();
         return 1;
+    }
 
     app.waitForExit();
     app.stop();
+
+    AppLogger::shutdown();
     return 0;
 }

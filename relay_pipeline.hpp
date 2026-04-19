@@ -111,6 +111,7 @@ class PipelineReceptionWorker
 
     static constexpr int MAX_RETRIES = 3;             ///< Per-command retry limit
     static constexpr int RETRY_DELAY_SEC = 5;         ///< Interruptible wait (seconds)
+    static constexpr int ERROR_RECOVERY_DELAY_SEC = 60; ///< Wait before auto-recovery from Error (24/7)
 
     // ─── FSM Driver ─────────────────────────────────────────────────────────
 
@@ -146,8 +147,17 @@ class PipelineReceptionWorker
 
             if (fsm_.is("Error"_s))
             {
-                std::cout << relay_tag_ << " FSM reached Error state\n";
-                return false;
+                // 24/7 auto-recovery: wait before retrying instead of giving up
+                std::cout << relay_tag_ << " FSM in Error state — waiting "
+                          << ERROR_RECOVERY_DELAY_SEC << "s before auto-recovery...\n";
+                screen_size_configured_ = false;
+                for (int s = 0; s < ERROR_RECOVERY_DELAY_SEC && !stop_flag_.load(); ++s)
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                if (stop_flag_.load())
+                    return false;
+                // Trigger reconnection from Error state
+                fsm_.process_event(disconnect_event{});
+                continue;
             }
 
             // Interruptible wait for retry states
@@ -289,32 +299,57 @@ class PipelineReceptionWorker
     {
         std::cout << relay_tag_ << " Worker thread started (FSM-driven)\n";
 
-        // Kick the FSM out of Idle → Connecting (ConnectAction runs)
-        {
-            std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
-            fsm_.process_event(start_event{});
-        }
-
+        bool first_iter = true;
         while (!stop_flag_.load())
         {
-            std::string cmd;
+            try
             {
-                std::unique_lock<std::mutex> lock(queue_mutex_);
-                queue_cv_.wait(lock, [&]() {
-                    return stop_flag_.load() || !command_queue_.empty();
-                });
+                // Kick the FSM out of Idle → Connecting on first run, or
+                // after a crash attempt a clean reconnect.
+                {
+                    std::lock_guard<std::mutex> lock(sync_cmd_mutex_);
+                    if (first_iter)
+                        fsm_.process_event(start_event{});
+                    else
+                        fsm_.process_event(disconnect_event{});
+                }
+                first_iter = false;
 
-                if (stop_flag_.load())
-                    break;
+                while (!stop_flag_.load())
+                {
+                    std::string cmd;
+                    {
+                        std::unique_lock<std::mutex> lock(queue_mutex_);
+                        queue_cv_.wait(lock, [&]() {
+                            return stop_flag_.load() || !command_queue_.empty();
+                        });
 
-                if (command_queue_.empty())
-                    continue;
+                        if (stop_flag_.load())
+                            break;
 
-                cmd = std::move(command_queue_.front());
-                command_queue_.pop_front();
+                        if (command_queue_.empty())
+                            continue;
+
+                        cmd = std::move(command_queue_.front());
+                        command_queue_.pop_front();
+                    }
+
+                    executeCommand(cmd);
+                }
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << relay_tag_ << " Reception worker threw: "
+                          << e.what() << " — restarting in 5s\n";
+            }
+            catch (...)
+            {
+                std::cerr << relay_tag_ << " Reception worker threw (unknown) — restarting in 5s\n";
             }
 
-            executeCommand(cmd);
+            // Backoff before auto-restart; honor stop_flag during sleep.
+            for (int s = 0; s < 5 && !stop_flag_.load(); ++s)
+                std::this_thread::sleep_for(std::chrono::seconds(1));
         }
         std::cout << relay_tag_ << " Worker thread exiting\n";
     }
@@ -475,57 +510,85 @@ class PipelineProcessingWorker
     std::string relay_id_;       ///< Relay identifier to stamp on records
     std::string relay_name_;     ///< Relay display name to stamp on records
     std::string relay_tag_;      ///< Log prefix
+    int prune_cycle_count_{0};   ///< Counter for periodic DB pruning
 
     void runLoop()
     {
         std::cout << relay_tag_ << " Worker thread started\n";
         while (!stop_flag_.load() && app_running_.load())
         {
-            auto msg = rawBuffer_.waitPop(readerId_, stop_flag_);
-            if (!msg)
-                continue;
-
-            // Non-SER command — broadcast raw text to all WS clients
-            if (msg->command != "SER")
+        try
+        {
+            while (!stop_flag_.load() && app_running_.load())
             {
-                std::cout << relay_tag_ << " Non-SER command '" << msg->command
-                          << "', broadcasting text (" << msg->response.size() << " bytes)\n";
-                wsServer_.broadcastText(msg->response);
-                continue;
+                auto msg = rawBuffer_.waitPop(readerId_, stop_flag_);
+                if (!msg)
+                    continue;
+
+                // Non-SER command — broadcast raw text to all WS clients
+                if (msg->command != "SER")
+                {
+                    std::cout << relay_tag_ << " Non-SER command '" << msg->command
+                              << "', broadcasting text (" << msg->response.size() << " bytes)\n";
+                    wsServer_.broadcastText(msg->response);
+                    continue;
+                }
+
+                // Parse SER response
+                auto records = parseSERResponse(msg->response);
+                if (records.empty())
+                {
+                    std::cout << relay_tag_ << " No records parsed\n";
+                    continue;
+                }
+
+                // *** STAMP relay identity on every record ***
+                for (auto& rec : records)
+                {
+                    rec.relay_id   = relay_id_;
+                    rec.relay_name = relay_name_;
+                }
+
+                std::cout << relay_tag_ << " Parsed " << records.size() << " SER records\n";
+
+                // Step 1: SQLite insert (shared DB, relay_id prevents cross-relay duplicates)
+                int inserted = 0;
+                auto newRecords = db_.insertAndGetNewRecords(records, inserted);
+                std::cout << relay_tag_ << " SQLite: " << inserted << " new records\n";
+
+                // Periodic DB housekeeping: prune records older than 90 days
+                // Run every 50 insert cycles to avoid overhead on every poll
+                if (++prune_cycle_count_ >= 50)
+                {
+                    prune_cycle_count_ = 0;
+                    db_.pruneOldRecords(90);
+                }
+
+                // Step 2: WebSocket broadcast — full DB refresh for all clients
+                wsServer_.broadcastAll();
+
+                // Step 3: Shared memory ring for JSON file writer
+                if (inserted > 0)
+                {
+                    auto payload = asn_tlv::encodeSerRecordsToTlv(newRecords);
+                    if (!payload.empty())
+                        shmRing_.write(payload.data(), payload.size());
+                }
             }
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << relay_tag_ << " Processing worker threw: "
+                      << e.what() << " — restarting in 5s\n";
+        }
+        catch (...)
+        {
+            std::cerr << relay_tag_ << " Processing worker threw (unknown) — restarting in 5s\n";
+        }
 
-            // Parse SER response
-            auto records = parseSERResponse(msg->response);
-            if (records.empty())
-            {
-                std::cout << relay_tag_ << " No records parsed\n";
-                continue;
-            }
-
-            // *** STAMP relay identity on every record ***
-            for (auto& rec : records)
-            {
-                rec.relay_id   = relay_id_;
-                rec.relay_name = relay_name_;
-            }
-
-            std::cout << relay_tag_ << " Parsed " << records.size() << " SER records\n";
-
-            // Step 1: SQLite insert (shared DB, relay_id prevents cross-relay duplicates)
-            int inserted = 0;
-            auto newRecords = db_.insertAndGetNewRecords(records, inserted);
-            std::cout << relay_tag_ << " SQLite: " << inserted << " new records\n";
-
-            // Step 2: WebSocket broadcast — full DB refresh for all clients
-            wsServer_.broadcastAll();
-
-            // Step 3: Shared memory ring for JSON file writer
-            if (inserted > 0)
-            {
-                auto payload = asn_tlv::encodeSerRecordsToTlv(newRecords);
-                if (!payload.empty())
-                    shmRing_.write(payload.data(), payload.size());
-            }
+        // Backoff before auto-restart; honor stop/app flags during sleep.
+        for (int s = 0; s < 5 && !stop_flag_.load() && app_running_.load(); ++s)
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
         std::cout << relay_tag_ << " Worker thread exiting\n";
     }
@@ -636,7 +699,7 @@ class RelayPipeline
     std::unique_ptr<PipelineReceptionWorker>  rxWorker_;
     std::unique_ptr<PipelineProcessingWorker> procWorker_;
 
-    bool running_ = false;
+    std::atomic<bool> running_{false};
 
 public:
     /**

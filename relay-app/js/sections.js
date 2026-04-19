@@ -433,6 +433,9 @@ function connectSerWebSocket() {
 // ============================================================
 
 let _serDirectReconnectTimer = null;
+let _serDirectReconnectDelay = 3000;
+const _SER_RECONNECT_MIN = 3000;
+const _SER_RECONNECT_MAX = 30000;
 
 function _connectSerDirect() {
   serUsingDirect = true;
@@ -449,6 +452,7 @@ function _connectSerDirect() {
 
   ws.onopen = () => {
     serWorkerConnected = true;
+    _serDirectReconnectDelay = _SER_RECONNECT_MIN;  // Reset backoff on success
     updateSerConnectionStatus('connected');
 
     // Start relay pipeline on the C++ backend
@@ -505,15 +509,17 @@ function _connectSerDirect() {
 
   ws.onclose = () => {
     serWorkerConnected = false;
+    serDirectWs = null;
     console.log('[SER-Direct] Closed');
     updateSerConnectionStatus(serDataReceived ? 'synced' : 'disconnected');
     stopSerAutoRefresh();
-    // Auto-reconnect after 3s
+    // Auto-reconnect with exponential backoff
     _serDirectReconnectTimer = setTimeout(() => {
       if (serUsingDirect && !serDirectWs) {
         _connectSerDirect();
       }
-    }, 3000);
+    }, _serDirectReconnectDelay);
+    _serDirectReconnectDelay = Math.min(_serDirectReconnectDelay * 1.5, _SER_RECONNECT_MAX);
   };
 
   ws.onerror = () => {
@@ -740,11 +746,6 @@ function _handleTarBatchPush(msg) {
   }
 }
 
-// ── Promise queue for request-response over WebSocket ───────
-
-let _rwResolve  = null;   // resolve() of current pending sendCommand
-let _rwReject   = null;   // reject()  of current pending sendCommand
-
 // ── Batch state for FETCH_ALL_TAR ───────────────────────────
 
 let _rwBatchResolve = null;   // resolve() for batch response
@@ -931,24 +932,6 @@ function _rwDnpRange(row) {
   return `${start}-${end}`;
 }
 
-// ── Tabulator — Update one row ──────────────────────────────
-
-function _rwUpdateRow(parsed) {
-  if (!rwTable) return;
-  rwTable.updateOrAddData([{
-    targetRow: parsed.targetRow,
-    dnpIndex:  _rwDnpRange(parsed.targetRow),
-    bit7: { label: parsed.labels[0], value: parsed.values[0] },
-    bit6: { label: parsed.labels[1], value: parsed.values[1] },
-    bit5: { label: parsed.labels[2], value: parsed.values[2] },
-    bit4: { label: parsed.labels[3], value: parsed.values[3] },
-    bit3: { label: parsed.labels[4], value: parsed.values[4] },
-    bit2: { label: parsed.labels[5], value: parsed.values[5] },
-    bit1: { label: parsed.labels[6], value: parsed.values[6] },
-    bit0: { label: parsed.labels[7], value: parsed.values[7] }
-  }]);
-}
-
 // ── WebSocket — Connect (returns Promise) ───────────────────
 
 function _rwEnsureConnection() {
@@ -979,12 +962,6 @@ function _rwEnsureConnection() {
 
     rwWs.onclose = () => {
       console.log("[RW] Closed");
-      // If a sendCommand promise is pending, reject it
-      if (_rwReject) {
-        _rwReject(new Error("WebSocket closed unexpectedly"));
-        _rwResolve = null;
-        _rwReject  = null;
-      }
       if (_rwBatchReject) {
         _rwBatchReject(new Error("WebSocket closed unexpectedly"));
         _rwBatchResolve = null;
@@ -1027,53 +1004,7 @@ function _rwEnsureConnection() {
 
 
 
-      // ── Single command response ──
-      if (_rwResolve) {
-        const res = _rwResolve;
-        _rwResolve = null;
-        _rwReject  = null;
-        res(msg);
-      }
     };
-  });
-}
-
-// ── WebSocket — Send one command, wait for response ─────────
-
-/**
- * Send a single command string over WebSocket and wait for the
- * next text response.  Returns a Promise<string>.
- *
- * @param {string} cmd  e.g. "TAR 0"
- * @returns {Promise<string>}  raw relay response text
- */
-async function sendCommand(cmd) {
-  const ws = await _rwEnsureConnection();
-
-  if (ws.readyState !== WebSocket.OPEN) {
-    throw new Error("WebSocket is not open");
-  }
-
-  return new Promise((resolve, reject) => {
-    // Set up the response listener (onmessage will call resolve)
-    _rwResolve = resolve;
-    _rwReject  = reject;
-
-    // Timeout: 30 s per command (relay may be slow)
-    const timer = setTimeout(() => {
-      _rwResolve = null;
-      _rwReject  = null;
-      reject(new Error(`Timeout waiting for response to "${cmd}"`));
-    }, 30_000);
-
-    // Wrap resolve/reject to clear the timer
-    const origResolve = resolve;
-    const origReject  = reject;
-    _rwResolve = (data) => { clearTimeout(timer); origResolve(data); };
-    _rwReject  = (err)  => { clearTimeout(timer); origReject(err);   };
-
-    console.log("[RW] Sending:", cmd);
-    ws.send(_prefixCmd(cmd));
   });
 }
 
@@ -1238,8 +1169,6 @@ function _rwDisconnectRaw() {
     try { rwWs.close(); } catch (_) {}
     rwWs = null;
   }
-  _rwResolve = null;
-  _rwReject  = null;
   _rwBatchResolve = null;
   _rwBatchReject  = null;
 }
@@ -1285,26 +1214,9 @@ function rwDisconnect() {
 // ── State ───────────────────────────────────────────────────
 
 let ioTable      = null;   // Tabulator instance
-let ioWs         = null;   // WebSocket connection
 let ioAbort      = false;  // Abort signal
 let _ioAllRows   = [];     // All collected I/O rows (RW format, unfiltered)
 let _ioFilter    = "all";  // Current filter: 'all' | 'in' | 'out'
-
-let _ioResolve   = null;
-let _ioReject    = null;
-
-// ── Batch state for I/O FETCH_ALL_TAR ───────────────────────
-
-let _ioBatchResolve = null;
-let _ioBatchReject  = null;
-
-// ── UI Helpers ──────────────────────────────────────────────
-
-function _ioBuildWsUrl() {
-  const h = (document.getElementById("io-ws-host") || {}).value?.trim() || "localhost";
-  const p = (document.getElementById("io-ws-port") || {}).value?.trim() || "8765";
-  return `ws://${h}:${p}`;
-}
 
 function _ioSetStatus(status) {
   const el = document.getElementById("io-conn-status");
@@ -1443,76 +1355,6 @@ function _ioSyncFromTarCache() {
   _ioSetStatus("done");
 }
 
-// ── WebSocket — Connect ─────────────────────────────────────
-
-function _ioEnsureConnection() {
-  return new Promise((resolve, reject) => {
-    if (ioWs && ioWs.readyState === WebSocket.OPEN) return resolve(ioWs);
-
-    _ioDisconnectRaw();
-    _ioSetStatus("connecting");
-    const url = _ioBuildWsUrl();
-    console.log("[IO] Connecting to", url);
-    ioWs = new WebSocket(url);
-
-    ioWs.onopen = () => { console.log("[IO] Connected"); resolve(ioWs); };
-    ioWs.onerror = (err) => { console.error("[IO] Connection error:", err); reject(new Error("WebSocket connection failed")); };
-    ioWs.onclose = () => {
-      console.log("[IO] Closed");
-      if (_ioReject) { _ioReject(new Error("WebSocket closed unexpectedly")); _ioResolve = null; _ioReject = null; }
-      if (_ioBatchReject) { _ioBatchReject(new Error("WebSocket closed unexpectedly")); _ioBatchResolve = null; _ioBatchReject = null; }
-    };
-    ioWs.onmessage = (event) => {
-      if (typeof event.data !== "string") return;
-      const msg = event.data;
-
-      // ── Batch: TAR_BATCH_ALL:[...] ──
-      if (msg.startsWith("TAR_BATCH_ALL:")) {
-        const jsonStr = msg.substring(14);
-        if (_ioBatchResolve) {
-          const res = _ioBatchResolve;
-          _ioBatchResolve = null;
-          _ioBatchReject  = null;
-          res(jsonStr);
-        } else {
-          _handleTarBatchPush(msg);
-        }
-        return;
-      }
-
-      // ── Single command response ──
-      if (_ioResolve) { const res = _ioResolve; _ioResolve = null; _ioReject = null; res(msg); }
-    };
-  });
-}
-
-// ── WebSocket — Send command, wait for response ─────────────
-
-async function _ioSendCommand(cmd) {
-  const ws = await _ioEnsureConnection();
-  if (ws.readyState !== WebSocket.OPEN) throw new Error("WebSocket is not open");
-
-  return new Promise((resolve, reject) => {
-    _ioResolve = resolve;
-    _ioReject  = reject;
-
-    const timer = setTimeout(() => {
-      _ioResolve = null; _ioReject = null;
-      reject(new Error(`Timeout waiting for response to "${cmd}"`));
-    }, 30_000);
-
-    const origResolve = resolve;
-    const origReject  = reject;
-    _ioResolve = (data) => { clearTimeout(timer); origResolve(data); };
-    _ioReject  = (err)  => { clearTimeout(timer); origReject(err);   };
-
-    console.log("[IO] Sending:", cmd);
-    ws.send(_prefixCmd(cmd));
-  });
-}
-
-// ── Core — fetchAllIO() ─────────────────────────────────────
-
 // ── Core — fetchAllIO()  (uses shared TAR cache) ────────────
 
 /**
@@ -1563,15 +1405,7 @@ async function fetchAllIO() {
 // ── Disconnect helpers ──────────────────────────────────────
 
 function _ioDisconnectRaw() {
-  if (ioWs) {
-    ioWs.onopen = null; ioWs.onclose = null; ioWs.onerror = null; ioWs.onmessage = null;
-    try { ioWs.close(); } catch (_) {}
-    ioWs = null;
-  }
-  _ioResolve = null;
-  _ioReject  = null;
-  _ioBatchResolve = null;
-  _ioBatchReject  = null;
+  // No-op: I/O module uses shared TAR cache, no own WebSocket
 }
 
 

@@ -57,8 +57,15 @@ class SERPoller
 
 public:
     /**
-    * @brief Construct SER poller.
-    * @param interval Seconds between polls (default: 30)
+     * @brief Construct SER poller.
+     *
+     * @details Initialises the poller with the requested interval but does
+     * not start the background thread.  Call setCallback() then start().
+     *
+     * @param interval Seconds between polls (default: 30).
+     *
+     * @post stop_flag_ == false
+     * @post poller_thread_ is not joinable
      */
     explicit SERPoller(std::chrono::seconds interval = std::chrono::seconds(30))
         : poll_interval_(interval)
@@ -66,7 +73,9 @@ public:
     }
 
     /**
-    * @brief Destructor that stops the polling thread.
+     * @brief Destructor — stops the polling thread if running.
+     *
+     * @post poller_thread_ has been joined.
      */
     ~SERPoller()
     {
@@ -74,8 +83,14 @@ public:
     }
 
     /**
-    * @brief Set the callback to execute on each poll.
-    * @param callback Function to call (e.g., FSM trigger)
+     * @brief Set the callback to execute on each poll.
+     *
+     * @details The callback is invoked once every @c poll_interval_ seconds
+     * from the background poller thread.  Must be set before calling start().
+     *
+     * @param callback Function to call (e.g., FSM SER trigger).
+     *
+     * @pre The poller is not yet started.
      */
     void setCallback(std::function<void()> callback)
     {
@@ -83,7 +98,15 @@ public:
     }
 
     /**
-    * @brief Start the polling thread.
+     * @brief Start the polling thread.
+     *
+     * @details Spawns a background thread that sleeps for @c poll_interval_
+     * seconds, then invokes the callback.  The loop continues until stop()
+     * is called.  If no callback has been set, the method prints an error
+     * and returns without spawning a thread.
+     *
+     * @pre poll_callback_ has been set via setCallback().
+     * @post poller_thread_ is joinable.
      */
     void start()
     {
@@ -118,7 +141,13 @@ public:
     }
 
     /**
-    * @brief Stop the polling thread.
+     * @brief Stop the polling thread.
+     *
+     * @details Sets the atomic stop flag and joins the background thread.
+     * Safe to call multiple times or when not running.
+     *
+     * @post stop_flag_ == true
+     * @post poller_thread_ is not joinable.
      */
     void stop()
     {
@@ -143,8 +172,12 @@ class ThreadManager
 
 public:
     /**
-    * @brief Construct thread manager.
-    * @param poll_interval Polling interval in seconds
+     * @brief Construct thread manager.
+     *
+     * @details Creates the internal SERPoller with the given interval.
+     * Call setPollingCallback() and startAll() to activate.
+     *
+     * @param poll_interval Polling interval in seconds (default: 30 s).
      */
     explicit ThreadManager(std::chrono::seconds poll_interval = std::chrono::seconds(30))
         : poller_(std::make_unique<SERPoller>(poll_interval))
@@ -152,8 +185,14 @@ public:
     }
 
     /**
-    * @brief Set the SER polling callback.
-    * @param callback Function to call on each poll cycle
+     * @brief Set the SER polling callback.
+     *
+     * @details Delegates to the underlying SERPoller.  Must be called
+     * before startAll().
+     *
+     * @param callback Function to call on each poll cycle.
+     *
+     * @pre startAll() has not been called yet.
      */
     void setPollingCallback(std::function<void()> callback)
     {
@@ -161,7 +200,13 @@ public:
     }
 
     /**
-    * @brief Start background threads.
+     * @brief Start all managed background threads.
+     *
+     * @details Currently starts the SER poller.  Future threads (e.g. a
+     * heartbeat monitor) would be started here as well.
+     *
+     * @pre setPollingCallback() has been called.
+     * @post SERPoller thread is running.
      */
     void startAll()
     {
@@ -171,7 +216,12 @@ public:
     }
 
     /**
-    * @brief Stop background threads.
+     * @brief Stop all managed background threads.
+     *
+     * @details Stops the SER poller and joins its thread.  Safe to call
+     * even if startAll() was never invoked.
+     *
+     * @post All managed threads have been joined.
      */
     void stopAll()
     {

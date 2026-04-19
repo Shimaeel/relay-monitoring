@@ -61,7 +61,16 @@ namespace wsdb_ops {
 
 namespace detail {
 
-/// Validate an identifier (table/column name): alphanumeric + underscore only.
+/**
+ * @brief Validate a SQL identifier (table or column name).
+ *
+ * @details Only alphanumeric characters and underscores are allowed.
+ * This prevents SQL injection in dynamically constructed queries.
+ *
+ * @param name The identifier to validate.
+ * @return true  @p name is non-empty and contains only [A-Za-z0-9_].
+ * @return false @p name is empty or contains disallowed characters.
+ */
 inline bool validName(const std::string& name)
 {
     for (char ch : name)
@@ -69,7 +78,13 @@ inline bool validName(const std::string& name)
     return !name.empty();
 }
 
-/// Build a JSON error response.
+/**
+ * @brief Build a JSON error response.
+ *
+ * @param id   Request id echoed back to the caller.
+ * @param msg  Human-readable error description.
+ * @return JSON string: @c {"id":<id>,"ok":false,"error":"<msg>"}.
+ */
 inline std::string errorResp(int64_t id, const std::string& msg)
 {
     std::ostringstream out;
@@ -77,7 +92,24 @@ inline std::string errorResp(int64_t id, const std::string& msg)
     return out.str();
 }
 
-/// Run a SELECT query and return a JSON response string.
+/**
+ * @brief Execute a SELECT query and return results as a JSON string.
+ *
+ * @details Prepares and steps through the statement, collecting column
+ * names and row data.  Integers and floats are emitted unquoted; text
+ * and blob values are JSON-escaped and quoted.  The response includes
+ * a @c maxRowId field tracking the highest @c rowid seen (useful for
+ * incremental polling).
+ *
+ * @param id     Request id echoed in the response.
+ * @param db     Open SQLite database handle.
+ * @param mtx    Mutex protecting @p db (locked for the duration).
+ * @param sql    SQL SELECT statement (may contain @c ? placeholders).
+ * @param params Bind-parameter values, bound as text.
+ * @return JSON string:
+ *         @c {"id":<id>,"ok":true,"columns":[...],"rows":[...],"rowCount":N,"maxRowId":M}
+ *         or an error response on failure.
+ */
 inline std::string runSelect(int64_t id, sqlite3* db, std::mutex& mtx,
                              const std::string& sql,
                              const std::vector<std::string>& params)
