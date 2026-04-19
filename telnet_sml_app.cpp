@@ -441,8 +441,8 @@ public:
             // Try to serve from background cache first
             {
                 std::unique_lock<std::mutex> lock(tarCacheMutex_);
-                // Wait for in-progress background fetch to complete (up to 10 min)
-                tarCacheCv_.wait_for(lock, std::chrono::minutes(10), [&]() {
+                // Wait for in-progress background fetch (up to 2 min)
+                tarCacheCv_.wait_for(lock, std::chrono::minutes(2), [&]() {
                     return tarCache_.count(relayId) > 0 || !tarFetchInProgress_[relayId];
                 });
 
@@ -454,13 +454,19 @@ public:
                     sendFn(it->second);
                     return true;
                 }
-            }
 
-            // Fallback: collect directly (no cached data available)
-            {
-                std::lock_guard<std::mutex> lock(tarCacheMutex_);
+                // Background thread still running after timeout — don't start a
+                // competing collection (would interleave TAR commands).  Send an
+                // empty batch so the frontend's promise resolves immediately and
+                // the user can retry later.
                 if (tarFetchInProgress_[relayId])
-                    return false;   // background fetch still running — don't duplicate
+                {
+                    std::cout << "[WS→Relay] Background TAR still in-progress for relay "
+                              << relayId << " — sending empty batch\n";
+                    sendFn("TAR_BATCH_ALL:[]");
+                    return true;
+                }
+
                 tarFetchInProgress_[relayId] = true;
             }
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
