@@ -536,19 +536,15 @@ public:
                     // relay is already active when the client joins.
                     wsServer.broadcastAll();
 
-                    // Only spawn background TAR collection if not already cached or in progress.
-                    // Claim the in-progress slot under the same lock as the check so two
-                    // concurrent start_relay calls for the same relay cannot both spawn.
-                    bool shouldCollect = false;
+                    // Spawn background TAR collection; collectTarBackground()
+                    // is the sole authority for the in-progress flag (check-and-set
+                    // under tarCacheMutex_), so concurrent spawns bail out cheaply.
+                    bool needCollect = false;
                     {
                         std::lock_guard<std::mutex> lock(tarCacheMutex_);
-                        if (!tarCache_.count(relayId) && !tarFetchInProgress_[relayId])
-                        {
-                            tarFetchInProgress_[relayId] = true;
-                            shouldCollect = true;
-                        }
+                        needCollect = !tarCache_.count(relayId);
                     }
-                    if (shouldCollect)
+                    if (needCollect)
                     {
                         spawnTarBgThread_(relayId);
                     }
@@ -724,16 +720,12 @@ public:
             bool ok = relayMgr->startRelay(cfg.id);
             if (ok)
             {
-                bool shouldCollect = false;
+                bool needCollect = false;
                 {
                     std::lock_guard<std::mutex> lock(tarCacheMutex_);
-                    if (!tarCache_.count(cfg.id) && !tarFetchInProgress_[cfg.id])
-                    {
-                        tarFetchInProgress_[cfg.id] = true;
-                        shouldCollect = true;
-                    }
+                    needCollect = !tarCache_.count(cfg.id);
                 }
-                if (shouldCollect)
+                if (needCollect)
                 {
                     spawnTarBgThread_(cfg.id);
                 }
