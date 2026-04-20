@@ -89,7 +89,7 @@ function _cserDecodeTlv(arrayBuffer) {
     const snoVal = Number.parseInt(fields.recordId, 10);
     const sno = Number.isNaN(snoVal) ? (fields.recordId || "-") : snoVal;
     records.push({
-      _uid:    relayName + "_" + sno,
+      _uid:    relayName + "_" + sno + "_" + ts,
       relay:   relayName,
       sno:     sno,
       date:    date,
@@ -279,7 +279,7 @@ function _cserSetupWorker() {
         if (Array.isArray(json)) {
           const enriched = json.map(r => ({
             ...r,
-            _uid:  (r.relay_name || "Unknown") + "_" + r.sno,
+            _uid:  (r.relay_name || "Unknown") + "_" + r.sno + "_" + (r.timestamp || ""),
             relay: r.relay_name || "Unknown"
           }));
           _cserUpdateTable(enriched);
