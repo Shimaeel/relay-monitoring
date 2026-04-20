@@ -173,7 +173,7 @@ public:
 
     /// Interval between SER polls across all active relays. Tune down for
     /// lower event-capture latency at the cost of more relay load.
-    static constexpr std::chrono::seconds kSerPollInterval{120};
+    static constexpr std::chrono::seconds kSerPollInterval{60};
 
     ThreadManager threadMgr{kSerPollInterval};                    ///< Poller (2 min interval)
 
@@ -374,13 +374,20 @@ public:
         std::cout << "  (On-Demand Architecture v3.0)\n";
         std::cout << "========================================\n\n";
 
-        // 1. Open shared database
+        // 1. Fresh DB on every start — remove stale data from previous runs
+        {
+            const char* dbFiles[] = {"ser_records.db", "ser_records.db-wal", "ser_records.db-shm"};
+            for (const auto* f : dbFiles)
+                std::remove(f);
+            std::cout << "[DB] Cleared previous database files\n";
+        }
+
         if (!serDb.open())
         {
             std::cerr << "Failed to open database: " << serDb.getLastError() << "\n";
             return false;
         }
-        std::cout << "[DB] Database opened. Existing records: " << serDb.getRecordCount() << "\n";
+        std::cout << "[DB] Fresh database opened\n";
 
         // 2. Create RelayManager (no pipelines started yet — on-demand)
         relayMgr = std::make_unique<RelayManager>(
