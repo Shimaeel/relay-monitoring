@@ -25,18 +25,17 @@ const _DEFAULT_RELAYS = [
     status: "offline",
     wsPort: 8765
   },
-  // SEL-451 temporarily disabled — uncomment to re-enable
-  // {
-  //   id: "3",
-  //   name: "SEL-451",
-  //   ip: "192.168.0.3",
-  //   substation: "Substation Alpha",
-  //   bay: "Bay 3",
-  //   pse: "Feeder F5",
-  //   breaker: "CB-103",
-  //   status: "offline",
-  //   wsPort: 8765
-  // }
+  {
+    id: "2",
+    name: "SEL-451",
+    ip: "192.168.0.3",
+    substation: "Substation Alpha",
+    bay: "Bay 3",
+    pse: "Feeder F5",
+    breaker: "CB-103",
+    status: "offline",
+    wsPort: 8765
+  }
 ];
 
 // Merge defaults with any user-added relays stored in localStorage
