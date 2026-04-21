@@ -1511,21 +1511,22 @@ function ioDisconnect() {
 }
 
 // ============================================================
-//  COMTRADE (CTR C / CTR D) Module
+//  COMTRADE (SEL-451 only) Module
 // ============================================================
 //
-//  Sends  CTR C <n>  (configuration) or  CTR D <n>  (data)
-//  over WebSocket, displays the raw response.
-//
-//  Public API:
-//    ctrFetchConfig()  — send CTR C n
-//    ctrFetchData()    — send CTR D n
-//    ctrClear()        — clear display and disconnect
+//  SEL-451 lists COMTRADE .CFG and .DAT files directly in
+//  `FILE DIR EVENTS`.  This module:
+//    - On "List CFG" / "List DAT" click, sends `FILE DIR EVENTS`
+//      to the selected relay (via `_prefixCmd`).
+//    - Parses the response, filters to .cfg or .dat filenames,
+//      and renders each with a Download button.
+//    - Download fetches `CTR C <n>` (for .cfg) or `CTR D <n>`
+//      (for .dat) and saves the raw response as the file.
 // ============================================================
 
-let ctrWs       = null;
-let _ctrResolve  = null;
-let _ctrReject   = null;
+let ctrWs      = null;
+let _ctrResolve = null;
+let _ctrReject  = null;
 
 function _ctrBuildWsUrl() {
   const h = (document.getElementById("ser-ws-host") || {}).value?.trim() || "localhost";
@@ -1533,7 +1534,7 @@ function _ctrBuildWsUrl() {
   return `ws://${h}:${p}`;
 }
 
-function _ctrSetStatus(status) {
+function _ctrSetStatus(status, custom) {
   const el = document.getElementById("ctr-conn-status");
   if (!el) return;
   const map = {
@@ -1544,12 +1545,12 @@ function _ctrSetStatus(status) {
     error:      { text: "🔴 Error",       color: "#dc2626" }
   };
   const info = map[status] || map.idle;
-  el.textContent = info.text;
+  el.textContent = custom || info.text;
   el.style.color = info.color;
 }
 
-function _ctrSetBtns(disabled) {
-  ["ctr-c-fetch-btn", "ctr-d-fetch-btn"].forEach(id => {
+function _ctrSetBtnsDisabled(disabled) {
+  ["ctr-cfg-btn", "ctr-dat-btn"].forEach(id => {
     const btn = document.getElementById(id);
     if (!btn) return;
     btn.disabled = disabled;
@@ -1567,7 +1568,7 @@ function _ctrEnsureConnection() {
     console.log("[CTR] Connecting to", url);
     ctrWs = new WebSocket(url);
 
-    ctrWs.onopen = () => { console.log("[CTR] Connected"); resolve(ctrWs); };
+    ctrWs.onopen  = () => { console.log("[CTR] Connected"); resolve(ctrWs); };
     ctrWs.onerror = (err) => { console.error("[CTR] Error", err); reject(new Error("WebSocket connection failed")); };
     ctrWs.onclose = () => {
       console.log("[CTR] Closed");
@@ -1584,12 +1585,12 @@ async function _ctrSendCommand(cmd) {
   const ws = await _ctrEnsureConnection();
   if (ws.readyState !== WebSocket.OPEN) throw new Error("WebSocket not open");
   return new Promise((resolve, reject) => {
-    _ctrResolve = resolve;
-    _ctrReject  = reject;
-    const timer = setTimeout(() => { _ctrResolve = null; _ctrReject = null; reject(new Error("Timeout")); }, 30_000);
-    const origR = resolve, origE = reject;
-    _ctrResolve = (d) => { clearTimeout(timer); origR(d); };
-    _ctrReject  = (e) => { clearTimeout(timer); origE(e); };
+    const timer = setTimeout(() => {
+      _ctrResolve = null; _ctrReject = null;
+      reject(new Error("Timeout"));
+    }, 60_000);
+    _ctrResolve = (d) => { clearTimeout(timer); resolve(d); };
+    _ctrReject  = (e) => { clearTimeout(timer); reject(e); };
     console.log("[CTR] Sending:", cmd);
     ws.send(_prefixCmd(cmd));
   });
@@ -1604,137 +1605,394 @@ function _ctrDisconnectRaw() {
   _ctrResolve = null; _ctrReject = null;
 }
 
-// Store last fetched content for download
-let _ctrLastCfg = null;  // { n, text }
-let _ctrLastDat = null;  // { n, text }
+function _ctrEscHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
 
-function _ctrDownloadFile(filename, text) {
-  const blob = new Blob([text], { type: "text/plain" });
+function _ctrDownloadText(filename, text) {
+  const blob = new Blob([text], { type: "application/octet-stream" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function ctrDownloadCfg() {
-  if (!_ctrLastCfg) {
-    if (typeof showToast === "function") showToast("Fetch a config file first", "error");
-    return;
+/**
+ * Parse a `FILE DIR EVENTS` response block.
+ * Each data line: `<filename>  <size>  <date>  <time>`.
+ * Header, border, and prompt lines are skipped.
+ *
+ * @returns {{name:string, num:number, size:string, date:string, time:string}[]}
+ */
+function _ctrParseFileDir(response) {
+  const out = [];
+  const lines = String(response || "").split(/\r?\n/);
+  for (let raw of lines) {
+    const line = raw.replace(/\s+$/, "");
+    if (!line) continue;
+    const trimmed = line.trim();
+    if (/^=>/.test(trimmed)) continue;               // prompt
+    if (/^[-=*\s]+$/.test(trimmed)) continue;         // separator
+    const tokens = trimmed.split(/\s+/);
+    const name = tokens[0];
+    if (!name || name.indexOf(".") < 0) continue;
+    const dot = name.lastIndexOf(".");
+    const ext = name.substring(dot + 1).toUpperCase();
+    if (ext !== "CFG" && ext !== "DAT" && ext !== "CEV" && ext !== "HIS" && ext !== "EVE") continue;
+    // Event number = trailing digit run before the dot
+    let numStart = dot;
+    while (numStart > 0 && /\d/.test(name[numStart - 1])) numStart--;
+    const numStr = name.substring(numStart, dot);
+    if (!numStr) continue;
+    const num = parseInt(numStr, 10);
+    if (!Number.isFinite(num)) continue;
+    out.push({
+      name,
+      num,
+      size: tokens[1] || "",
+      date: tokens[2] || "",
+      time: tokens[3] || ""
+    });
   }
-  _ctrDownloadFile(`comtrade_${_ctrLastCfg.n}.cfg`, _ctrLastCfg.text);
+  return out;
 }
 
-function ctrDownloadDat() {
-  if (!_ctrLastDat) {
-    if (typeof showToast === "function") showToast("Fetch a data file first", "error");
-    return;
-  }
-  _ctrDownloadFile(`comtrade_${_ctrLastDat.n}.dat`, _ctrLastDat.text);
-}
-
-function _ctrRenderResponse(label, cmd, text, type) {
-  const container = document.getElementById("ctr-content");
+function _ctrRenderFiles(files, extWanted) {
+  const container = document.getElementById("ctr-file-list");
   if (!container) return;
-
-  // Build a card showing the command and the raw response
-  const card = document.createElement("div");
-  card.className = "set-group";
-
-  const downloadFn = type === "cfg" ? "ctrDownloadCfg()" : "ctrDownloadDat()";
-  const ext = type === "cfg" ? ".cfg" : ".dat";
-
-  card.innerHTML =
-    `<h3 class="set-group__title" style="display:flex;justify-content:space-between;align-items:center;">` +
-      `<span>${_ctrEscHtml(label)} \u2014 ${_ctrEscHtml(cmd)}</span>` +
-      `<button class="btn btn--outline btn--sm" onclick="${downloadFn}" style="margin-left:12px;">\ud83d\udce5 Download ${ext}</button>` +
-    `</h3>` +
-    `<pre class="ctr-pre">${_ctrEscHtml(text)}</pre>`;
-
-  // Prepend so newest is on top
-  if (container.firstChild && container.firstChild.classList?.contains("set-empty")) {
-    container.innerHTML = "";
+  if (!files.length) {
+    container.innerHTML =
+      `<div class="set-empty">No .${extWanted.toLowerCase()} files found in FILE DIR EVENTS.</div>`;
+    return;
   }
-  container.prepend(card);
+  const badgeCls = extWanted === "CFG" ? "ctf-file-card__badge--cfg" : "ctf-file-card__badge--dat";
+  const parts = files.map((f, i) => {
+    const safeName = _ctrEscHtml(f.name);
+    const meta = _ctrEscHtml(
+      [f.size && `${f.size} bytes`, f.date, f.time].filter(Boolean).join(" · ")
+    );
+    return (
+      `<div class="ctf-file-card">` +
+        `<div class="ctf-file-card__header">` +
+          `<div class="ctf-file-card__info">` +
+            `<span class="ctf-file-card__icon">📄</span>` +
+            `<span class="ctf-file-card__name">${safeName}</span>` +
+            `<span class="ctf-file-card__badge ${badgeCls}">${extWanted}</span>` +
+          `</div>` +
+          `<div class="ctf-file-card__actions">` +
+            `<button class="btn btn--primary btn--sm ctr-dl-btn" ` +
+                   `data-ctr-idx="${i}">⬇ Download</button>` +
+          `</div>` +
+        `</div>` +
+        (meta ? `<div class="ctf-file-card__meta">${meta}</div>` : "") +
+      `</div>`
+    );
+  });
+  container.innerHTML = parts.join("");
+
+  // Wire download buttons (avoid inline handlers with dynamic filenames)
+  container.querySelectorAll(".ctr-dl-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-ctr-idx"), 10);
+      const file = files[idx];
+      if (!file) return;
+      const prevText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Fetching…";
+      try {
+        const cmd = (extWanted === "CFG" ? "CTR C " : "CTR D ") + file.num;
+        const response = await _ctrSendCommand(cmd);
+        _ctrDownloadText(file.name, response);
+        btn.textContent = "✅ Saved";
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = prevText;
+        }, 1500);
+      } catch (err) {
+        console.error("[CTR] download error:", err);
+        if (typeof showToast === "function")
+          showToast(`Download failed: ${err.message}`, "error");
+        btn.disabled = false;
+        btn.textContent = prevText;
+      }
+    });
+  });
+}
+
+async function ctrListFiles(extWanted) {
+  const list = document.getElementById("ctr-file-list");
+  _ctrSetBtnsDisabled(true);
+  if (list) list.innerHTML = `<div class="set-empty">Loading FILE DIR EVENTS…</div>`;
+  try {
+    await _ctrEnsureConnection();
+    _ctrSetStatus("fetching");
+    const response = await _ctrSendCommand("FILE DIR EVENTS");
+    const all = _ctrParseFileDir(response);
+    const filtered = all.filter(f => {
+      const ext = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
+      return ext === extWanted;
+    });
+    _ctrRenderFiles(filtered, extWanted);
+    _ctrSetStatus("done", `🟢 ${filtered.length} .${extWanted.toLowerCase()} file(s)`);
+  } catch (err) {
+    console.error("[CTR] list error:", err);
+    _ctrSetStatus("error");
+    if (list)
+      list.innerHTML = `<div class="set-empty">Failed: ${_ctrEscHtml(err.message)}</div>`;
+    if (typeof showToast === "function")
+      showToast(`FILE DIR EVENTS failed: ${err.message}`, "error");
+  } finally {
+    _ctrSetBtnsDisabled(false);
+  }
+}
+
+function ctrListCfg() { return ctrListFiles("CFG"); }
+function ctrListDat() { return ctrListFiles("DAT"); }
+//  `FILE DIR EVENTS`.  This module:
+//    - On "List CFG" / "List DAT" click, sends `FILE DIR EVENTS`
+//      to the selected relay (via `_prefixCmd`).
+//    - Parses the response, filters to .cfg or .dat filenames,
+//      and renders each with a Download button.
+//    - Download fetches `CTR C <n>` (for .cfg) or `CTR D <n>`
+//      (for .dat) and saves the raw response as the file.
+// ============================================================
+
+let ctrWs      = null;
+let _ctrResolve = null;
+let _ctrReject  = null;
+
+function _ctrBuildWsUrl() {
+  const h = (document.getElementById("ser-ws-host") || {}).value?.trim() || "localhost";
+  const p = (document.getElementById("ser-ws-port") || {}).value?.trim() || "8765";
+  return `ws://${h}:${p}`;
+}
+
+function _ctrSetStatus(status, custom) {
+  const el = document.getElementById("ctr-conn-status");
+  if (!el) return;
+  const map = {
+    idle:       { text: "🟡 Idle",        color: "#d97706" },
+    connecting: { text: "🟡 Connecting…", color: "#d97706" },
+    fetching:   { text: "🔵 Fetching…",   color: "#2563eb" },
+    done:       { text: "🟢 Done",        color: "#16a34a" },
+    error:      { text: "🔴 Error",       color: "#dc2626" }
+  };
+  const info = map[status] || map.idle;
+  el.textContent = custom || info.text;
+  el.style.color = info.color;
+}
+
+function _ctrSetBtnsDisabled(disabled) {
+  ["ctr-cfg-btn", "ctr-dat-btn"].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = disabled;
+    btn.style.opacity = disabled ? "0.5" : "1";
+    btn.style.pointerEvents = disabled ? "none" : "";
+  });
+}
+
+function _ctrEnsureConnection() {
+  return new Promise((resolve, reject) => {
+    if (ctrWs && ctrWs.readyState === WebSocket.OPEN) return resolve(ctrWs);
+    _ctrDisconnectRaw();
+    _ctrSetStatus("connecting");
+    const url = _ctrBuildWsUrl();
+    console.log("[CTR] Connecting to", url);
+    ctrWs = new WebSocket(url);
+
+    ctrWs.onopen  = () => { console.log("[CTR] Connected"); resolve(ctrWs); };
+    ctrWs.onerror = (err) => { console.error("[CTR] Error", err); reject(new Error("WebSocket connection failed")); };
+    ctrWs.onclose = () => {
+      console.log("[CTR] Closed");
+      if (_ctrReject) { _ctrReject(new Error("WebSocket closed")); _ctrResolve = null; _ctrReject = null; }
+    };
+    ctrWs.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      if (_ctrResolve) { const r = _ctrResolve; _ctrResolve = null; _ctrReject = null; r(event.data); }
+    };
+  });
+}
+
+async function _ctrSendCommand(cmd) {
+  const ws = await _ctrEnsureConnection();
+  if (ws.readyState !== WebSocket.OPEN) throw new Error("WebSocket not open");
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      _ctrResolve = null; _ctrReject = null;
+      reject(new Error("Timeout"));
+    }, 60_000);
+    _ctrResolve = (d) => { clearTimeout(timer); resolve(d); };
+    _ctrReject  = (e) => { clearTimeout(timer); reject(e); };
+    console.log("[CTR] Sending:", cmd);
+    ws.send(_prefixCmd(cmd));
+  });
+}
+
+function _ctrDisconnectRaw() {
+  if (ctrWs) {
+    ctrWs.onopen = null; ctrWs.onclose = null; ctrWs.onerror = null; ctrWs.onmessage = null;
+    try { ctrWs.close(); } catch (_) {}
+    ctrWs = null;
+  }
+  _ctrResolve = null; _ctrReject = null;
 }
 
 function _ctrEscHtml(s) {
   const d = document.createElement("div");
-  d.textContent = s;
+  d.textContent = s == null ? "" : String(s);
   return d.innerHTML;
 }
 
-async function ctrFetchConfig() {
-  const input = document.getElementById("ctr-c-num");
-  const n = parseInt(input?.value, 10);
-  if (!n || n < 1) {
-    if (typeof showToast === "function") showToast("Enter a valid file number", "error");
+function _ctrDownloadText(filename, text) {
+  const blob = new Blob([text], { type: "application/octet-stream" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Parse a `FILE DIR EVENTS` response block.
+ * Each data line: `<filename>  <size>  <date>  <time>`.
+ * Header, border, and prompt lines are skipped.
+ *
+ * @returns {{name:string, num:number, size:string, date:string, time:string}[]}
+ */
+function _ctrParseFileDir(response) {
+  const out = [];
+  const lines = String(response || "").split(/\r?\n/);
+  for (let raw of lines) {
+    const line = raw.replace(/\s+$/, "");
+    if (!line) continue;
+    const trimmed = line.trim();
+    if (/^=>/.test(trimmed)) continue;               // prompt
+    if (/^[-=*\s]+$/.test(trimmed)) continue;         // separator
+    const tokens = trimmed.split(/\s+/);
+    const name = tokens[0];
+    if (!name || name.indexOf(".") < 0) continue;
+    const dot = name.lastIndexOf(".");
+    const ext = name.substring(dot + 1).toUpperCase();
+    if (ext !== "CFG" && ext !== "DAT" && ext !== "CEV" && ext !== "HIS" && ext !== "EVE") continue;
+    // Event number = trailing digit run before the dot
+    let numStart = dot;
+    while (numStart > 0 && /\d/.test(name[numStart - 1])) numStart--;
+    const numStr = name.substring(numStart, dot);
+    if (!numStr) continue;
+    const num = parseInt(numStr, 10);
+    if (!Number.isFinite(num)) continue;
+    out.push({
+      name,
+      num,
+      size: tokens[1] || "",
+      date: tokens[2] || "",
+      time: tokens[3] || ""
+    });
+  }
+  return out;
+}
+
+function _ctrRenderFiles(files, extWanted) {
+  const container = document.getElementById("ctr-file-list");
+  if (!container) return;
+  if (!files.length) {
+    container.innerHTML =
+      `<div class="set-empty">No .${extWanted.toLowerCase()} files found in FILE DIR EVENTS.</div>`;
     return;
   }
-  _ctrSetBtns(true);
+  const badgeCls = extWanted === "CFG" ? "ctf-file-card__badge--cfg" : "ctf-file-card__badge--dat";
+  const parts = files.map((f, i) => {
+    const safeName = _ctrEscHtml(f.name);
+    const meta = _ctrEscHtml(
+      [f.size && `${f.size} bytes`, f.date, f.time].filter(Boolean).join(" · ")
+    );
+    return (
+      `<div class="ctf-file-card">` +
+        `<div class="ctf-file-card__header">` +
+          `<div class="ctf-file-card__info">` +
+            `<span class="ctf-file-card__icon">📄</span>` +
+            `<span class="ctf-file-card__name">${safeName}</span>` +
+            `<span class="ctf-file-card__badge ${badgeCls}">${extWanted}</span>` +
+          `</div>` +
+          `<div class="ctf-file-card__actions">` +
+            `<button class="btn btn--primary btn--sm ctr-dl-btn" ` +
+                   `data-ctr-idx="${i}">⬇ Download</button>` +
+          `</div>` +
+        `</div>` +
+        (meta ? `<div class="ctf-file-card__meta">${meta}</div>` : "") +
+      `</div>`
+    );
+  });
+  container.innerHTML = parts.join("");
+
+  // Wire download buttons (avoid inline handlers with dynamic filenames)
+  container.querySelectorAll(".ctr-dl-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-ctr-idx"), 10);
+      const file = files[idx];
+      if (!file) return;
+      const prevText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Fetching…";
+      try {
+        const cmd = (extWanted === "CFG" ? "CTR C " : "CTR D ") + file.num;
+        const response = await _ctrSendCommand(cmd);
+        _ctrDownloadText(file.name, response);
+        btn.textContent = "✅ Saved";
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = prevText;
+        }, 1500);
+      } catch (err) {
+        console.error("[CTR] download error:", err);
+        if (typeof showToast === "function")
+          showToast(`Download failed: ${err.message}`, "error");
+        btn.disabled = false;
+        btn.textContent = prevText;
+      }
+    });
+  });
+}
+
+async function ctrListFiles(extWanted) {
+  const list = document.getElementById("ctr-file-list");
+  _ctrSetBtnsDisabled(true);
+  if (list) list.innerHTML = `<div class="set-empty">Loading FILE DIR EVENTS…</div>`;
   try {
     await _ctrEnsureConnection();
     _ctrSetStatus("fetching");
-    const cmd = "CTR C " + n;
-    const response = await _ctrSendCommand(cmd);
-    _ctrLastCfg = { n, text: response };
-    _ctrRenderResponse("Configuration File", cmd, response, "cfg");
-    _ctrSetStatus("done");
-    console.log(`[CTR] ${cmd} fetched`);
+    const response = await _ctrSendCommand("FILE DIR EVENTS");
+    const all = _ctrParseFileDir(response);
+    const filtered = all.filter(f => {
+      const ext = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
+      return ext === extWanted;
+    });
+    _ctrRenderFiles(filtered, extWanted);
+    _ctrSetStatus("done", `🟢 ${filtered.length} .${extWanted.toLowerCase()} file(s)`);
   } catch (err) {
-    console.error("[CTR] error:", err);
+    console.error("[CTR] list error:", err);
     _ctrSetStatus("error");
-    if (typeof showToast === "function") showToast(`COMTRADE config fetch failed: ${err.message}`, "error");
+    if (list)
+      list.innerHTML = `<div class="set-empty">Failed: ${_ctrEscHtml(err.message)}</div>`;
+    if (typeof showToast === "function")
+      showToast(`FILE DIR EVENTS failed: ${err.message}`, "error");
   } finally {
-    _ctrSetBtns(false);
+    _ctrSetBtnsDisabled(false);
   }
 }
 
-async function ctrFetchData() {
-  const input = document.getElementById("ctr-d-num");
-  const n = parseInt(input?.value, 10);
-  if (!n || n < 1) {
-    if (typeof showToast === "function") showToast("Enter a valid file number", "error");
-    return;
-  }
-  _ctrSetBtns(true);
-  try {
-    await _ctrEnsureConnection();
-    _ctrSetStatus("fetching");
-    const cmd = "CTR D " + n;
-    const response = await _ctrSendCommand(cmd);
-    _ctrLastDat = { n, text: response };
-    _ctrRenderResponse("Data File", cmd, response, "dat");
-    _ctrSetStatus("done");
-    console.log(`[CTR] ${cmd} fetched`);
-  } catch (err) {
-    console.error("[CTR] error:", err);
-    _ctrSetStatus("error");
-    if (typeof showToast === "function") showToast(`COMTRADE data fetch failed: ${err.message}`, "error");
-  } finally {
-    _ctrSetBtns(false);
-  }
-}
-
-function ctrClear() {
-  _ctrDisconnectRaw();
-  const container = document.getElementById("ctr-content");
-  if (container) container.innerHTML = '<div class="set-empty">Enter a file number and click <strong>Fetch Config</strong> or <strong>Fetch Data</strong>.</div>';
-  _ctrLastCfg = null;
-  _ctrLastDat = null;
-  _ctrSetStatus("idle");
-  _ctrSetBtns(false);
-  console.log("[CTR] Cleared");
-}
-
-function ctrDisconnect() {
-  _ctrDisconnectRaw();
-  _ctrSetStatus("idle");
-  _ctrSetBtns(false);
-}
+function ctrListCfg() { return ctrListFiles("CFG"); }
+function ctrListDat() { return ctrListFiles("DAT"); }
 
 // ============================================================
 //  SETTINGS (SHOSET) Module
@@ -2639,7 +2897,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function teardownComtrade() {
-    _ctrDisconnectRaw();
+    // Close COMTRADE WS if open; safe no-op if module not initialised.
+    if (typeof _ctrDisconnectRaw === "function") _ctrDisconnectRaw();
   }
 
   // --- References to SER section (static HTML in relay.html) ---
@@ -2786,8 +3045,31 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function showComtradeSection() {
-    if (ctrSection) ctrSection.style.display = "";
+    if (!ctrSection) return;
+    ctrSection.style.display = "";
     container.style.display = "none";
+
+    // Gate the CFG/DAT panel to SEL-451 only; other models see a notice.
+    const relay = getCurrentRelay();
+    const isSel451 = relay && /SEL-?451/i.test(relay.name || "");
+    const panel        = document.getElementById("ctr-451-panel");
+    const unsupported  = document.getElementById("ctr-unsupported");
+    if (panel)       panel.style.display       = isSel451 ? "" : "none";
+    if (unsupported) unsupported.style.display = isSel451 ? "none" : "";
+
+    if (!isSel451) return;
+
+    // Wire buttons once
+    const cfgBtn = document.getElementById("ctr-cfg-btn");
+    const datBtn = document.getElementById("ctr-dat-btn");
+    if (cfgBtn && !cfgBtn._ctrWired) {
+      cfgBtn.addEventListener("click", ctrListCfg);
+      cfgBtn._ctrWired = true;
+    }
+    if (datBtn && !datBtn._ctrWired) {
+      datBtn.addEventListener("click", ctrListDat);
+      datBtn._ctrWired = true;
+    }
   }
 
   function hideComtradeSection() {

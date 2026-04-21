@@ -183,9 +183,8 @@ class PipelineReceptionWorker
      * @brief Parse a command string and fire the corresponding Command FSM event.
      *
      * @details Maps string commands to typed FSM events:
-     * - "SER"             → cmd_ser_event
-     * - "TAR ..."         → cmd_tar_event{args}
-     * - "FILE DIR EVENTS" → cmd_file_dir_events_event
+     * - "SER"     → cmd_ser_event
+     * - "TAR ..." → cmd_tar_event{args}
      * - "EVE"     → cmd_eve_event
      * - "CTRL+C"  → cmd_ctrlc_event
      * - "CTRL+D"  → cmd_ctrld_event
@@ -202,8 +201,6 @@ class PipelineReceptionWorker
             cmdFsm_.process_event(cmd_ser_event{});
         else if (cmd.size() >= 3 && cmd.substr(0, 3) == "TAR")
             cmdFsm_.process_event(cmd_tar_event{cmd.size() > 4 ? cmd.substr(4) : ""});
-        else if (cmd == "FILE DIR EVENTS")
-            cmdFsm_.process_event(cmd_file_dir_events_event{});
         else if (cmd == "EVE")
         {
             // EVE response can be multi-page — use direct multi-page collection

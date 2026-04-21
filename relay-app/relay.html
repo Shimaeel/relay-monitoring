@@ -147,39 +147,28 @@
           </div>
           <!-- ===== END SETTINGS SECTION ===== -->
 
-          <!-- ===== COMTRADE SECTION (FSM-driven, no fetch button) ===== -->
+          <!-- ===== COMTRADE SECTION (placeholder) ===== -->
           <div id="comtrade-section" class="section-card" style="display:none;">
-            <h2>📁 COMTRADE Files (auto-collected)</h2>
+            <h2>📁 COMTRADE Files</h2>
 
-            <!-- COMTRADE Toolbar -->
-            <div class="ser-toolbar">
-              <div class="ser-toolbar__left">
-                <span>Total Files: <strong id="ctr-live-count" class="record-count">0</strong></span>
-                <span class="ser-toolbar__sep">|</span>
-                <span id="ctr-conn-status" style="font-weight:700">🟢 Live — pushed by backend</span>
+            <!-- Only visible for SEL-451 -->
+            <div id="ctr-451-panel" style="display:none;">
+              <div class="ser-toolbar">
+                <div class="ser-toolbar__left">
+                  <button id="ctr-cfg-btn" class="btn btn--primary btn--sm" type="button">List CFG</button>
+                  <button id="ctr-dat-btn" class="btn btn--primary btn--sm" type="button">List DAT</button>
+                  <span class="ser-toolbar__sep">|</span>
+                  <span id="ctr-conn-status" style="font-weight:700">🟡 Idle</span>
+                </div>
               </div>
-              <div class="ser-toolbar__right">
-                <button id="ctr-live-export-btn" class="btn btn--primary btn--sm" type="button">
-                  📦 Export COMTRADE (.zip)
-                </button>
+              <div id="ctr-file-list" class="ctf-file-list" style="margin-top:var(--sp-3,12px);">
+                <div class="set-empty">Click <strong>List CFG</strong> or <strong>List DAT</strong> to load event files from the relay.</div>
               </div>
             </div>
 
-            <!-- Filters only (no fetch buttons) -->
-            <div class="ser-config">
-              <div class="ser-config__field">
-                <label>Date</label>
-                <input id="ctr-live-f-date" class="input" type="text" placeholder="01/15/2026" />
-              </div>
-              <div class="ser-config__field">
-                <label>File name</label>
-                <input id="ctr-live-f-name" class="input" type="text" placeholder="HIS_…" />
-              </div>
-            </div>
-
-            <!-- Auto-populated list -->
-            <div id="ctr-live-list" class="ctf-file-list">
-              <div class="set-empty">Waiting for COMTRADE events…</div>
+            <!-- Shown for every other relay model -->
+            <div id="ctr-unsupported" class="set-empty">
+              COMTRADE file listing is only available for SEL-451 relays.
             </div>
           </div>
           <!-- ===== END COMTRADE SECTION ===== -->
@@ -441,7 +430,6 @@
 <script src="js/relay.js"></script>
 <script src="js/ring_buffer.js"></script>
 <script src="js/sections.js"></script>
-<script src="js/comtrade_live.js"></script>
 <style>
   .chpass-modal { position: fixed; inset: 0; z-index: 9999; display: flex;
                   align-items: center; justify-content: center; }
@@ -517,21 +505,6 @@
       status.textContent = "WebSocket error — is the backend running?";
     };
   }
-</script>
-<script>
-  // Relay page: show ONLY this relay's COMTRADE events
-  window.addEventListener("DOMContentLoaded", function () {
-    const relayId = new URLSearchParams(window.location.search).get("id");
-    if (typeof window.initComtradeLive === "function") {
-      window.initComtradeLive({
-        containerId:     "ctr-live-list",
-        countId:         "ctr-live-count",
-        scopeRelayId:    relayId,
-        showRelayColumn: false,
-        filtersPrefix:   "ctr-live"
-      });
-    }
-  });
 </script>
 
 </body>
