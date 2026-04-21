@@ -973,12 +973,60 @@ public:
                      + "\",\"set_time\":\"" + escapeTarJson(timeCmd) + "\"}";
             }
 
-            // ── Password change (requires relay_id to know which relay) ──
-            // TODO: Route to per-relay PasswordManager when available
+            // ── Password change (per-relay, user-defined value) ──
             if (action == "change_password")
             {
-                std::cout << "[WS->Action] PasswordManager not yet per-relay\n";
-                return "{\"action\":\"change_password\",\"status\":\"failed\",\"error\":\"Password change requires per-relay support (coming soon)\"}";
+                std::string relayId = extractJsonField(jsonMsg, "relay_id");
+                std::string level   = extractJsonField(jsonMsg, "level");
+                std::string value   = extractJsonField(jsonMsg, "value");
+
+                if (relayId.empty())
+                    return "{\"action\":\"change_password\",\"status\":\"failed\",\"error\":\"Missing relay_id\"}";
+
+                if (!PasswordManager::validateLevel(level))
+                    return "{\"action\":\"change_password\",\"relay_id\":\"" + relayId
+                         + "\",\"status\":\"failed\",\"error\":\"Invalid level (LEVEL1 or LEVEL2)\"}";
+
+                if (!PasswordManager::validatePassword(value))
+                    return "{\"action\":\"change_password\",\"relay_id\":\"" + relayId
+                         + "\",\"status\":\"failed\",\"error\":\"Invalid password (1-6 printable chars, no spaces/quotes/backslash)\"}";
+
+                // Send "PAS LEVELn <value>" via the active pipeline
+                std::string cmd  = "PAS " + level + " " + value;
+                std::string resp = relayMgr->handleUserCommand(relayId, cmd);
+
+                if (resp.empty())
+                {
+                    return "{\"action\":\"change_password\",\"relay_id\":\"" + relayId
+                         + "\",\"status\":\"failed\",\"error\":\"Relay not active or no response\"}";
+                }
+
+                // Relay-side rejection detection (same keywords the pipeline checks).
+                if (resp.find("Invalid") != std::string::npos
+                    || resp.find("invalid") != std::string::npos
+                    || resp.find("Denied")  != std::string::npos
+                    || resp.find("denied")  != std::string::npos
+                    || resp.find("L2 elevation failed") != std::string::npos)
+                {
+                    return "{\"action\":\"change_password\",\"relay_id\":\"" + relayId
+                         + "\",\"level\":\"" + level
+                         + "\",\"status\":\"failed\",\"error\":\"Relay rejected change — "
+                         + "verify Level-2 password is correct in server config\"}";
+                }
+
+                // Persist new password in the in-memory config so future
+                // reconnects authenticate with the new value.
+                if (level == "LEVEL1")
+                    relayMgr->updateStoredPassword(relayId, value);
+                else   // LEVEL2
+                    relayMgr->updateStoredPasswordL2(relayId, value);
+
+                std::cout << "[WS->Action] Password changed for relay " << relayId
+                          << " (" << level << ")\n"; // value deliberately not logged
+
+                return "{\"action\":\"change_password\",\"relay_id\":\"" + relayId
+                     + "\",\"level\":\"" + level
+                     + "\",\"status\":\"success\"}";
             }
 
             std::cout << "[WS->Action] Unknown action: " << action << "\n";

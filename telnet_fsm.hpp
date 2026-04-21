@@ -243,6 +243,7 @@ struct LoginConfig
 {
     std::string l1_user;    ///< Level 1 username
     std::string l1_pass;    ///< Level 1 password
+    std::string l2_pass;    ///< Level 2 password (2AC) — needed for PAS / SET / TRI
 };
 
 /**

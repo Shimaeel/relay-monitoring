@@ -330,6 +330,37 @@ bool TelnetClient::LoginLevel1Function(const std::string& username,
     return result;
 }
 
+// Elevate to Level 2 (2AC).  Requires current session to be at Level 1.
+bool TelnetClient::LoginLevel2Function(const std::string& l2_password)
+{
+    std::string buffer;
+    // SEL elevate command. Case-insensitive on the relay; lowercase
+    // matches the documented default ("2ac" + "TAIL").
+    if (!SendCmdReceiveData("2ac", buffer))
+        return false;
+
+    // Relay replies with "Password:" — send the L2 password next.
+    if (!SendCmdReceiveData(l2_password, buffer))
+        return false;
+
+    // Successful L2 login ends at "=>>" prompt.  SEL reports common
+    // failures inline (e.g. "Invalid Password").  Detect those.
+    if (buffer.find("Invalid") != std::string::npos
+        || buffer.find("invalid") != std::string::npos
+        || buffer.find("Denied")  != std::string::npos)
+        return false;
+
+    return buffer.find("=>>") != std::string::npos
+        || buffer.find("=>")  != std::string::npos;  // some firmware shows single prompt
+}
+
+// Demote back to Level 1.
+bool TelnetClient::LogoutLevel2Function()
+{
+    std::string buffer;
+    return SendCmdReceiveData("acc", buffer);
+}
+
 // ================= COMPLETION HELPERS =================
 bool TelnetClient::isResponseComplete(const std::string& buffer) const
 {

@@ -139,48 +139,6 @@
         </div>
         <!-- ===== END COMBINE SER ===== -->
 
-        <!-- ===== COMBINE COMTRADE SECTION (FSM-driven, no fetch button) ===== -->
-        <div id="combine-comtrade-section" class="section-card" style="margin-top:var(--sp-5)">
-          <h2>📁 Combine COMTRADE (auto-collected)</h2>
-
-          <div class="ser-toolbar">
-            <div class="ser-toolbar__left">
-              <span>Total Files: <strong id="ctl-count" class="record-count">0</strong></span>
-              <span class="ser-toolbar__sep">|</span>
-              <span style="font-weight:700">🟢 Live — pushed by backend FILE DIR EVENTS collector</span>
-            </div>
-            <div class="ser-toolbar__right">
-              <button id="ctl-export-btn" class="btn btn--primary btn--sm" type="button">
-                📦 Export COMTRADE (.zip)
-              </button>
-            </div>
-          </div>
-
-          <div class="ser-config">
-            <div class="ser-config__field">
-              <label>Relay</label>
-              <input id="ctl-f-relay" class="input" type="text" placeholder="e.g. SEL-751" />
-            </div>
-            <div class="ser-config__field">
-              <label>Substation</label>
-              <input id="ctl-f-substation" class="input" type="text" placeholder="e.g. Alpha" />
-            </div>
-            <div class="ser-config__field">
-              <label>Date</label>
-              <input id="ctl-f-date" class="input" type="text" placeholder="01/15/2026" />
-            </div>
-            <div class="ser-config__field">
-              <label>File name</label>
-              <input id="ctl-f-name" class="input" type="text" placeholder="HIS_…" />
-            </div>
-          </div>
-
-          <div id="combine-comtrade-list" class="ctf-file-list">
-            <div class="set-empty">Waiting for COMTRADE events…</div>
-          </div>
-        </div>
-        <!-- ===== END COMBINE COMTRADE ===== -->
-
       </main>
     </div>
   </div>
@@ -212,20 +170,5 @@
   <script src="js/dashboard.js"></script>
   <script src="js/ring_buffer.js"></script>
   <script src="js/combine_ser.js"></script>
-  <script src="js/comtrade_live.js"></script>
-  <script>
-    // Dashboard: show ALL relays' COMTRADE events
-    window.addEventListener("DOMContentLoaded", function () {
-      if (typeof window.initComtradeLive === "function") {
-        window.initComtradeLive({
-          containerId:     "combine-comtrade-list",
-          countId:         "ctl-count",
-          scopeRelayId:    null,   // all relays
-          showRelayColumn: true,
-          filtersPrefix:   "ctl"
-        });
-      }
-    });
-  </script>
 </body>
 </html>

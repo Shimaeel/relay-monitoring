@@ -268,6 +268,36 @@ public:
     bool LoginLevel1Function(const std::string& username,
                              const std::string& password);
 
+    /**
+     * @brief Elevate current session to Level 2 (2AC).
+     *
+     * @details Must already be authenticated at Level 1.  Sequence:
+     * ```
+     * Client: 2AC\r\n
+     * Server: Password:
+     * Client: <l2_password>\r\n
+     * Server: =>>        (Level-2 prompt)
+     * ```
+     * Level 2 is required for privileged commands such as `PAS`
+     * (password change), `SET` (settings change), `TRI` (trigger),
+     * `DATE`, `TIME`, and `PUL`.
+     *
+     * @param l2_password  Level 2 password (default SEL is "TAIL")
+     * @return true if the session reached the `=>>` prompt
+     */
+    bool LoginLevel2Function(const std::string& l2_password);
+
+    /**
+     * @brief Demote current session back to Level 1 (ACC).
+     *
+     * @details Sends the `ACC` command, which on SEL relays returns
+     * the session to the Level-1 prompt (`=>`).  Safe to call even
+     * if currently at Level 1.
+     *
+     * @return true if the `ACC` command was accepted.
+     */
+    bool LogoutLevel2Function();
+
     // ================= RESPONSE ACCESS =================
     
     /**

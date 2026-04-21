@@ -179,16 +179,25 @@ public:
     // ── Validation ──────────────────────────────────────────────────────
 
     /**
-     * @brief Validate that a password value is in the allowed set.
+     * @brief Validate that a password value is acceptable.
      *
-     * Only "TAIL1" and "OTTER1" are permitted.
+     * @details Accepts a user-defined password subject to SEL relay
+     * constraints: 1-6 printable, non-whitespace ASCII characters.
+     * Rejects control chars, spaces, quotes and backslashes that could
+     * break the Telnet command line.
      *
      * @param value  Password string to validate
      * @return true if value is allowed
      */
     static bool validatePassword(const std::string& value)
     {
-        return (value == "TAIL1" || value == "OTTER1");
+        if (value.empty() || value.size() > 6U) return false;
+        for (unsigned char c : value)
+        {
+            if (c < 0x21 || c > 0x7E) return false; // non-printable or space
+            if (c == '"' || c == '\\' || c == '\'') return false;
+        }
+        return true;
     }
 
     /**
@@ -284,7 +293,7 @@ public:
         // Validate password value
         if (!validatePassword(value))
         {
-            return buildErrorJson("Invalid password value");
+            return buildErrorJson("Invalid password value (1-6 printable non-whitespace chars, no quotes/backslash)");
         }
 
         // Execute password change

@@ -217,6 +217,40 @@ class PipelineReceptionWorker
             cmdFsm_.process_event(cmd_ctrld_event{});
         else if (cmd.size() >= 3 && cmd.substr(0, 3) == "SET")
             cmdFsm_.process_event(cmd_set_event{cmd.size() > 4 ? cmd.substr(4) : ""});
+        else if (cmd.size() >= 3 && cmd.substr(0, 3) == "PAS")
+        {
+            // Password change — requires Level 2 elevation.
+            // Sequence:
+            //   1) 2AC  + l2 password   → Level 2 (=>> prompt)
+            //   2) PAS LEVEL<n> <value> → actual change
+            //   3) ACC                  → back to Level 1 for safety
+            client_.clearLastResponse();
+            std::string response;
+            bool elevated = client_.LoginLevel2Function(creds_.l2_pass);
+            if (!elevated)
+            {
+                cmdResponse_.success = false;
+                cmdResponse_.response = "L2 elevation failed — check Level-2 password";
+                std::cout << "[CmdFSM] PAS failed: could not elevate to L2\n";
+                return;
+            }
+
+            bool ok = client_.SendCmdReceiveData(cmd, response);
+            // Always demote back to Level 1, even on PAS failure.
+            client_.LogoutLevel2Function();
+
+            // Detect relay-side rejection (response contains "Invalid" / "Denied")
+            bool rejected = response.find("Invalid") != std::string::npos
+                         || response.find("invalid") != std::string::npos
+                         || response.find("Denied")  != std::string::npos
+                         || response.find("denied")  != std::string::npos;
+
+            cmdResponse_.success = ok && !response.empty() && !rejected;
+            cmdResponse_.response = std::move(response);
+            std::cout << "[CmdFSM] PAS "
+                      << (cmdResponse_.success ? "OK" : "FAIL")
+                      << (rejected ? " (relay rejected)" : "") << "\n";
+        }
         else
         {
             // Generic / unknown command — send directly.
@@ -743,7 +777,7 @@ public:
             return true;
 
         ConnectionConfig conn{config_.host, config_.port, config_.timeout};
-        LoginConfig creds{config_.username, config_.password};
+        LoginConfig creds{config_.username, config_.password, config_.password_l2};
 
         rxWorker_ = std::make_unique<PipelineReceptionWorker>(
             client_, conn, creds, rawBuffer_, app_running_, config_.name);

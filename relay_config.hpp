@@ -66,7 +66,8 @@ struct RelayConfig
     std::string host;          ///< IP address (e.g., "192.168.0.2")
     int         port = 23;     ///< Network port (23 for Telnet, 502 for Modbus)
     std::string username;      ///< Level 1 login username (Telnet only)
-    std::string password;      ///< Level 1 login password (Telnet only)
+    std::string password;      ///< Level 1 login password / ACC (Telnet only)
+    std::string password_l2;   ///< Level 2 login password / 2AC (Telnet only)
     std::string substation;    ///< Substation name for UI display
     std::string bay;           ///< Bay identifier for UI display
     RelayProtocol protocol = RelayProtocol::Telnet;  ///< Communication protocol
@@ -116,7 +117,8 @@ inline std::vector<RelayConfig> getRelayConfigs()
             "192.168.0.2",          // host
             23,                     // port
             "acc",                  // username
-            "OTTER",                // password
+            "OTTER",                // password (L1 / ACC)
+            "TAIL",                 // password_l2 (L2 / 2AC)
             "Substation Alpha",     // substation
             "Bay 1"                 // bay
         },
@@ -128,7 +130,8 @@ inline std::vector<RelayConfig> getRelayConfigs()
             "192.168.0.3",          // host
             23,                     // port
             "ACC",                  // username
-            "OTTER",                // password
+            "OTTER",                // password (L1 / ACC)
+            "TAIL",                 // password_l2 (L2 / 2AC)
             "Substation Alpha",     // substation
             "Bay 3"                 // bay
         }

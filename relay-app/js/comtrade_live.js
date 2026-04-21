@@ -276,8 +276,13 @@
       const relayBadge = opts.showRelayColumn
         ? `<span class="ctf-file-card__badge ctf-file-card__badge--cfg">${escHtml(ev.relayName || ev.relayId)}</span>`
         : "";
-      const disabled = r.content ? "" : "disabled";
-      const tip = r.content ? "" : 'title="Raw file not collected — only .CFG / .DAT are auto-fetched"';
+      const ready    = !!r.content;
+      const disabled = ready ? "" : "disabled";
+      const tip      = ready ? "" : 'title="Backend is still fetching this file from the relay — download will enable when ready"';
+      const btnLabel = ready ? "⬇ Download" : "⏳ Pending";
+      const statusBadge = ready
+        ? `<span class="ctf-file-card__badge" style="background:#d4edda;color:#155724">READY</span>`
+        : `<span class="ctf-file-card__badge" style="background:#fff3cd;color:#856404">FETCHING</span>`;
       return `
         <div class="ctf-file-card">
           <div class="ctf-file-card__header">
@@ -288,6 +293,7 @@
               ${relayBadge}
               ${ev.substation ? `<span class="ctf-file-card__badge">${escHtml(ev.substation)}</span>` : ""}
               ${ev.bay ? `<span class="ctf-file-card__badge">${escHtml(ev.bay)}</span>` : ""}
+              ${statusBadge}
             </div>
             <div class="ctf-file-card__meta">
               <span>#${ev.num}</span>
@@ -297,7 +303,7 @@
           </div>
           <div class="ctf-file-card__actions">
             <button class="btn btn--primary btn--sm" data-idx="${i}" ${disabled} ${tip}>
-              ⬇ Download
+              ${btnLabel}
             </button>
           </div>
         </div>

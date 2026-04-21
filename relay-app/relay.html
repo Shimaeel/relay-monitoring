@@ -83,8 +83,40 @@
         <button class="btn btn--primary btn--sm">📥 Download Setting File</button>
         <button class="btn btn--outline btn--sm" onclick="document.getElementById('upload-setting-file').click()">📤 Upload Setting File</button>
         <input type="file" id="upload-setting-file" style="display:none" accept=".cfg,.txt,.set,.xml,.rdb" />
-        <button class="btn btn--outline btn--sm">🔒 Change Password</button>
+        <button class="btn btn--outline btn--sm" onclick="openChangePasswordModal()">🔒 Change Password</button>
         <button class="btn btn--danger btn--sm">⚡ Trigger</button>
+      </div>
+
+      <!-- ===== CHANGE PASSWORD MODAL ===== -->
+      <div id="chpass-modal" class="chpass-modal" style="display:none;">
+        <div class="chpass-modal__backdrop" onclick="closeChangePasswordModal()"></div>
+        <div class="chpass-modal__card">
+          <h3 style="margin-top:0">🔒 Change Relay Password</h3>
+          <div class="ser-config" style="flex-direction:column; gap:12px;">
+            <div class="ser-config__field">
+              <label>Access Level</label>
+              <select id="chpass-level" class="input">
+                <option value="LEVEL1">LEVEL 1 (ACC)</option>
+                <option value="LEVEL2">LEVEL 2 (2AC)</option>
+              </select>
+            </div>
+            <div class="ser-config__field">
+              <label>New Password</label>
+              <input id="chpass-value" class="input" type="password" maxlength="6"
+                     placeholder="1-6 printable chars" autocomplete="new-password" />
+            </div>
+            <div class="ser-config__field">
+              <label>Confirm Password</label>
+              <input id="chpass-confirm" class="input" type="password" maxlength="6"
+                     placeholder="re-enter" autocomplete="new-password" />
+            </div>
+            <div id="chpass-status" style="font-weight:600;min-height:1.2em;"></div>
+            <div style="display:flex; gap:8px; justify-content:flex-end;">
+              <button class="btn btn--outline btn--sm" onclick="closeChangePasswordModal()">Cancel</button>
+              <button class="btn btn--primary btn--sm" onclick="submitChangePassword()">Apply</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ===== MAIN LAYOUT ===== -->
@@ -410,6 +442,82 @@
 <script src="js/ring_buffer.js"></script>
 <script src="js/sections.js"></script>
 <script src="js/comtrade_live.js"></script>
+<style>
+  .chpass-modal { position: fixed; inset: 0; z-index: 9999; display: flex;
+                  align-items: center; justify-content: center; }
+  .chpass-modal__backdrop { position: absolute; inset: 0;
+                            background: rgba(0,0,0,0.45); }
+  .chpass-modal__card { position: relative; background: var(--color-surface, #fff);
+                        border-radius: 10px; padding: 24px; min-width: 360px;
+                        box-shadow: 0 12px 32px rgba(0,0,0,0.25); }
+</style>
+<script>
+  // ── Change-Password modal ─────────────────────────────────────────
+  function openChangePasswordModal() {
+    const m = document.getElementById("chpass-modal");
+    if (!m) return;
+    document.getElementById("chpass-value").value = "";
+    document.getElementById("chpass-confirm").value = "";
+    document.getElementById("chpass-status").textContent = "";
+    document.getElementById("chpass-status").style.color = "";
+    m.style.display = "flex";
+    setTimeout(() => document.getElementById("chpass-value").focus(), 50);
+  }
+  function closeChangePasswordModal() {
+    const m = document.getElementById("chpass-modal");
+    if (m) m.style.display = "none";
+  }
+  function submitChangePassword() {
+    const level   = document.getElementById("chpass-level").value;
+    const pwd     = document.getElementById("chpass-value").value;
+    const confirm = document.getElementById("chpass-confirm").value;
+    const status  = document.getElementById("chpass-status");
+    const relayId = new URLSearchParams(window.location.search).get("id");
+
+    status.style.color = "#c0392b";
+    if (!relayId) { status.textContent = "Missing relay id in URL."; return; }
+    if (!pwd || pwd.length < 1 || pwd.length > 6) {
+      status.textContent = "Password must be 1-6 characters."; return;
+    }
+    if (!/^[\x21-\x7E]+$/.test(pwd) || /["\\']/.test(pwd)) {
+      status.textContent = "Only printable chars allowed; no spaces, quotes or backslash.";
+      return;
+    }
+    if (pwd !== confirm) { status.textContent = "Passwords do not match."; return; }
+
+    status.style.color = "";
+    status.textContent = "Sending to relay…";
+
+    // Open a short-lived WS just for this action (same pattern used elsewhere).
+    const ws = new WebSocket("ws://localhost:8765");
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        action:   "change_password",
+        relay_id: relayId,
+        level:    level,
+        value:    pwd
+      }));
+    };
+    ws.onmessage = (ev) => {
+      let resp;
+      try { resp = JSON.parse(ev.data); } catch (_) { return; }
+      if (resp.action !== "change_password") return;
+      if (resp.status === "success") {
+        status.style.color = "#1a8a3a";
+        status.textContent = "✅ Password changed successfully.";
+        setTimeout(closeChangePasswordModal, 1200);
+      } else {
+        status.style.color = "#c0392b";
+        status.textContent = "❌ " + (resp.error || "Change failed");
+      }
+      try { ws.close(); } catch (_) {}
+    };
+    ws.onerror = () => {
+      status.style.color = "#c0392b";
+      status.textContent = "WebSocket error — is the backend running?";
+    };
+  }
+</script>
 <script>
   // Relay page: show ONLY this relay's COMTRADE events
   window.addEventListener("DOMContentLoaded", function () {

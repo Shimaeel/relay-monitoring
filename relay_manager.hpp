@@ -280,6 +280,55 @@ public:
     }
 
     /**
+     * @brief Update the stored Level-1 password for a relay config.
+     *
+     * @details Used after a successful on-relay password change so that
+     * future reconnects / pipeline restarts authenticate with the new
+     * value. Does not affect currently-open Telnet sessions — those are
+     * already authenticated.
+     *
+     * @param relayId       Relay identifier
+     * @param newPassword   New password value to store
+     * @return true if config found and updated
+     */
+    bool updateStoredPassword(const std::string& relayId,
+                              const std::string& newPassword)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto& c : configs_)
+        {
+            if (c.id == relayId)
+            {
+                c.password = newPassword;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @brief Update the stored Level-2 password (2AC) for a relay config.
+     *
+     * @param relayId       Relay identifier
+     * @param newPassword   New Level-2 password value to store
+     * @return true if config found and updated
+     */
+    bool updateStoredPasswordL2(const std::string& relayId,
+                                const std::string& newPassword)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto& c : configs_)
+        {
+            if (c.id == relayId)
+            {
+                c.password_l2 = newPassword;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * @brief Get the number of active relay pipelines.
      */
     std::size_t activeCount() const

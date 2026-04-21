@@ -16,48 +16,53 @@
         <div class="page-title-bar">
           <div class="page-title-bar__left">
             <h1 class="page-title">📁 COMTRADE Files</h1>
-            <p class="page-subtitle">Fetch and download COMTRADE configuration &amp; data files from connected relays</p>
+            <p class="page-subtitle">
+              All COMTRADE files from all connected relays — auto-collected by the backend FILE DIR EVENTS state machine.
+            </p>
           </div>
           <div class="page-title-bar__actions">
             <a href="index.html" class="btn btn--outline">← Back to Dashboard</a>
           </div>
         </div>
 
-        <!-- Fetch Controls -->
-        <div class="section-card" style="margin-bottom:var(--sp-5)">
-          <h2>Fetch COMTRADE File</h2>
+        <!-- ===== COMBINE COMTRADE (auto, FSM-driven, no fetch button) ===== -->
+        <div id="combine-comtrade-section" class="section-card">
+          <h2>📁 All Relays — COMTRADE Files (.cfg / .dat)</h2>
 
-          <!-- Toolbar -->
           <div class="ser-toolbar">
             <div class="ser-toolbar__left">
-              <span id="ctf-conn-status" style="font-weight:700">🟡 Idle</span>
+              <span>Total Files: <strong id="ctf-count" class="record-count">0</strong></span>
+              <span class="ser-toolbar__sep">|</span>
+              <span style="font-weight:700">🟢 Live — pushed by backend</span>
             </div>
             <div class="ser-toolbar__right">
-              <button class="btn btn--danger btn--sm" onclick="ctfClearAll()">🗑 Clear All</button>
+              <button id="ctf-export-btn" class="btn btn--primary btn--sm" type="button">
+                📦 Export COMTRADE (.zip)
+              </button>
             </div>
           </div>
 
-          <!-- Relay selector + file inputs -->
           <div class="ser-config">
             <div class="ser-config__field">
               <label>Relay</label>
-              <select id="ctf-relay-select" class="input"></select>
+              <input id="ctf-f-relay" class="input" type="text" placeholder="e.g. SEL-751" />
             </div>
             <div class="ser-config__field">
-              <label>File #</label>
-              <input id="ctf-file-num" type="number" min="1" value="1" placeholder="File number" />
+              <label>Substation</label>
+              <input id="ctf-f-substation" class="input" type="text" placeholder="e.g. Alpha" />
             </div>
-            <button id="ctf-c-fetch-btn" class="btn btn--primary btn--sm" onclick="ctfFetchConfig()">📄 Fetch Config (.cfg)</button>
-            <button id="ctf-d-fetch-btn" class="btn btn--primary btn--sm" onclick="ctfFetchData()">📊 Fetch Data (.dat)</button>
-            <button id="ctf-both-fetch-btn" class="btn btn--outline btn--sm" onclick="ctfFetchBoth()">⬇ Fetch Both</button>
+            <div class="ser-config__field">
+              <label>Date</label>
+              <input id="ctf-f-date" class="input" type="text" placeholder="01/15/2026" />
+            </div>
+            <div class="ser-config__field">
+              <label>File name</label>
+              <input id="ctf-f-name" class="input" type="text" placeholder="HIS_…" />
+            </div>
           </div>
-        </div>
 
-        <!-- Fetched Files List -->
-        <div class="section-card">
-          <h2>Fetched Files</h2>
-          <div id="ctf-file-list" class="ctf-file-list">
-            <div class="set-empty">No files fetched yet. Select a relay and file number above, then click Fetch.</div>
+          <div id="ctf-list" class="ctf-file-list">
+            <div class="set-empty">Waiting for COMTRADE files…</div>
           </div>
         </div>
 
@@ -69,7 +74,19 @@
   <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
   <!-- Scripts -->
-  <script src="js/data.js"></script>
-  <script src="js/comtrade_files.js"></script>
+  <script src="js/comtrade_live.js"></script>
+  <script>
+    window.addEventListener("DOMContentLoaded", function () {
+      if (typeof window.initComtradeLive === "function") {
+        window.initComtradeLive({
+          containerId:     "ctf-list",
+          countId:         "ctf-count",
+          scopeRelayId:    null,       // all relays
+          showRelayColumn: true,
+          filtersPrefix:   "ctf"
+        });
+      }
+    });
+  </script>
 </body>
 </html>
