@@ -1,12 +1,12 @@
-/**
+﻿/**
  * ============================================================
- *  sections.js — Section Controller for Relay Detail Page
+ *  sections.js â€” Section Controller for Relay Detail Page
  * ============================================================
  *
  *  Handles dynamic section loading from the right sidebar tabs.
  *  The SER section includes full WebSocket connectivity with
  *  ASN.1 BER/TLV decoding, Tabulator table, connection status,
- *  auto-refresh polling, and CSV export — matching the proven
+ *  auto-refresh polling, and CSV export â€” matching the proven
  *  implementation from ui/index.html.
  *
  *  Dependencies: data.js, relay.js, Tabulator (CDN)
@@ -28,7 +28,7 @@ function getCurrentRelay() {
 
 /**
  * Prefix a command with the current relay ID for server-side routing.
- * e.g. "TAR 0" → "3:TAR 0"
+ * e.g. "TAR 0" â†’ "3:TAR 0"
  */
 function _prefixCmd(cmd) {
   const relay = getCurrentRelay();
@@ -93,7 +93,7 @@ function readTlv(buffer, offset) {
  * Decode ASN.1 BER/TLV payload into an array of SER record objects.
  *
  * TLV layout (from ws_server.hpp / asn_tlv_codec.hpp):
- *   0x61 (APPLICATION 1, constructed) → contains 0x30 SEQUENCE records
+ *   0x61 (APPLICATION 1, constructed) â†’ contains 0x30 SEQUENCE records
  *     0x80 record_id  (string)
  *     0x81 timestamp  (string)
  *     0x82 status     (string)
@@ -175,11 +175,11 @@ function updateSerConnectionStatus(status) {
   const el = document.getElementById("ser-conn-status");
   if (!el) return;
   const map = {
-    connecting:   { text: "🟡 Connecting…",  color: "#d97706" },
-    connected:    { text: "🟢 Connected",     color: "#16a34a" },
-    synced:       { text: "🟢 Data Synced",   color: "#16a34a" },
-    disconnected: { text: "🔴 Disconnected",  color: "#dc2626" },
-    error:        { text: "🔴 Error",         color: "#dc2626" }
+    connecting:   { text: "ðŸŸ¡ Connectingâ€¦",  color: "#d97706" },
+    connected:    { text: "ðŸŸ¢ Connected",     color: "#16a34a" },
+    synced:       { text: "ðŸŸ¢ Data Synced",   color: "#16a34a" },
+    disconnected: { text: "ðŸ”´ Disconnected",  color: "#dc2626" },
+    error:        { text: "ðŸ”´ Error",         color: "#dc2626" }
   };
   const info = map[status] || map.disconnected;
   el.textContent = info.text;
@@ -212,8 +212,8 @@ function updateSerEmptyState(status) {
 
   const map = {
     connecting:   { t: "Connecting to live data source",   h: "Waiting for the WebSocket server to accept the connection." },
-    connected:    { t: "Connected — waiting for data",     h: "No SER records received from the relay yet." },
-    synced:       { t: "Connected — waiting for data",     h: "No SER records received from the relay yet." },
+    connected:    { t: "Connected â€” waiting for data",     h: "No SER records received from the relay yet." },
+    synced:       { t: "Connected â€” waiting for data",     h: "No SER records received from the relay yet." },
     disconnected: { t: "No live data (disconnected)",      h: "Start the application or check the WebSocket host and port." },
     error:        { t: "No live data (error)",             h: "Check the server logs and WebSocket availability." }
   };
@@ -229,7 +229,7 @@ function updateSerEmptyState(status) {
 
 function serStatusFormatter(cell) {
   const v = cell.getValue();
-  if (!v) return `<span class="ser-status--empty">—</span>`;
+  if (!v) return `<span class="ser-status--empty">â€”</span>`;
   if (v === "Asserted") {
     return `<span class="ser-status--assert">${v}</span>`;
   }
@@ -313,7 +313,7 @@ function updateSerTable(data) {
   if (!serTable) {
     initSerTable(data);
   } else {
-    // Only append rows not already in the table — no full re-render
+    // Only append rows not already in the table â€” no full re-render
     const newRows = data.filter(r => !serKnownSnos.has(r.sno));
     if (newRows.length > 0) {
       serTable.blockRedraw();
@@ -342,7 +342,7 @@ function connectSerWebSocket() {
   // Fallback: direct WebSocket from main thread when SharedArrayBuffer
   // is unavailable (page not served with COOP/COEP headers).
   if (typeof SharedArrayBuffer === 'undefined') {
-    console.warn('[SER] SharedArrayBuffer not available — using direct WebSocket fallback.');
+    console.warn('[SER] SharedArrayBuffer not available â€” using direct WebSocket fallback.');
     _connectSerDirect();
     return;
   }
@@ -471,7 +471,7 @@ function _connectSerDirect() {
   ws.onmessage = (event) => {
     const data = event.data;
 
-    // Binary → TLV-encoded SER records
+    // Binary â†’ TLV-encoded SER records
     if (data instanceof ArrayBuffer) {
       try {
         let records = decodeSerRecordsFromTlv(data);
@@ -489,13 +489,13 @@ function _connectSerDirect() {
       return;
     }
 
-    // Text — TAR batch push
+    // Text â€” TAR batch push
     if (typeof data === 'string' && data.startsWith('TAR_BATCH_ALL:')) {
       _handleTarBatchPush(data);
       return;
     }
 
-    // Text — JSON array fallback
+    // Text â€” JSON array fallback
     if (typeof data === 'string') {
       try {
         const json = JSON.parse(data);
@@ -503,7 +503,7 @@ function _connectSerDirect() {
           updateSerTable(json);
           serLastMessageAt = Date.now();
         }
-      } catch (_) { /* non-JSON text — ignore */ }
+      } catch (_) { /* non-JSON text â€” ignore */ }
     }
   };
 
@@ -671,24 +671,24 @@ function serSendQuit() {
 // ============================================================
 //
 //  Clean async/await implementation.
-//  Sends TAR 0 → TAR 77 sequentially, waits for each response
+//  Sends TAR 0 â†’ TAR 77 sequentially, waits for each response
 //  before sending the next, and updates the Tabulator table
 //  row-by-row.
 //
 //  Public API (called from onclick in relay.html):
-//    rwFetchAll()   — start sequential fetch
-//    rwExportCSV()  — download CSV
-//    rwDisconnect() — abort & disconnect
+//    rwFetchAll()   â€” start sequential fetch
+//    rwExportCSV()  â€” download CSV
+//    rwDisconnect() â€” abort & disconnect
 // ============================================================
 
-// ── State ───────────────────────────────────────────────────
+// â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let rwTable     = null;   // Tabulator instance (created once)
 let rwTableReady = Promise.resolve(); // resolves when tableBuilt fires
 let rwWs        = null;   // WebSocket connection
 let rwAbort     = false;  // Abort signal for in-flight fetch
 
-// ── TAR data cache (shared by Relay Word and I/O) ───────────
+// â”€â”€ TAR data cache (shared by Relay Word and I/O) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Per-relay TAR cache map: { "<relayId>": [...parsedRows] }.
 // Each relay's TAR data is isolated under its own key so a broadcast
@@ -766,7 +766,7 @@ function _parseTarEntries(entries) {
 function _handleTarBatchPush(msg) {
   const parsed = _parseTarBatchMessage(msg);
   if (!parsed) {
-    console.warn("[TAR-PUSH] Malformed TAR_BATCH_ALL message — ignored");
+    console.warn("[TAR-PUSH] Malformed TAR_BATCH_ALL message â€” ignored");
     return;
   }
   const { relayId, jsonStr } = parsed;
@@ -779,7 +779,7 @@ function _handleTarBatchPush(msg) {
     // Only render/refresh UI if this push is for the relay currently shown.
     const currentId = _getCurrentRelayId();
     if (relayId !== currentId) {
-      console.log("[TAR-PUSH] Push is for relay", relayId, "but current page is", currentId, "— cached only");
+      console.log("[TAR-PUSH] Push is for relay", relayId, "but current page is", currentId, "â€” cached only");
       return;
     }
 
@@ -798,12 +798,12 @@ function _handleTarBatchPush(msg) {
   }
 }
 
-// ── Batch state for FETCH_ALL_TAR ───────────────────────────
+// â”€â”€ Batch state for FETCH_ALL_TAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let _rwBatchResolve = null;   // resolve() for batch response
 let _rwBatchReject  = null;   // reject()  for batch response
 
-// ── UI Helpers ──────────────────────────────────────────────
+// â”€â”€ UI Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _rwBuildWsUrl() {
   const h = (document.getElementById("rw-ws-host") || {}).value?.trim() || "localhost";
@@ -815,13 +815,13 @@ function _rwSetStatus(status) {
   const el = document.getElementById("rw-conn-status");
   if (!el) return;
   const map = {
-    idle:         { text: "🟡 Idle",           color: "#d97706" },
-    connecting:   { text: "🟡 Connecting…",    color: "#d97706" },
-    fetching:     { text: "🔵 Fetching…",      color: "#2563eb" },
-    done:         { text: "🟢 Done",           color: "#16a34a" },
-    error:        { text: "🔴 Error",          color: "#dc2626" },
-    disconnected: { text: "🔴 Disconnected",   color: "#dc2626" },
-    aborted:      { text: "🟠 Aborted",        color: "#ea580c" }
+    idle:         { text: "ðŸŸ¡ Idle",           color: "#d97706" },
+    connecting:   { text: "ðŸŸ¡ Connectingâ€¦",    color: "#d97706" },
+    fetching:     { text: "ðŸ”µ Fetchingâ€¦",      color: "#2563eb" },
+    done:         { text: "ðŸŸ¢ Done",           color: "#16a34a" },
+    error:        { text: "ðŸ”´ Error",          color: "#dc2626" },
+    disconnected: { text: "ðŸ”´ Disconnected",   color: "#dc2626" },
+    aborted:      { text: "ðŸŸ  Aborted",        color: "#ea580c" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -852,7 +852,7 @@ function _rwSetFetchBtn(disabled) {
   btn.style.pointerEvents = disabled ? "none" : "";
 }
 
-// ── TAR Response Parser ─────────────────────────────────────
+// â”€â”€ TAR Response Parser â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Parse the raw text response of a single TAR command.
@@ -874,9 +874,9 @@ function _rwSetFetchBtn(disabled) {
 function parseTarResponse(text, fallbackIdx) {
   const lines = text.split(/\r?\n/);
 
-  // ── Extract targetRow from "TAR n" ──
+  // â”€â”€ Extract targetRow from "TAR n" â”€â”€
   let targetRow = null;
-  let dnpIndex  = "—";
+  let dnpIndex  = "â€”";
 
   for (const line of lines) {
     const m = line.match(/^\s*TAR\s+(\d+)/i);
@@ -891,13 +891,13 @@ function parseTarResponse(text, fallbackIdx) {
   }
 
   // Some relays (e.g. SEL-451) omit the "TAR n" / "ROW n" header on
-  // per-row responses — fall back to the server-provided idx.
+  // per-row responses â€” fall back to the server-provided idx.
   if (targetRow === null && typeof fallbackIdx === "number")
     targetRow = fallbackIdx;
 
   if (targetRow === null) return null;
 
-  // ── Find the values line: exactly 8 tokens, all '0' or '1' ──
+  // â”€â”€ Find the values line: exactly 8 tokens, all '0' or '1' â”€â”€
   let labels = Array(8).fill("");
   let values = Array(8).fill(0);
   let foundValues = false;
@@ -928,12 +928,12 @@ function parseTarResponse(text, fallbackIdx) {
   return { targetRow, dnpIndex, labels, values };
 }
 
-// ── Tabulator — Init (once) ─────────────────────────────────
+// â”€â”€ Tabulator â€” Init (once) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _rwBitFormatter(cell) {
   const v = cell.getValue();
   if (v === null || v === undefined)
-    return '<span style="color:#9ca3af">—</span>';
+    return '<span style="color:#9ca3af">â€”</span>';
 
   const label = v.label || "";
   const val   = v.value;
@@ -942,8 +942,8 @@ function _rwBitFormatter(cell) {
   const clr   = on ? "#16a34a" : "#9ca3af";
 
   return `<div style="text-align:center;padding:2px 0;${bg}">
-    <div style="font-size:.7em;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px" title="${label}">${label || "—"}</div>
-    <div style="font-weight:700;color:${clr};font-size:1.1em">${val ?? "—"}</div>
+    <div style="font-size:.7em;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px" title="${label}">${label || "â€”"}</div>
+    <div style="font-weight:700;color:${clr};font-size:1.1em">${val ?? "â€”"}</div>
   </div>`;
 }
 
@@ -960,13 +960,13 @@ function initRwTable() {
   });
 
   rwTable = new Tabulator("#rw-table", {
-    data: [],                          // start empty — rows added dynamically
+    data: [],                          // start empty â€” rows added dynamically
     index: "targetRow",
     layout: "fitColumns",
     height: "600px",
     pagination: false,
     movableColumns: true,
-    placeholder: "No Relay Word Data — click Fetch All TAR",
+    placeholder: "No Relay Word Data â€” click Fetch All TAR",
     columns: [
       { title: "Target Row", field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", width: 200, frozen: true },
       { title: "DNP Index",  field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", width: 200 },
@@ -993,7 +993,7 @@ function _rwDnpRange(row) {
   return `${start}-${end}`;
 }
 
-// ── WebSocket — Connect (returns Promise) ───────────────────
+// â”€â”€ WebSocket â€” Connect (returns Promise) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _rwEnsureConnection() {
   return new Promise((resolve, reject) => {
@@ -1030,13 +1030,13 @@ function _rwEnsureConnection() {
       }
     };
 
-    // Route incoming text messages — batch TAR or single-response
+    // Route incoming text messages â€” batch TAR or single-response
     rwWs.onmessage = (event) => {
       const msg = event.data;
 
       // Skip binary messages (initial SER data / broadcasts)
       if (msg instanceof ArrayBuffer || msg instanceof Blob) {
-        console.log("[RW] Received binary (", msg.byteLength || msg.size, "bytes) — skipping");
+        console.log("[RW] Received binary (", msg.byteLength || msg.size, "bytes) â€” skipping");
         return;
       }
 
@@ -1047,11 +1047,11 @@ function _rwEnsureConnection() {
 
       console.log("[RW] Received WS message (", msg.length, "chars), starts with:", msg.substring(0, 60));
 
-      // ── Batch: TAR_BATCH_ALL:<relayId>:[...] ──
+      // â”€â”€ Batch: TAR_BATCH_ALL:<relayId>:[...] â”€â”€
       if (msg.startsWith("TAR_BATCH_ALL:")) {
         const parsed = _parseTarBatchMessage(msg);
         if (!parsed) {
-          console.warn("[RW] Malformed TAR_BATCH_ALL — ignored");
+          console.warn("[RW] Malformed TAR_BATCH_ALL â€” ignored");
           return;
         }
         console.log("[RW] TAR_BATCH_ALL received for relay", parsed.relayId, "(", parsed.jsonStr.length, "chars)");
@@ -1061,7 +1061,7 @@ function _rwEnsureConnection() {
           _rwBatchReject  = null;
           res(parsed);   // resolve with { relayId, jsonStr }
         } else {
-          console.warn("[RW] TAR_BATCH_ALL arrived but no pending resolve — handling as push");
+          console.warn("[RW] TAR_BATCH_ALL arrived but no pending resolve â€” handling as push");
           _handleTarBatchPush(msg);
         }
         return;
@@ -1073,7 +1073,7 @@ function _rwEnsureConnection() {
   });
 }
 
-// ── Core — fetchAllTAR()  (streaming batch) ─────────────────
+// â”€â”€ Core â€” fetchAllTAR()  (streaming batch) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Sends a single FETCH_ALL_TAR command to the server. The server
@@ -1123,8 +1123,8 @@ async function fetchAllTAR() {
         _rwBatchResolve = resolve;
         _rwBatchReject  = reject;
 
-        // Timeout: 10 min — matches the backend wait_for duration.
-        // Slow relays (~78 TAR rows × 2s each) can take 150+ seconds,
+        // Timeout: 10 min â€” matches the backend wait_for duration.
+        // Slow relays (~78 TAR rows Ã— 2s each) can take 150+ seconds,
         // so 2 min was too short and caused false timeout errors.
         const timer = setTimeout(() => {
           _rwBatchResolve = null;
@@ -1176,33 +1176,33 @@ async function fetchAllTAR() {
           _rwPopulateFromCache();
         } else {
           console.log("[RW] FETCH_ALL_TAR response was for relay", batchRelayId,
-                      "but current page is", _getCurrentRelayId(), "— cached only");
+                      "but current page is", _getCurrentRelayId(), "â€” cached only");
         }
 
         // If relay returned 0 parseable rows, TAR is likely unsupported
         if (allRows.length === 0) {
           _rwSetStatus("done");
           _rwSetProgress(-1);
-          console.warn(`[RW] FETCH_ALL_TAR returned 0 parseable rows — relay may not support TAR`);
+          console.warn(`[RW] FETCH_ALL_TAR returned 0 parseable rows â€” relay may not support TAR`);
           if (typeof showToast === "function") {
             showToast("This relay does not appear to support TAR commands", "warning");
           }
         } else {
-          console.log(`[RW] FETCH_ALL_TAR complete — ${entries.length} rows received, ${allRows.length} parsed & cached`);
+          console.log(`[RW] FETCH_ALL_TAR complete â€” ${entries.length} rows received, ${allRows.length} parsed & cached`);
         }
       }
 
     } catch (err) {
       _rwSetProgress(-1);
       if (rwAbort) {
-        // User navigated away — leave the per-relay cache empty so the next
+        // User navigated away â€” leave the per-relay cache empty so the next
         // visit to Relay Word retries instead of showing an empty table.
         console.log("[RW] fetchAllTAR cancelled by navigation");
         _rwSetStatus("idle");
       } else {
         console.error("[RW] fetchAllTAR error:", err);
         _rwSetStatus("error");
-        // Do NOT cache empty here — a timeout or network error just means
+        // Do NOT cache empty here â€” a timeout or network error just means
         // the relay was slow or unreachable, not that it lacks TAR support.
         // Leaving the per-relay cache empty lets the next visit retry.
         // (The "relay doesn't support TAR" case is handled in the success
@@ -1237,7 +1237,7 @@ async function _rwPopulateFromCache() {
   _rwSetFetchBtn(false);
 }
 
-// ── Disconnect helpers ──────────────────────────────────────
+// â”€â”€ Disconnect helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _rwDisconnectRaw() {
   if (rwWs) {
@@ -1252,7 +1252,7 @@ function _rwDisconnectRaw() {
   _rwBatchReject  = null;
 }
 
-// ── Public Actions (called from onclick in relay.html) ──────
+// â”€â”€ Public Actions (called from onclick in relay.html) â”€â”€â”€â”€â”€â”€
 
 function rwFetchAll() {
   _clearTarCache();        // force re-fetch for the CURRENT relay only
@@ -1277,20 +1277,20 @@ function rwDisconnect() {
 //  INPUT / OUTPUT (I/O) Module
 // ============================================================
 //
-//  Fetches all TAR rows (0–77) — same as Relay Word — but only
+//  Fetches all TAR rows (0â€“77) â€” same as Relay Word â€” but only
 //  keeps rows where at least one bit label starts with "IN" or
 //  "OUT".  Shows them in the EXACT same table format as Relay
-//  Word (Target Row | DNP Index | bit7…bit0) with the same
+//  Word (Target Row | DNP Index | bit7â€¦bit0) with the same
 //  label+value cell renderer.
 //
 //  Public API (called from onclick in relay.html):
-//    ioFetchAll()    — start fetch, filter, display
-//    ioExportCSV()   — download CSV
-//    ioDisconnect()  — abort & disconnect
-//    ioSetFilter(f)  — filter by 'all' | 'in' | 'out'
+//    ioFetchAll()    â€” start fetch, filter, display
+//    ioExportCSV()   â€” download CSV
+//    ioDisconnect()  â€” abort & disconnect
+//    ioSetFilter(f)  â€” filter by 'all' | 'in' | 'out'
 // ============================================================
 
-// ── State ───────────────────────────────────────────────────
+// â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let ioTable      = null;   // Tabulator instance
 let ioAbort      = false;  // Abort signal
@@ -1301,13 +1301,13 @@ function _ioSetStatus(status) {
   const el = document.getElementById("io-conn-status");
   if (!el) return;
   const map = {
-    idle:         { text: "🟡 Idle",           color: "#d97706" },
-    connecting:   { text: "🟡 Connecting…",    color: "#d97706" },
-    fetching:     { text: "🔵 Fetching…",      color: "#2563eb" },
-    done:         { text: "🟢 Done",           color: "#16a34a" },
-    error:        { text: "🔴 Error",          color: "#dc2626" },
-    disconnected: { text: "🔴 Disconnected",   color: "#dc2626" },
-    aborted:      { text: "🟠 Aborted",        color: "#ea580c" }
+    idle:         { text: "ðŸŸ¡ Idle",           color: "#d97706" },
+    connecting:   { text: "ðŸŸ¡ Connectingâ€¦",    color: "#d97706" },
+    fetching:     { text: "ðŸ”µ Fetchingâ€¦",      color: "#2563eb" },
+    done:         { text: "ðŸŸ¢ Done",           color: "#16a34a" },
+    error:        { text: "ðŸ”´ Error",          color: "#dc2626" },
+    disconnected: { text: "ðŸ”´ Disconnected",   color: "#dc2626" },
+    aborted:      { text: "ðŸŸ  Aborted",        color: "#ea580c" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -1338,7 +1338,7 @@ function _ioSetFetchBtn(disabled) {
   btn.style.pointerEvents = disabled ? "none" : "";
 }
 
-// ── Tabulator — Init (same format as Relay Word table) ──────
+// â”€â”€ Tabulator â€” Init (same format as Relay Word table) â”€â”€â”€â”€â”€â”€
 
 function initIoTable() {
   if (ioTable) return;
@@ -1359,7 +1359,7 @@ function initIoTable() {
     height: "600px",
     pagination: false,
     movableColumns: true,
-    placeholder: "No I/O Data — click Fetch I/O to scan relay",
+    placeholder: "No I/O Data â€” click Fetch I/O to scan relay",
     columns: [
       { title: "Target Row", field: "targetRow", hozAlign: "center", headerSort: true, sorter: "number", width: 200, frozen: true },
       { title: "DNP Index",  field: "dnpIndex",  hozAlign: "center", headerSort: true, sorter: "number", width: 200 },
@@ -1375,7 +1375,7 @@ function initIoTable() {
   });
 }
 
-// ── Helper — check if a row has any IN/OUT label ────────────
+// â”€â”€ Helper â€” check if a row has any IN/OUT label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _ioRowHasLabel(row, prefix) {
   for (const f of ["bit7","bit6","bit5","bit4","bit3","bit2","bit1","bit0"]) {
@@ -1389,7 +1389,7 @@ function _ioRowHasIO(row) {
   return _ioRowHasLabel(row, "IN") || _ioRowHasLabel(row, "OUT");
 }
 
-// ── Tabulator — Filter ──────────────────────────────────────
+// â”€â”€ Tabulator â€” Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ioSetFilter(f) {
   _ioFilter = f;
@@ -1435,7 +1435,7 @@ function _ioSyncFromTarCache() {
   _ioSetStatus("done");
 }
 
-// ── Core — fetchAllIO()  (uses shared TAR cache) ────────────
+// â”€â”€ Core â€” fetchAllIO()  (uses shared TAR cache) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Uses the shared TAR cache from fetchAllTAR(). If data hasn't
@@ -1470,7 +1470,7 @@ async function fetchAllIO() {
     _ioSetProgress(-1);
     _ioSetStatus("done");
     _ioApplyFilter();
-    console.log(`[IO] Filtered from cache — ${_ioAllRows.length} I/O rows found`);
+    console.log(`[IO] Filtered from cache â€” ${_ioAllRows.length} I/O rows found`);
 
   } catch (err) {
     console.error("[IO] fetchAllIO error:", err);
@@ -1484,14 +1484,14 @@ async function fetchAllIO() {
   }
 }
 
-// ── Disconnect helpers ──────────────────────────────────────
+// â”€â”€ Disconnect helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _ioDisconnectRaw() {
   // No-op: I/O module uses shared TAR cache, no own WebSocket
 }
 
 
-// ── Public Actions ──────────────────────────────────────────
+// â”€â”€ Public Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ioFetchAll() {
   _clearTarCache();   // force re-fetch for the CURRENT relay only
@@ -1538,11 +1538,11 @@ function _ctrSetStatus(status, custom) {
   const el = document.getElementById("ctr-conn-status");
   if (!el) return;
   const map = {
-    idle:       { text: "🟡 Idle",        color: "#d97706" },
-    connecting: { text: "🟡 Connecting…", color: "#d97706" },
-    fetching:   { text: "🔵 Fetching…",   color: "#2563eb" },
-    done:       { text: "🟢 Done",        color: "#16a34a" },
-    error:      { text: "🔴 Error",       color: "#dc2626" }
+    idle:       { text: "ðŸŸ¡ Idle",        color: "#d97706" },
+    connecting: { text: "ðŸŸ¡ Connectingâ€¦", color: "#d97706" },
+    fetching:   { text: "ðŸ”µ Fetchingâ€¦",   color: "#2563eb" },
+    done:       { text: "ðŸŸ¢ Done",        color: "#16a34a" },
+    error:      { text: "ðŸ”´ Error",       color: "#dc2626" }
   };
   const info = map[status] || map.idle;
   el.textContent = custom || info.text;
@@ -1675,19 +1675,19 @@ function _ctrRenderFiles(files, extWanted) {
   const parts = files.map((f, i) => {
     const safeName = _ctrEscHtml(f.name);
     const meta = _ctrEscHtml(
-      [f.size && `${f.size} bytes`, f.date, f.time].filter(Boolean).join(" · ")
+      [f.size && `${f.size} bytes`, f.date, f.time].filter(Boolean).join(" Â· ")
     );
     return (
       `<div class="ctf-file-card">` +
         `<div class="ctf-file-card__header">` +
           `<div class="ctf-file-card__info">` +
-            `<span class="ctf-file-card__icon">📄</span>` +
+            `<span class="ctf-file-card__icon">ðŸ“„</span>` +
             `<span class="ctf-file-card__name">${safeName}</span>` +
             `<span class="ctf-file-card__badge ${badgeCls}">${extWanted}</span>` +
           `</div>` +
           `<div class="ctf-file-card__actions">` +
             `<button class="btn btn--primary btn--sm ctr-dl-btn" ` +
-                   `data-ctr-idx="${i}">⬇ Download</button>` +
+                   `data-ctr-idx="${i}">â¬‡ Download</button>` +
           `</div>` +
         `</div>` +
         (meta ? `<div class="ctf-file-card__meta">${meta}</div>` : "") +
@@ -1704,12 +1704,12 @@ function _ctrRenderFiles(files, extWanted) {
       if (!file) return;
       const prevText = btn.textContent;
       btn.disabled = true;
-      btn.textContent = "Fetching…";
+      btn.textContent = "Fetchingâ€¦";
       try {
         const cmd = (extWanted === "CFG" ? "CTR C " : "CTR D ") + file.num;
         const response = await _ctrSendCommand(cmd);
         _ctrDownloadText(file.name, response);
-        btn.textContent = "✅ Saved";
+        btn.textContent = "âœ… Saved";
         setTimeout(() => {
           btn.disabled = false;
           btn.textContent = prevText;
@@ -1728,7 +1728,7 @@ function _ctrRenderFiles(files, extWanted) {
 async function ctrListFiles(extWanted) {
   const list = document.getElementById("ctr-file-list");
   _ctrSetBtnsDisabled(true);
-  if (list) list.innerHTML = `<div class="set-empty">Loading FILE DIR EVENTS…</div>`;
+  if (list) list.innerHTML = `<div class="set-empty">Loading FILE DIR EVENTSâ€¦</div>`;
   try {
     await _ctrEnsureConnection();
     _ctrSetStatus("fetching");
@@ -1739,246 +1739,7 @@ async function ctrListFiles(extWanted) {
       return ext === extWanted;
     });
     _ctrRenderFiles(filtered, extWanted);
-    _ctrSetStatus("done", `🟢 ${filtered.length} .${extWanted.toLowerCase()} file(s)`);
-  } catch (err) {
-    console.error("[CTR] list error:", err);
-    _ctrSetStatus("error");
-    if (list)
-      list.innerHTML = `<div class="set-empty">Failed: ${_ctrEscHtml(err.message)}</div>`;
-    if (typeof showToast === "function")
-      showToast(`FILE DIR EVENTS failed: ${err.message}`, "error");
-  } finally {
-    _ctrSetBtnsDisabled(false);
-  }
-}
-
-function ctrListCfg() { return ctrListFiles("CFG"); }
-function ctrListDat() { return ctrListFiles("DAT"); }
-//  `FILE DIR EVENTS`.  This module:
-//    - On "List CFG" / "List DAT" click, sends `FILE DIR EVENTS`
-//      to the selected relay (via `_prefixCmd`).
-//    - Parses the response, filters to .cfg or .dat filenames,
-//      and renders each with a Download button.
-//    - Download fetches `CTR C <n>` (for .cfg) or `CTR D <n>`
-//      (for .dat) and saves the raw response as the file.
-// ============================================================
-
-let ctrWs      = null;
-let _ctrResolve = null;
-let _ctrReject  = null;
-
-function _ctrBuildWsUrl() {
-  const h = (document.getElementById("ser-ws-host") || {}).value?.trim() || "localhost";
-  const p = (document.getElementById("ser-ws-port") || {}).value?.trim() || "8765";
-  return `ws://${h}:${p}`;
-}
-
-function _ctrSetStatus(status, custom) {
-  const el = document.getElementById("ctr-conn-status");
-  if (!el) return;
-  const map = {
-    idle:       { text: "🟡 Idle",        color: "#d97706" },
-    connecting: { text: "🟡 Connecting…", color: "#d97706" },
-    fetching:   { text: "🔵 Fetching…",   color: "#2563eb" },
-    done:       { text: "🟢 Done",        color: "#16a34a" },
-    error:      { text: "🔴 Error",       color: "#dc2626" }
-  };
-  const info = map[status] || map.idle;
-  el.textContent = custom || info.text;
-  el.style.color = info.color;
-}
-
-function _ctrSetBtnsDisabled(disabled) {
-  ["ctr-cfg-btn", "ctr-dat-btn"].forEach(id => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    btn.disabled = disabled;
-    btn.style.opacity = disabled ? "0.5" : "1";
-    btn.style.pointerEvents = disabled ? "none" : "";
-  });
-}
-
-function _ctrEnsureConnection() {
-  return new Promise((resolve, reject) => {
-    if (ctrWs && ctrWs.readyState === WebSocket.OPEN) return resolve(ctrWs);
-    _ctrDisconnectRaw();
-    _ctrSetStatus("connecting");
-    const url = _ctrBuildWsUrl();
-    console.log("[CTR] Connecting to", url);
-    ctrWs = new WebSocket(url);
-
-    ctrWs.onopen  = () => { console.log("[CTR] Connected"); resolve(ctrWs); };
-    ctrWs.onerror = (err) => { console.error("[CTR] Error", err); reject(new Error("WebSocket connection failed")); };
-    ctrWs.onclose = () => {
-      console.log("[CTR] Closed");
-      if (_ctrReject) { _ctrReject(new Error("WebSocket closed")); _ctrResolve = null; _ctrReject = null; }
-    };
-    ctrWs.onmessage = (event) => {
-      if (typeof event.data !== "string") return;
-      if (_ctrResolve) { const r = _ctrResolve; _ctrResolve = null; _ctrReject = null; r(event.data); }
-    };
-  });
-}
-
-async function _ctrSendCommand(cmd) {
-  const ws = await _ctrEnsureConnection();
-  if (ws.readyState !== WebSocket.OPEN) throw new Error("WebSocket not open");
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      _ctrResolve = null; _ctrReject = null;
-      reject(new Error("Timeout"));
-    }, 60_000);
-    _ctrResolve = (d) => { clearTimeout(timer); resolve(d); };
-    _ctrReject  = (e) => { clearTimeout(timer); reject(e); };
-    console.log("[CTR] Sending:", cmd);
-    ws.send(_prefixCmd(cmd));
-  });
-}
-
-function _ctrDisconnectRaw() {
-  if (ctrWs) {
-    ctrWs.onopen = null; ctrWs.onclose = null; ctrWs.onerror = null; ctrWs.onmessage = null;
-    try { ctrWs.close(); } catch (_) {}
-    ctrWs = null;
-  }
-  _ctrResolve = null; _ctrReject = null;
-}
-
-function _ctrEscHtml(s) {
-  const d = document.createElement("div");
-  d.textContent = s == null ? "" : String(s);
-  return d.innerHTML;
-}
-
-function _ctrDownloadText(filename, text) {
-  const blob = new Blob([text], { type: "application/octet-stream" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/**
- * Parse a `FILE DIR EVENTS` response block.
- * Each data line: `<filename>  <size>  <date>  <time>`.
- * Header, border, and prompt lines are skipped.
- *
- * @returns {{name:string, num:number, size:string, date:string, time:string}[]}
- */
-function _ctrParseFileDir(response) {
-  const out = [];
-  const lines = String(response || "").split(/\r?\n/);
-  for (let raw of lines) {
-    const line = raw.replace(/\s+$/, "");
-    if (!line) continue;
-    const trimmed = line.trim();
-    if (/^=>/.test(trimmed)) continue;               // prompt
-    if (/^[-=*\s]+$/.test(trimmed)) continue;         // separator
-    const tokens = trimmed.split(/\s+/);
-    const name = tokens[0];
-    if (!name || name.indexOf(".") < 0) continue;
-    const dot = name.lastIndexOf(".");
-    const ext = name.substring(dot + 1).toUpperCase();
-    if (ext !== "CFG" && ext !== "DAT" && ext !== "CEV" && ext !== "HIS" && ext !== "EVE") continue;
-    // Event number = trailing digit run before the dot
-    let numStart = dot;
-    while (numStart > 0 && /\d/.test(name[numStart - 1])) numStart--;
-    const numStr = name.substring(numStart, dot);
-    if (!numStr) continue;
-    const num = parseInt(numStr, 10);
-    if (!Number.isFinite(num)) continue;
-    out.push({
-      name,
-      num,
-      size: tokens[1] || "",
-      date: tokens[2] || "",
-      time: tokens[3] || ""
-    });
-  }
-  return out;
-}
-
-function _ctrRenderFiles(files, extWanted) {
-  const container = document.getElementById("ctr-file-list");
-  if (!container) return;
-  if (!files.length) {
-    container.innerHTML =
-      `<div class="set-empty">No .${extWanted.toLowerCase()} files found in FILE DIR EVENTS.</div>`;
-    return;
-  }
-  const badgeCls = extWanted === "CFG" ? "ctf-file-card__badge--cfg" : "ctf-file-card__badge--dat";
-  const parts = files.map((f, i) => {
-    const safeName = _ctrEscHtml(f.name);
-    const meta = _ctrEscHtml(
-      [f.size && `${f.size} bytes`, f.date, f.time].filter(Boolean).join(" · ")
-    );
-    return (
-      `<div class="ctf-file-card">` +
-        `<div class="ctf-file-card__header">` +
-          `<div class="ctf-file-card__info">` +
-            `<span class="ctf-file-card__icon">📄</span>` +
-            `<span class="ctf-file-card__name">${safeName}</span>` +
-            `<span class="ctf-file-card__badge ${badgeCls}">${extWanted}</span>` +
-          `</div>` +
-          `<div class="ctf-file-card__actions">` +
-            `<button class="btn btn--primary btn--sm ctr-dl-btn" ` +
-                   `data-ctr-idx="${i}">⬇ Download</button>` +
-          `</div>` +
-        `</div>` +
-        (meta ? `<div class="ctf-file-card__meta">${meta}</div>` : "") +
-      `</div>`
-    );
-  });
-  container.innerHTML = parts.join("");
-
-  // Wire download buttons (avoid inline handlers with dynamic filenames)
-  container.querySelectorAll(".ctr-dl-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const idx = parseInt(btn.getAttribute("data-ctr-idx"), 10);
-      const file = files[idx];
-      if (!file) return;
-      const prevText = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "Fetching…";
-      try {
-        const cmd = (extWanted === "CFG" ? "CTR C " : "CTR D ") + file.num;
-        const response = await _ctrSendCommand(cmd);
-        _ctrDownloadText(file.name, response);
-        btn.textContent = "✅ Saved";
-        setTimeout(() => {
-          btn.disabled = false;
-          btn.textContent = prevText;
-        }, 1500);
-      } catch (err) {
-        console.error("[CTR] download error:", err);
-        if (typeof showToast === "function")
-          showToast(`Download failed: ${err.message}`, "error");
-        btn.disabled = false;
-        btn.textContent = prevText;
-      }
-    });
-  });
-}
-
-async function ctrListFiles(extWanted) {
-  const list = document.getElementById("ctr-file-list");
-  _ctrSetBtnsDisabled(true);
-  if (list) list.innerHTML = `<div class="set-empty">Loading FILE DIR EVENTS…</div>`;
-  try {
-    await _ctrEnsureConnection();
-    _ctrSetStatus("fetching");
-    const response = await _ctrSendCommand("FILE DIR EVENTS");
-    const all = _ctrParseFileDir(response);
-    const filtered = all.filter(f => {
-      const ext = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
-      return ext === extWanted;
-    });
-    _ctrRenderFiles(filtered, extWanted);
-    _ctrSetStatus("done", `🟢 ${filtered.length} .${extWanted.toLowerCase()} file(s)`);
+    _ctrSetStatus("done", `ðŸŸ¢ ${filtered.length} .${extWanted.toLowerCase()} file(s)`);
   } catch (err) {
     console.error("[CTR] list error:", err);
     _ctrSetStatus("error");
@@ -2003,8 +1764,8 @@ function ctrListDat() { return ctrListFiles("DAT"); }
 //  as grouped cards inside #set-content.
 //
 //  Public API:
-//    setFetchSettings()  — fetch via SHOSET
-//    setClearSettings()  — clear and disconnect
+//    setFetchSettings()  â€” fetch via SHOSET
+//    setClearSettings()  â€” clear and disconnect
 // ============================================================
 
 let setWs       = null;
@@ -2021,11 +1782,11 @@ function _setSetStatus(status) {
   const el = document.getElementById("set-conn-status");
   if (!el) return;
   const map = {
-    idle:       { text: "🟡 Idle",        color: "#d97706" },
-    connecting: { text: "🟡 Connecting…", color: "#d97706" },
-    fetching:   { text: "🔵 Fetching…",   color: "#2563eb" },
-    done:       { text: "🟢 Done",        color: "#16a34a" },
-    error:      { text: "🔴 Error",       color: "#dc2626" }
+    idle:       { text: "ðŸŸ¡ Idle",        color: "#d97706" },
+    connecting: { text: "ðŸŸ¡ Connectingâ€¦", color: "#d97706" },
+    fetching:   { text: "ðŸ”µ Fetchingâ€¦",   color: "#2563eb" },
+    done:       { text: "ðŸŸ¢ Done",        color: "#16a34a" },
+    error:      { text: "ðŸ”´ Error",       color: "#dc2626" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -2203,7 +1964,7 @@ async function setFetchSettings() {
     const groups   = parseShosetResponse(response);
     renderShosetSettings(groups);
     _setSetStatus("done");
-    console.log("[SET] SHOSET fetched —", groups.length, "groups");
+    console.log("[SET] SHOSET fetched â€”", groups.length, "groups");
   } catch (err) {
     console.error("[SET] SHOSET error:", err);
     _setSetStatus("error");
@@ -2237,24 +1998,24 @@ function setDisconnect() {
 //  populates a Tabulator table.
 //
 //  Public API (called from onclick in relay.html):
-//    evFetchReport()   — fetch one event report
-//    evExportCSV()     — download CSV
-//    evClearRecords()  — clear table and disconnect
+//    evFetchReport()   â€” fetch one event report
+//    evExportCSV()     â€” download CSV
+//    evClearRecords()  â€” clear table and disconnect
 // ============================================================
 
-// ── State ───────────────────────────────────────────────────
+// â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let evTable    = null;   // Tabulator instance
 let evWs       = null;   // WebSocket connection
 let evAbort    = false;  // Abort signal
 let _evAllRows = [];     // Accumulated event rows
 
-// ── Promise queue for request-response over WebSocket ───────
+// â”€â”€ Promise queue for request-response over WebSocket â”€â”€â”€â”€â”€â”€â”€
 
 let _evResolve = null;
 let _evReject  = null;
 
-// ── UI Helpers ──────────────────────────────────────────────
+// â”€â”€ UI Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _evBuildWsUrl() {
   // Reuse the SER host/port inputs so the user doesn't need to enter them twice
@@ -2267,13 +2028,13 @@ function _evSetStatus(status) {
   const el = document.getElementById("ev-conn-status");
   if (!el) return;
   const map = {
-    idle:         { text: "🟡 Idle",           color: "#d97706" },
-    connecting:   { text: "🟡 Connecting…",    color: "#d97706" },
-    fetching:     { text: "🔵 Fetching…",      color: "#2563eb" },
-    done:         { text: "🟢 Done",           color: "#16a34a" },
-    error:        { text: "🔴 Error",          color: "#dc2626" },
-    disconnected: { text: "🔴 Disconnected",   color: "#dc2626" },
-    aborted:      { text: "🟠 Aborted",        color: "#ea580c" }
+    idle:         { text: "ðŸŸ¡ Idle",           color: "#d97706" },
+    connecting:   { text: "ðŸŸ¡ Connectingâ€¦",    color: "#d97706" },
+    fetching:     { text: "ðŸ”µ Fetchingâ€¦",      color: "#2563eb" },
+    done:         { text: "ðŸŸ¢ Done",           color: "#16a34a" },
+    error:        { text: "ðŸ”´ Error",          color: "#dc2626" },
+    disconnected: { text: "ðŸ”´ Disconnected",   color: "#dc2626" },
+    aborted:      { text: "ðŸŸ  Aborted",        color: "#ea580c" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -2293,7 +2054,7 @@ function _evSetFetchBtn(disabled) {
   btn.style.pointerEvents = disabled ? "none" : "";
 }
 
-// ── Tabulator Initialisation ────────────────────────────────
+// â”€â”€ Tabulator Initialisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function initEvTable() {
   if (evTable) { evTable.redraw(true); return; }
@@ -2304,7 +2065,7 @@ function initEvTable() {
     paginationSize: 50,
     paginationSizeSelector: [10, 20, 50, 100],
     movableColumns: true,
-    placeholder: "No Event Records — Enter an event number and click Fetch",
+    placeholder: "No Event Records â€” Enter an event number and click Fetch",
     height: "500px",
     columns: [
       {
@@ -2377,7 +2138,7 @@ function initEvTable() {
   });
 }
 
-// ── WebSocket — Ensure connection ───────────────────────────
+// â”€â”€ WebSocket â€” Ensure connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _evEnsureConnection() {
   return new Promise((resolve, reject) => {
@@ -2424,7 +2185,7 @@ function _evEnsureConnection() {
   });
 }
 
-// ── Send one command and wait for response ──────────────────
+// â”€â”€ Send one command and wait for response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function _evSendCommand(cmd) {
   const ws = await _evEnsureConnection();
@@ -2453,7 +2214,7 @@ async function _evSendCommand(cmd) {
   });
 }
 
-// ── Parse EVE n R response ──────────────────────────────────
+// â”€â”€ Parse EVE n R response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Parse the tabular "EVE n R" response from a SEL relay.
@@ -2478,7 +2239,7 @@ function parseEveResponse(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const tokens = lines[i].trim().split(/\s+/).filter(Boolean);
-    // Detect header: all tokens are alphabetic labels (IA, IB, IC…)
+    // Detect header: all tokens are alphabetic labels (IA, IB, ICâ€¦)
     if (tokens.length >= 3 && tokens.every(t => /^[A-Za-z][A-Za-z0-9]*$/.test(t))) {
       // Confirm it's our expected header (contains at least IA or VAB)
       const upper = tokens.map(t => t.toUpperCase());
@@ -2533,7 +2294,7 @@ function parseEveResponse(text) {
   return rows;
 }
 
-// ── Main Fetch Logic (sequential) ───────────────────────────
+// â”€â”€ Main Fetch Logic (sequential) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function evFetchReport() {
   const input  = document.getElementById("ev-event-num");
@@ -2561,7 +2322,7 @@ async function evFetchReport() {
     }
 
     _evSetStatus("done");
-    console.log(`[EVE] EVE ${eveNum} fetched — ${_evAllRows.length} rows total`);
+    console.log(`[EVE] EVE ${eveNum} fetched â€” ${_evAllRows.length} rows total`);
 
   } catch (err) {
     console.error("[EVE] fetch error:", err);
@@ -2584,7 +2345,7 @@ function _evUpdateTable() {
   _evSetRecordCount(_evAllRows.length);
 }
 
-// ── Disconnect helpers ──────────────────────────────────────
+// â”€â”€ Disconnect helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function _evDisconnectRaw() {
   if (evWs) {
@@ -2596,7 +2357,7 @@ function _evDisconnectRaw() {
   _evReject  = null;
 }
 
-// ── Public Actions ──────────────────────────────────────────
+// â”€â”€ Public Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function evExportCSV() {
   if (evTable) evTable.download("csv", "event_reports.csv");
@@ -2646,7 +2407,7 @@ function _tsSendAction(actionObj) {
     ws.onmessage = (event) => {
       clearTimeout(timeout);
       try {
-        // Ignore binary (TLV) frames — we only want text JSON responses
+        // Ignore binary (TLV) frames â€” we only want text JSON responses
         if (typeof event.data === 'string') {
           const resp = JSON.parse(event.data);
           resolve(resp);
@@ -2673,11 +2434,11 @@ function _tsSetStatus(status) {
   const el = document.getElementById("ts-conn-status");
   if (!el) return;
   const map = {
-    idle:       { text: "🟡 Idle",        color: "#d97706" },
-    fetching:   { text: "🟡 Fetching…",   color: "#d97706" },
-    syncing:    { text: "🟡 Syncing…",    color: "#d97706" },
-    success:    { text: "🟢 Done",        color: "#16a34a" },
-    error:      { text: "🔴 Error",       color: "#dc2626" }
+    idle:       { text: "ðŸŸ¡ Idle",        color: "#d97706" },
+    fetching:   { text: "ðŸŸ¡ Fetchingâ€¦",   color: "#d97706" },
+    syncing:    { text: "ðŸŸ¡ Syncingâ€¦",    color: "#d97706" },
+    success:    { text: "ðŸŸ¢ Done",        color: "#16a34a" },
+    error:      { text: "ðŸ”´ Error",       color: "#dc2626" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -2705,14 +2466,14 @@ async function _tsReadRelayTime() {
   if (!relay) return;
   const el = document.getElementById("ts-relay-time");
   const rawEl = document.getElementById("ts-relay-raw");
-  if (el) el.textContent = "Loading…";
+  if (el) el.textContent = "Loadingâ€¦";
   if (rawEl) rawEl.textContent = "";
 
   try {
     const resp = await _tsSendAction({ action: "read_relay_time", relay_id: String(relay.id) });
     if (resp.status === "success") {
       // The relay_time field contains the raw DATE response from the relay
-      const raw = resp.relay_time || "—";
+      const raw = resp.relay_time || "â€”";
       // Try to extract a clean date/time from the response
       if (el) el.textContent = raw.trim().split("\n").find(l => l.match(/\d{2}\/\d{2}\/\d{2}/)) || raw.substring(0, 60);
       if (rawEl) rawEl.textContent = raw;
@@ -2731,12 +2492,12 @@ async function _tsReadRelayTime() {
  */
 async function _tsReadPcTime() {
   const el = document.getElementById("ts-pc-time");
-  if (el) el.textContent = "Loading…";
+  if (el) el.textContent = "Loadingâ€¦";
 
   try {
     const resp = await _tsSendAction({ action: "read_pc_time" });
     if (resp.status === "success") {
-      if (el) el.textContent = resp.iso8601 || resp.dateTime || "—";
+      if (el) el.textContent = resp.iso8601 || resp.dateTime || "â€”";
     } else {
       if (el) el.textContent = "Error";
     }
@@ -2751,12 +2512,12 @@ async function _tsReadPcTime() {
 async function _tsReadSntpTime() {
   const server = (document.getElementById("ts-ntp-server") || {}).value || "pool.ntp.org";
   const el = document.getElementById("ts-sntp-time");
-  if (el) el.textContent = "Loading…";
+  if (el) el.textContent = "Loadingâ€¦";
 
   try {
     const resp = await _tsSendAction({ action: "read_sntp_time", server: server });
     if (resp.status === "success") {
-      if (el) el.textContent = resp.iso8601 || resp.dateTime || "—";
+      if (el) el.textContent = resp.iso8601 || resp.dateTime || "â€”";
     } else {
       if (el) el.textContent = "Error: " + (resp.error || "SNTP failed");
     }
@@ -2865,7 +2626,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function teardownSer() {
     disconnectSerWebSocket();
-    // Keep table alive — just disconnect WS; redraw on re-show
+    // Keep table alive â€” just disconnect WS; redraw on re-show
     serDataReceived = false;
   }
 
@@ -3172,7 +2933,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
-  // Default load — SER tab is active
+  // Default load â€” SER tab is active
   loadSection("ser");
 
 });
