@@ -52,6 +52,7 @@
 #include <condition_variable>
 #include <deque>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -230,6 +231,31 @@ public:
     bool running = false;                                ///< Application running state
 
     /**
+     * @brief Per-relay hard cap on the number of TAR rows to fetch.
+     *
+     * @details SEL-451 has ~90 meaningful target rows; beyond that the
+     * relay keeps returning empty rows which slows down the loop and
+     * bloats the payload.  Returns INT_MAX for relays without a known cap.
+     *
+     * @param relayId  Relay identifier.
+     * @return Maximum number of TAR rows to request (inclusive).
+     */
+    int tarRowLimit(const std::string& relayId) const
+    {
+        if (!relayMgr) return std::numeric_limits<int>::max();
+        for (const auto& cfg : relayMgr->getConfigs())
+        {
+            if (cfg.id == relayId)
+            {
+                if (cfg.name.find("451") != std::string::npos)
+                    return 90;
+                break;
+            }
+        }
+        return std::numeric_limits<int>::max();
+    }
+
+    /**
      * @brief Extract a string field value from a simple JSON object.
      *
      * @param json       Raw JSON string.
@@ -280,8 +306,9 @@ public:
             // the broadcast to the correct per-relay cache entry.
             batch = "TAR_BATCH_ALL:" + relayId + ":[";
             bool first = true;
+            const int rowLimit = tarRowLimit(relayId);
 
-            for (int i = 0; app_running.load(); ++i)
+            for (int i = 0; app_running.load() && i < rowLimit; ++i)
             {
                 std::string response = relayMgr->handleUserCommand(
                     relayId, "TAR " + std::to_string(i));
@@ -302,6 +329,9 @@ public:
 
                 ++count;
             }
+            if (count >= rowLimit)
+                std::cout << "[TAR-BG] Relay " << relayId
+                          << " hit row cap (" << rowLimit << ") — stopping fetch\n";
 
             // Got 0 rows — relay not ready yet, retry
             if (count == 0)
@@ -487,8 +517,9 @@ public:
             // Format: TAR_BATCH_ALL:<relayId>:[...] for per-relay routing on the frontend
             batch = "TAR_BATCH_ALL:" + relayId + ":[";
             bool first = true;
+            const int rowLimit = tarRowLimit(relayId);
 
-            for (int i = 0; !abort.load(); ++i)
+            for (int i = 0; !abort.load() && i < rowLimit; ++i)
             {
                 std::string response = relayMgr->handleUserCommand(
                     relayId, "TAR " + std::to_string(i));
@@ -508,6 +539,9 @@ public:
 
                 ++count;
             }
+            if (count >= rowLimit)
+                std::cout << "[WS→Relay] Relay " << relayId
+                          << " hit row cap (" << rowLimit << ") — stopping fetch\n";
 
             batch += "]";
 
