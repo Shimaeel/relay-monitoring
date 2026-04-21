@@ -744,7 +744,7 @@ function _parseTarBatchMessage(msg) {
 function _parseTarEntries(entries) {
   const rows = [];
   for (const entry of entries) {
-    const parsed = parseTarResponse(entry.data);
+    const parsed = parseTarResponse(entry.data, entry.idx);
     if (parsed) {
       rows.push({
         targetRow: parsed.targetRow,
@@ -871,7 +871,7 @@ function _rwSetFetchBtn(disabled) {
  *   LED6    LED5    LED4    LED3    LED2    LED1    *       ENABLE
  *   0       0       0       0       0       0       0       1
  */
-function parseTarResponse(text) {
+function parseTarResponse(text, fallbackIdx) {
   const lines = text.split(/\r?\n/);
 
   // ── Extract targetRow from "TAR n" ──
@@ -890,17 +890,24 @@ function parseTarResponse(text) {
     dnpIndex  = parseInt(rowM[2], 10);
   }
 
+  // Some relays (e.g. SEL-451) omit the "TAR n" / "ROW n" header on
+  // per-row responses — fall back to the server-provided idx.
+  if (targetRow === null && typeof fallbackIdx === "number")
+    targetRow = fallbackIdx;
+
   if (targetRow === null) return null;
 
   // ── Find the values line: exactly 8 tokens, all '0' or '1' ──
   let labels = Array(8).fill("");
   let values = Array(8).fill(0);
+  let foundValues = false;
 
   for (let i = 0; i < lines.length; i++) {
     const tok = lines[i].trim().split(/\s+/).filter(Boolean);
     if (tok.length !== 8 || !tok.every(t => t === "0" || t === "1")) continue;
 
     values = tok.map(Number);
+    foundValues = true;
 
     // Walk backwards to find the label line
     for (let j = i - 1; j >= 0; j--) {
@@ -915,6 +922,8 @@ function parseTarResponse(text) {
     }
     break;
   }
+
+  if (!foundValues) return null;
 
   return { targetRow, dnpIndex, labels, values };
 }
@@ -1141,7 +1150,7 @@ async function fetchAllTAR() {
         const allRows = [];
 
         for (const entry of entries) {
-          const parsed = parseTarResponse(entry.data);
+          const parsed = parseTarResponse(entry.data, entry.idx);
           if (!parsed) {
             console.warn(`[RW] Failed to parse TAR ${entry.idx}`);
             continue;
