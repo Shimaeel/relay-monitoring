@@ -48,6 +48,8 @@
 
 #include <atomic>
 #include <atomic>
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <condition_variable>
 #include <deque>
@@ -55,7 +57,9 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <thread>
+#include <unordered_set>
 
 #include "client.hpp"
 #include "asn_tlv_codec.hpp"
@@ -228,6 +232,31 @@ public:
         });
     }
 
+    // ─── Background COMTRADE collection (FSM-driven, no UI trigger) ─────
+    /// @brief One cached COMTRADE event file pair (config + data).
+    struct ComtradeFile
+    {
+        int         num{};         ///< Event number (CTR C/D index)
+        std::string name;          ///< Raw filename from FILE DIR EVENTS
+        std::string date;          ///< Event date (MM/DD/YYYY)
+        std::string time;          ///< Event time (HH:MM:SS.sss)
+        std::string cfg;           ///< Full CTR C response text
+        std::string dat;           ///< Full CTR D response text
+    };
+    std::mutex comtradeCacheMutex_;                                     ///< Guards COMTRADE cache
+    /// relay_id -> event_num -> ComtradeFile
+    std::unordered_map<std::string, std::unordered_map<int, ComtradeFile>> comtradeCache_;
+    struct ComtradeBgTask
+    {
+        std::thread thread;
+        std::shared_ptr<std::atomic<bool>> done;
+    };
+    std::mutex comtradeBgThreadsMutex_;                                 ///< Guards comtradeBgThreads_
+    std::vector<ComtradeBgTask> comtradeBgThreads_;                     ///< Background COMTRADE threads
+
+    /// Interval between FILE DIR EVENTS scans.  No UI control — FSM-driven only.
+    static constexpr std::chrono::seconds kComtradePollInterval{300};
+
     bool running = false;                                ///< Application running state
 
     /**
@@ -248,7 +277,7 @@ public:
             if (cfg.id == relayId)
             {
                 if (cfg.name.find("451") != std::string::npos)
-                    return 90;
+                    return 100;
                 break;
             }
         }
@@ -376,6 +405,241 @@ public:
         auto end = json.find('"', pos + 1);
         if (end == std::string::npos) return "";
         return json.substr(pos + 1, end - pos - 1);
+    }
+
+    /**
+     * @brief Parse `FILE DIR EVENTS` response from an SEL relay.
+     *
+     * @details Extracts event file descriptors.  Expected line shape
+     * (flexible whitespace, SEL-family relays):
+     *   `HIS_00005.CEV   12345   01/15/2026   12:34:56   R`
+     *
+     * Digits preceding the dot in the filename are used as the event
+     * index (passed to `CTR C N` / `CTR D N`).  Header / separator lines
+     * are silently skipped.
+     */
+    static std::vector<ComtradeFile> parseFileDirEvents(const std::string& response)
+    {
+        std::vector<ComtradeFile> out;
+        std::istringstream ss(response);
+        std::string line;
+        while (std::getline(ss, line))
+        {
+            while (!line.empty() && (line.back() == '\r' || line.back() == ' '))
+                line.pop_back();
+            if (line.empty()) continue;
+
+            std::istringstream ls(line);
+            std::string name, sizeTok, date, time;
+            if (!(ls >> name >> sizeTok >> date >> time)) continue;
+
+            auto dot = name.find_last_of('.');
+            if (dot == std::string::npos) continue;
+            std::string ext = name.substr(dot + 1);
+            for (auto& c : ext) c = static_cast<char>(std::toupper(c));
+            // Only surface files the collector actually fetches (.CFG / .DAT).
+            // SEL-native .CEV / .HIS are skipped to keep the COMTRADE_DIR
+            // payload lean and the UI focused on COMTRADE-standard files.
+            if (ext != "CFG" && ext != "DAT")
+                continue;
+
+            bool sizeNumeric = !sizeTok.empty() &&
+                std::all_of(sizeTok.begin(), sizeTok.end(),
+                            [](unsigned char c){ return std::isdigit(c) != 0; });
+            if (!sizeNumeric) continue;
+
+            int num = 0;
+            {
+                size_t end = dot, start = dot;
+                while (start > 0 && std::isdigit(static_cast<unsigned char>(name[start - 1])))
+                    --start;
+                if (start == end) continue;
+                try { num = std::stoi(name.substr(start, end - start)); }
+                catch (...) { continue; }
+            }
+            out.push_back(ComtradeFile{num, name, date, time, {}, {}});
+        }
+        return out;
+    }
+
+    /// Build a `COMTRADE_EVENT:<json>` broadcast payload for one event.
+    std::string buildComtradeEventMsg(const std::string& relayId,
+                                      const std::string& relayName,
+                                      const std::string& substation,
+                                      const std::string& bay,
+                                      const ComtradeFile& f)
+    {
+        std::string out;
+        out.reserve(f.cfg.size() + f.dat.size() + 512);
+        out  = "COMTRADE_EVENT:{\"relayId\":\"" + relayId + "\"";
+        out += ",\"relayName\":\""  + escapeTarJson(relayName)  + "\"";
+        out += ",\"substation\":\"" + escapeTarJson(substation) + "\"";
+        out += ",\"bay\":\""        + escapeTarJson(bay)        + "\"";
+        out += ",\"num\":"          + std::to_string(f.num);
+        out += ",\"name\":\""       + escapeTarJson(f.name)     + "\"";
+        out += ",\"date\":\""       + escapeTarJson(f.date)     + "\"";
+        out += ",\"time\":\""       + escapeTarJson(f.time)     + "\"";
+        out += ",\"cfg\":\""        + escapeTarJson(f.cfg)      + "\"";
+        out += ",\"dat\":\""        + escapeTarJson(f.dat)      + "\"}";
+        return out;
+    }
+
+    /// Lookup relay display metadata for a given id.
+    void lookupRelayMeta_(const std::string& relayId,
+                          std::string& name,
+                          std::string& substation,
+                          std::string& bay) const
+    {
+        if (!relayMgr) return;
+        for (const auto& cfg : relayMgr->getConfigs())
+        {
+            if (cfg.id == relayId)
+            { name = cfg.name; substation = cfg.substation; bay = cfg.bay; return; }
+        }
+    }
+
+    /// Is the relay currently an active pipeline?
+    bool relayIsActive_(const std::string& relayId) const
+    {
+        if (!relayMgr) return false;
+        for (const auto& id : relayMgr->getActiveRelayIds())
+            if (id == relayId) return true;
+        return false;
+    }
+
+    /**
+     * @brief Per-relay COMTRADE collector — FSM-driven, no UI trigger.
+     *
+     * @details Loops while app is running and relay is active:
+     *   1. Issue `FILE DIR EVENTS`
+     *   2. Parse file list
+     *   3. For every event not yet cached, fetch `CTR C <n>` + `CTR D <n>`
+     *   4. Broadcast `COMTRADE_EVENT:<json>` for each new event
+     *   5. Sleep `kComtradePollInterval`
+     */
+    void collectComtradeBackground(const std::string& relayId)
+    {
+        std::string relayName, substation, bay;
+        lookupRelayMeta_(relayId, relayName, substation, bay);
+        std::cout << "[CTR-BG] Starting COMTRADE collector for relay "
+                  << relayId << " (" << relayName << ")\n";
+
+        while (app_running.load() && relayIsActive_(relayId))
+        {
+            std::string dirResp = relayMgr->handleUserCommand(relayId, "FILE DIR EVENTS");
+            if (!app_running.load() || !relayIsActive_(relayId)) break;
+
+            if (dirResp.empty())
+            {
+                std::cout << "[CTR-BG] " << relayId
+                          << " FILE DIR EVENTS empty — will retry after interval\n";
+            }
+            else
+            {
+                auto files = parseFileDirEvents(dirResp);
+                std::cout << "[CTR-BG] " << relayId << " parsed "
+                          << files.size() << " event(s) from FILE DIR EVENTS\n";
+
+                // Broadcast directory listing (metadata only) so frontend can
+                // render placeholders even before CFG/DAT arrives.
+                {
+                    std::string listMsg = "COMTRADE_DIR:{\"relayId\":\"" + relayId
+                                        + "\",\"relayName\":\""  + escapeTarJson(relayName)
+                                        + "\",\"substation\":\"" + escapeTarJson(substation)
+                                        + "\",\"bay\":\""        + escapeTarJson(bay)
+                                        + "\",\"files\":[";
+                    bool first = true;
+                    for (const auto& f : files)
+                    {
+                        if (!first) listMsg += ",";
+                        first = false;
+                        listMsg += "{\"num\":" + std::to_string(f.num)
+                                 + ",\"name\":\"" + escapeTarJson(f.name) + "\""
+                                 + ",\"date\":\"" + escapeTarJson(f.date) + "\""
+                                 + ",\"time\":\"" + escapeTarJson(f.time) + "\"}";
+                    }
+                    listMsg += "]}";
+                    wsServer.broadcastText(listMsg);
+                }
+
+                // Fetch each not-yet-cached event
+                for (const auto& meta : files)
+                {
+                    if (!app_running.load() || !relayIsActive_(relayId)) break;
+
+                    {
+                        std::lock_guard<std::mutex> lock(comtradeCacheMutex_);
+                        auto it = comtradeCache_.find(relayId);
+                        if (it != comtradeCache_.end()
+                            && it->second.find(meta.num) != it->second.end())
+                            continue;
+                    }
+
+                    std::cout << "[CTR-BG] " << relayId << " fetching event "
+                              << meta.num << " (" << meta.name << ")\n";
+
+                    std::string cfg = relayMgr->handleUserCommand(
+                        relayId, "CTR C " + std::to_string(meta.num));
+                    if (!app_running.load() || !relayIsActive_(relayId)) break;
+                    std::string dat = relayMgr->handleUserCommand(
+                        relayId, "CTR D " + std::to_string(meta.num));
+                    if (!app_running.load() || !relayIsActive_(relayId)) break;
+
+                    if (cfg.empty() || dat.empty())
+                    {
+                        std::cout << "[CTR-BG] " << relayId << " event " << meta.num
+                                  << " fetch incomplete (cfg=" << cfg.size()
+                                  << ", dat=" << dat.size() << ") — retry next cycle\n";
+                        continue;
+                    }
+
+                    ComtradeFile full{meta.num, meta.name, meta.date, meta.time,
+                                      std::move(cfg), std::move(dat)};
+                    {
+                        std::lock_guard<std::mutex> lock(comtradeCacheMutex_);
+                        comtradeCache_[relayId][full.num] = full;
+                    }
+                    wsServer.broadcastText(
+                        buildComtradeEventMsg(relayId, relayName, substation, bay, full));
+                }
+            }
+
+            // Interruptible sleep
+            for (int s = 0; s < kComtradePollInterval.count()
+                         && app_running.load() && relayIsActive_(relayId); ++s)
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+
+        std::cout << "[CTR-BG] COMTRADE collector for relay " << relayId << " exiting\n";
+    }
+
+    /// Join and erase comtradeBgThreads_ entries whose work has completed.
+    void reapFinishedComtradeThreadsLocked_()
+    {
+        for (auto it = comtradeBgThreads_.begin(); it != comtradeBgThreads_.end();)
+        {
+            if (it->done && it->done->load())
+            {
+                if (it->thread.joinable()) it->thread.join();
+                it = comtradeBgThreads_.erase(it);
+            }
+            else ++it;
+        }
+    }
+
+    /// Spawn a COMTRADE collector thread for a relay.
+    void spawnComtradeBgThread_(const std::string& relayId)
+    {
+        auto done = std::make_shared<std::atomic<bool>>(false);
+        std::lock_guard<std::mutex> lock(comtradeBgThreadsMutex_);
+        reapFinishedComtradeThreadsLocked_();
+        comtradeBgThreads_.push_back(ComtradeBgTask{
+            std::thread([this, relayId, done]() {
+                collectComtradeBackground(relayId);
+                done->store(true);
+            }),
+            done
+        });
     }
 
     /**
@@ -592,6 +856,8 @@ public:
                     {
                         spawnTarBgThread_(relayId);
                     }
+                    // COMTRADE collector — FSM-driven, auto-discovers events via FILE DIR EVENTS
+                    spawnComtradeBgThread_(relayId);
                 }
                 return ok
                     ? "{\"action\":\"start_relay\",\"relay_id\":\"" + relayId + "\",\"status\":\"success\"}"
@@ -607,6 +873,12 @@ public:
                     std::lock_guard<std::mutex> lock(tarCacheMutex_);
                     tarCache_.erase(relayId);
                     tarFetchInProgress_.erase(relayId);
+                }
+                // Clear cached COMTRADE data for this relay (collector will exit
+                // on next iteration when it notices the relay is no longer active).
+                {
+                    std::lock_guard<std::mutex> lock(comtradeCacheMutex_);
+                    comtradeCache_.erase(relayId);
                 }
                 bool ok = relayMgr->stopRelay(relayId);
                 return ok
@@ -773,6 +1045,8 @@ public:
                 {
                     spawnTarBgThread_(cfg.id);
                 }
+                // COMTRADE collector — FSM-driven per-relay discovery
+                spawnComtradeBgThread_(cfg.id);
             }
             else
             {
@@ -828,6 +1102,18 @@ public:
                     task.thread.join();
             }
             tarBgThreads_.clear();
+        }
+
+        // Join background COMTRADE collector threads.  These loop on
+        // relayIsActive_() and app_running, so they'll already be winding down.
+        {
+            std::lock_guard<std::mutex> lock(comtradeBgThreadsMutex_);
+            for (auto& task : comtradeBgThreads_)
+            {
+                if (task.thread.joinable())
+                    task.thread.join();
+            }
+            comtradeBgThreads_.clear();
         }
 
         // Now safe to tear down relay pipelines and the database.

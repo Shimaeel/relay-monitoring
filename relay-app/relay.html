@@ -115,37 +115,39 @@
           </div>
           <!-- ===== END SETTINGS SECTION ===== -->
 
-          <!-- ===== COMTRADE SECTION (static, toggled by sections.js) ===== -->
+          <!-- ===== COMTRADE SECTION (FSM-driven, no fetch button) ===== -->
           <div id="comtrade-section" class="section-card" style="display:none;">
-            <h2>📁 COMTRADE Files</h2>
+            <h2>📁 COMTRADE Files (auto-collected)</h2>
 
             <!-- COMTRADE Toolbar -->
             <div class="ser-toolbar">
               <div class="ser-toolbar__left">
-                <span id="ctr-conn-status" style="font-weight:700">🟡 Idle</span>
+                <span>Total Files: <strong id="ctr-live-count" class="record-count">0</strong></span>
+                <span class="ser-toolbar__sep">|</span>
+                <span id="ctr-conn-status" style="font-weight:700">🟢 Live — pushed by backend</span>
               </div>
               <div class="ser-toolbar__right">
-                <button class="btn btn--danger btn--sm" onclick="ctrClear()">🗑 Clear</button>
+                <button id="ctr-live-export-btn" class="btn btn--primary btn--sm" type="button">
+                  📦 Export COMTRADE (.zip)
+                </button>
               </div>
             </div>
 
-            <!-- CTR C / CTR D inputs -->
+            <!-- Filters only (no fetch buttons) -->
             <div class="ser-config">
               <div class="ser-config__field">
-                <label>CTR C</label>
-                <input id="ctr-c-num" type="number" min="1" value="1" placeholder="Config file #" />
+                <label>Date</label>
+                <input id="ctr-live-f-date" class="input" type="text" placeholder="01/15/2026" />
               </div>
-              <button id="ctr-c-fetch-btn" class="btn btn--primary btn--sm" onclick="ctrFetchConfig()">🔄 Fetch Config</button>
-              <div class="ser-config__field" style="margin-left: 16px;">
-                <label>CTR D</label>
-                <input id="ctr-d-num" type="number" min="1" value="1" placeholder="Data file #" />
+              <div class="ser-config__field">
+                <label>File name</label>
+                <input id="ctr-live-f-name" class="input" type="text" placeholder="HIS_…" />
               </div>
-              <button id="ctr-d-fetch-btn" class="btn btn--primary btn--sm" onclick="ctrFetchData()">🔄 Fetch Data</button>
             </div>
 
-            <!-- COMTRADE output -->
-            <div id="ctr-content" class="ctr-content">
-              <div class="set-empty">Enter a file number and click <strong>Fetch Config</strong> or <strong>Fetch Data</strong>.</div>
+            <!-- Auto-populated list -->
+            <div id="ctr-live-list" class="ctf-file-list">
+              <div class="set-empty">Waiting for COMTRADE events…</div>
             </div>
           </div>
           <!-- ===== END COMTRADE SECTION ===== -->
@@ -407,6 +409,22 @@
 <script src="js/relay.js"></script>
 <script src="js/ring_buffer.js"></script>
 <script src="js/sections.js"></script>
+<script src="js/comtrade_live.js"></script>
+<script>
+  // Relay page: show ONLY this relay's COMTRADE events
+  window.addEventListener("DOMContentLoaded", function () {
+    const relayId = new URLSearchParams(window.location.search).get("id");
+    if (typeof window.initComtradeLive === "function") {
+      window.initComtradeLive({
+        containerId:     "ctr-live-list",
+        countId:         "ctr-live-count",
+        scopeRelayId:    relayId,
+        showRelayColumn: false,
+        filtersPrefix:   "ctr-live"
+      });
+    }
+  });
+</script>
 
 </body>
 </html>
