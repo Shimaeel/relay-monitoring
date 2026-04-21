@@ -322,19 +322,38 @@ public:
         {
             if (shouldStop && shouldStop()) return {};
 
-            std::cout << "[TAR] Relay " << relayId << " → using TAR ALL\n";
-            std::string response = relayMgr->handleUserCommand(relayId, "TAR ALL");
+            // SEL-451 syntax: "TAR <row> <count>" — request 64 rows starting at 0.
+            // The response spans multiple pages ("Press RETURN to continue"),
+            // handled by CmdTarAction via SendCmdMultiPage.
+            const std::string bulkCmd = "TAR 0 64";
+            std::cout << "[TAR] Relay " << relayId << " → using bulk '"
+                      << bulkCmd << "'\n";
+            std::string response = relayMgr->handleUserCommand(relayId, bulkCmd);
+
+            std::cout << "[TAR] Relay " << relayId << " bulk response len="
+                      << response.size() << " first 200 chars: "
+                      << response.substr(0, std::min<size_t>(200, response.size()))
+                      << "\n";
+
             if (response.empty() ||
                 response.find("Invalid") != std::string::npos)
             {
                 std::cout << "[TAR] Relay " << relayId
-                          << " TAR ALL returned empty/invalid\n";
-                return {};
+                          << " bulk TAR returned empty/invalid — falling back to TAR 0..N loop\n";
+                // fall through to per-row loop below
             }
-            auto rows = parseTarAllResponse(response);
-            std::cout << "[TAR] Relay " << relayId
-                      << " TAR ALL parsed " << rows.size() << " rows\n";
-            return rows;
+            else
+            {
+                auto rows = parseTarAllResponse(response);
+                std::cout << "[TAR] Relay " << relayId
+                          << " bulk TAR parsed " << rows.size() << " rows\n";
+                if (!rows.empty())
+                    return rows;
+
+                std::cout << "[TAR] Relay " << relayId
+                          << " bulk response had no parseable ROW markers "
+                             "— falling back to TAR 0..N loop\n";
+            }
         }
 
         std::cout << "[TAR] Relay " << relayId << " → using TAR 0..N loop\n";
