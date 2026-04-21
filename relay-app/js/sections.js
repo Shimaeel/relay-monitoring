@@ -1549,16 +1549,6 @@ function _ctrSetStatus(status, custom) {
   el.style.color = info.color;
 }
 
-function _ctrSetBtnsDisabled(disabled) {
-  ["ctr-cfg-btn", "ctr-dat-btn"].forEach(id => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    btn.disabled = disabled;
-    btn.style.opacity = disabled ? "0.5" : "1";
-    btn.style.pointerEvents = disabled ? "none" : "";
-  });
-}
-
 function _ctrEnsureConnection() {
   return new Promise((resolve, reject) => {
     if (ctrWs && ctrWs.readyState === WebSocket.OPEN) return resolve(ctrWs);
@@ -1663,16 +1653,17 @@ function _ctrParseFileDir(response) {
   return out;
 }
 
-function _ctrRenderFiles(files, extWanted) {
+function _ctrRenderFiles(files) {
   const container = document.getElementById("ctr-file-list");
   if (!container) return;
   if (!files.length) {
     container.innerHTML =
-      `<div class="set-empty">No .${extWanted.toLowerCase()} files found in FILE DIR EVENTS.</div>`;
+      `<div class="set-empty">No .cfg or .dat files found in FILE DIR EVENTS.</div>`;
     return;
   }
-  const badgeCls = extWanted === "CFG" ? "ctf-file-card__badge--cfg" : "ctf-file-card__badge--dat";
   const parts = files.map((f, i) => {
+    const extUp    = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
+    const badgeCls = extUp === "CFG" ? "ctf-file-card__badge--cfg" : "ctf-file-card__badge--dat";
     const safeName = _ctrEscHtml(f.name);
     const meta = _ctrEscHtml(
       [f.size && `${f.size} bytes`, f.date, f.time].filter(Boolean).join(" Â· ")
@@ -1683,7 +1674,7 @@ function _ctrRenderFiles(files, extWanted) {
           `<div class="ctf-file-card__info">` +
             `<span class="ctf-file-card__icon">ðŸ“„</span>` +
             `<span class="ctf-file-card__name">${safeName}</span>` +
-            `<span class="ctf-file-card__badge ${badgeCls}">${extWanted}</span>` +
+            `<span class="ctf-file-card__badge ${badgeCls}">${extUp}</span>` +
           `</div>` +
           `<div class="ctf-file-card__actions">` +
             `<button class="btn btn--primary btn--sm ctr-dl-btn" ` +
@@ -1702,11 +1693,12 @@ function _ctrRenderFiles(files, extWanted) {
       const idx = parseInt(btn.getAttribute("data-ctr-idx"), 10);
       const file = files[idx];
       if (!file) return;
+      const extUp = file.name.substring(file.name.lastIndexOf(".") + 1).toUpperCase();
       const prevText = btn.textContent;
       btn.disabled = true;
       btn.textContent = "Fetchingâ€¦";
       try {
-        const cmd = (extWanted === "CFG" ? "CTR C " : "CTR D ") + file.num;
+        const cmd = (extUp === "CFG" ? "CTR C " : "CTR D ") + file.num;
         const response = await _ctrSendCommand(cmd);
         _ctrDownloadText(file.name, response);
         btn.textContent = "âœ… Saved";
@@ -1725,9 +1717,8 @@ function _ctrRenderFiles(files, extWanted) {
   });
 }
 
-async function ctrListFiles(extWanted) {
+async function ctrListFiles() {
   const list = document.getElementById("ctr-file-list");
-  _ctrSetBtnsDisabled(true);
   if (list) list.innerHTML = `<div class="set-empty">Loading FILE DIR EVENTSâ€¦</div>`;
   try {
     await _ctrEnsureConnection();
@@ -1736,10 +1727,19 @@ async function ctrListFiles(extWanted) {
     const all = _ctrParseFileDir(response);
     const filtered = all.filter(f => {
       const ext = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
-      return ext === extWanted;
+      return ext === "CFG" || ext === "DAT";
     });
-    _ctrRenderFiles(filtered, extWanted);
-    _ctrSetStatus("done", `ðŸŸ¢ ${filtered.length} .${extWanted.toLowerCase()} file(s)`);
+    // Sort: event number desc, then CFG before DAT for same event
+    filtered.sort((a, b) => {
+      if (a.num !== b.num) return b.num - a.num;
+      const ea = a.name.substring(a.name.lastIndexOf(".") + 1).toUpperCase();
+      const eb = b.name.substring(b.name.lastIndexOf(".") + 1).toUpperCase();
+      return ea.localeCompare(eb);
+    });
+    _ctrRenderFiles(filtered);
+    const nCfg = filtered.filter(f => f.name.toUpperCase().endsWith(".CFG")).length;
+    const nDat = filtered.filter(f => f.name.toUpperCase().endsWith(".DAT")).length;
+    _ctrSetStatus("done", `ðŸŸ¢ ${nCfg} CFG Â· ${nDat} DAT`);
   } catch (err) {
     console.error("[CTR] list error:", err);
     _ctrSetStatus("error");
@@ -1747,13 +1747,8 @@ async function ctrListFiles(extWanted) {
       list.innerHTML = `<div class="set-empty">Failed: ${_ctrEscHtml(err.message)}</div>`;
     if (typeof showToast === "function")
       showToast(`FILE DIR EVENTS failed: ${err.message}`, "error");
-  } finally {
-    _ctrSetBtnsDisabled(false);
   }
 }
-
-function ctrListCfg() { return ctrListFiles("CFG"); }
-function ctrListDat() { return ctrListFiles("DAT"); }
 
 // ============================================================
 //  SETTINGS (SHOSET) Module
@@ -2810,7 +2805,7 @@ document.addEventListener("DOMContentLoaded", function () {
     ctrSection.style.display = "";
     container.style.display = "none";
 
-    // Gate the CFG/DAT panel to SEL-451 only; other models see a notice.
+    // Gate the file list to SEL-451 only; other models see a notice.
     const relay = getCurrentRelay();
     const isSel451 = relay && /SEL-?451/i.test(relay.name || "");
     const panel        = document.getElementById("ctr-451-panel");
@@ -2820,16 +2815,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!isSel451) return;
 
-    // Wire buttons once
-    const cfgBtn = document.getElementById("ctr-cfg-btn");
-    const datBtn = document.getElementById("ctr-dat-btn");
-    if (cfgBtn && !cfgBtn._ctrWired) {
-      cfgBtn.addEventListener("click", ctrListCfg);
-      cfgBtn._ctrWired = true;
-    }
-    if (datBtn && !datBtn._ctrWired) {
-      datBtn.addEventListener("click", ctrListDat);
-      datBtn._ctrWired = true;
+    // Auto-fetch CFG + DAT file list on navigation.
+    if (typeof ctrListFiles === "function") {
+      ctrListFiles();
     }
   }
 
