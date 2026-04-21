@@ -55,8 +55,6 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <regex>
-#include <sstream>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -114,54 +112,6 @@ inline std::string escapeTarJson(const std::string& s)
         }
     }
     return out;
-}
-
-/**
- * @brief Split a single `TAR ALL` response blob into per-row text blocks.
- *
- * @details Some SEL relays (e.g. SEL-451) return every target row in one
- * response when sent `TAR ALL`.  The downstream frontend parser expects
- * one text block per row, so we split on the `ROW <n>` marker that SEL
- * emits at the start of each row.
- *
- * @param response  Raw relay text from `TAR ALL`.
- * @return Vector of (rowIndex, rowTextBlock).  Empty if no rows found.
- */
-inline std::vector<std::pair<int, std::string>>
-parseTarAllResponse(const std::string& response)
-{
-    std::vector<std::pair<int, std::string>> rows;
-    std::istringstream iss(response);
-    std::string line;
-    int currentRow = -1;
-    std::string block;
-
-    static const std::regex rowRe(R"(^\s*ROW\s+(\d+))", std::regex::icase);
-
-    auto flush = [&]() {
-        if (currentRow >= 0 && !block.empty())
-            rows.emplace_back(currentRow, block);
-        currentRow = -1;
-        block.clear();
-    };
-
-    while (std::getline(iss, line))
-    {
-        std::smatch m;
-        if (std::regex_search(line, m, rowRe))
-        {
-            flush();
-            try { currentRow = std::stoi(m[1].str()); }
-            catch (...) { currentRow = -1; }
-        }
-        if (currentRow >= 0)
-        {
-            block += line;
-            block += '\n';
-        }
-    }
-    flush();
-    return rows;
 }
 
 }  // namespace
@@ -283,32 +233,13 @@ public:
     bool running = false;                                ///< Application running state
 
     /**
-     * @brief Decide whether a relay supports the bulk `TAR ALL` command.
+     * @brief Collect TAR row entries from a relay.
      *
-     * @details Hardcoded dispatch by relay model name.  SEL-451 handles
-     * `TAR ALL` in a single round-trip; other relays (SEL-751 and any
-     * unknown model) fall back to the classic `TAR 0, TAR 1, ...` loop.
-     *
-     * @param relayId  Relay identifier to look up in RelayManager configs.
-     * @return true  → use `TAR ALL`.  false → loop `TAR N`.
-     */
-    bool relayUsesTarAll(const std::string& relayId) const
-    {
-        if (!relayMgr) return false;
-        for (const auto& cfg : relayMgr->getConfigs())
-        {
-            if (cfg.id == relayId)
-                return cfg.name.find("451") != std::string::npos;
-        }
-        return false;
-    }
-
-    /**
-     * @brief Collect TAR row entries from a relay using its preferred strategy.
-     *
-     * @details Branches per-relay:
-     *   - SEL-451 → single `TAR ALL` command, parsed into rows.
-     *   - Others  → classic `TAR 0, TAR 1, ...` loop until empty / Invalid.
+     * @details Classic `TAR 0, TAR 1, ...` loop.  Stops when:
+     *   - Response is empty / connection lost
+     *   - Response contains `Invalid Target` (SEL end-of-rows marker)
+     *   - Response lacks a `ROW <n>` marker (relay returned just a prompt,
+     *     indicating no more data for that index)
      *
      * @param relayId     Relay identifier.
      * @param shouldStop  Abort predicate.  May be null.
@@ -318,45 +249,7 @@ public:
     collectTarEntries(const std::string& relayId,
                       const std::function<bool()>& shouldStop)
     {
-        if (relayUsesTarAll(relayId))
-        {
-            if (shouldStop && shouldStop()) return {};
-
-            // SEL-451 syntax: "TAR <row> <count>" — request 64 rows starting at 0.
-            // The response spans multiple pages ("Press RETURN to continue"),
-            // handled by CmdTarAction via SendCmdMultiPage.
-            const std::string bulkCmd = "TAR 0 64";
-            std::cout << "[TAR] Relay " << relayId << " → using bulk '"
-                      << bulkCmd << "'\n";
-            std::string response = relayMgr->handleUserCommand(relayId, bulkCmd);
-
-            std::cout << "[TAR] Relay " << relayId << " bulk response len="
-                      << response.size() << " first 200 chars: "
-                      << response.substr(0, std::min<size_t>(200, response.size()))
-                      << "\n";
-
-            if (response.empty() ||
-                response.find("Invalid") != std::string::npos)
-            {
-                std::cout << "[TAR] Relay " << relayId
-                          << " bulk TAR returned empty/invalid — falling back to TAR 0..N loop\n";
-                // fall through to per-row loop below
-            }
-            else
-            {
-                auto rows = parseTarAllResponse(response);
-                std::cout << "[TAR] Relay " << relayId
-                          << " bulk TAR parsed " << rows.size() << " rows\n";
-                if (!rows.empty())
-                    return rows;
-
-                std::cout << "[TAR] Relay " << relayId
-                          << " bulk response had no parseable ROW markers "
-                             "— falling back to TAR 0..N loop\n";
-            }
-        }
-
-        std::cout << "[TAR] Relay " << relayId << " → using TAR 0..N loop\n";
+        std::cout << "[TAR] Relay " << relayId << " → TAR 0..N loop\n";
         std::vector<std::pair<int, std::string>> rows;
         for (int i = 0; ; ++i)
         {
@@ -368,9 +261,15 @@ public:
                 break;
             if (response.find("Invalid Target") != std::string::npos)
                 break;
+            // Stop when response has no ROW marker — relay returned just the
+            // prompt `=>`, meaning no more target rows.
+            if (response.find("ROW") == std::string::npos)
+                break;
 
             rows.emplace_back(i, std::move(response));
         }
+        std::cout << "[TAR] Relay " << relayId
+                  << " loop collected " << rows.size() << " rows\n";
         return rows;
     }
 

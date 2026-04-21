@@ -440,9 +440,7 @@ struct CmdSerAction
 
 /**
  * @brief Command Action: Send TAR command to relay.
- * @details Sends "TAR <args>" and stores response.  Uses the multi-page
- * helper so large / paginated outputs (e.g. SEL-451 `TAR ALL`) are
- * collected in full across "Press RETURN to continue" prompts.
+ * @details Sends "TAR <args>" and stores response.
  */
 struct CmdTarAction
 {
@@ -452,7 +450,7 @@ struct CmdTarAction
         std::string cmd = "TAR";
         if (!e.args.empty()) cmd += " " + e.args;
         std::string response;
-        bool ok = client.SendCmdMultiPage(cmd, response);
+        bool ok = client.SendCmdReceiveData(cmd, response);
         resp.success = ok && !response.empty();
         resp.response = std::move(response);
         resp.failReason = resp.success ? CmdFailReason::NONE
