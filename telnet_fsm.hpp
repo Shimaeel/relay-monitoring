@@ -189,6 +189,14 @@ struct cmd_ctrld_event {};
  */
 struct cmd_set_event { std::string args; };
 
+/**
+ * @brief Event: User / background collector requested the event-file directory listing.
+ * @details Fired when "FILE DIR EVENTS" is dispatched. Sends the literal
+ * relay command "FILE DIR EVENTS" (multi-page) and captures the raw response
+ * for later parsing by parseFileDirEvents().
+ */
+struct cmd_file_dir_events_event {};
+
 // ================= COMMAND RESPONSE HOLDER =================
 
 /**
@@ -521,6 +529,28 @@ struct CmdSetAction
                         : !client.isConnected() ? CmdFailReason::CONN_LOST
                         : CmdFailReason::TIMEOUT;
         std::cout << "[CmdFSM] SET " << (resp.success ? "OK" : "FAIL") << "\n";
+    }
+};
+
+/**
+ * @brief Command Action: Send "FILE DIR EVENTS" to relay.
+ * @details Requests the event-file directory listing. Response is paginated
+ * ("Press RETURN to continue"), so SendCmdMultiPage() is used. The raw
+ * response is stored for parseFileDirEvents() to process downstream.
+ */
+struct CmdFileDirEventsAction
+{
+    void operator()(const cmd_file_dir_events_event&, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string response;
+        bool ok = client.SendCmdMultiPage("FILE DIR EVENTS", response);
+        resp.success = ok && !response.empty();
+        resp.response = std::move(response);
+        resp.failReason = resp.success ? CmdFailReason::NONE
+                        : !client.isConnected() ? CmdFailReason::CONN_LOST
+                        : CmdFailReason::TIMEOUT;
+        std::cout << "[CmdFSM] FILE DIR EVENTS " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
 
@@ -903,6 +933,9 @@ struct RelayCommandFSM
 
             // SET (settings) command
             "Idle"_s + event<cmd_set_event>   / CmdSetAction{}   = "Idle"_s,
+
+            // FILE DIR EVENTS (event-file directory listing, multi-page)
+            "Idle"_s + event<cmd_file_dir_events_event> / CmdFileDirEventsAction{} = "Idle"_s,
 
             // Safety — unknown events return to Idle
             state<_> + unexpected_event<_> / on_unexpected = "Idle"_s

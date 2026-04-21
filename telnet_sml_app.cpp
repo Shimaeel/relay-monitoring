@@ -437,10 +437,11 @@ public:
             if (dot == std::string::npos) continue;
             std::string ext = name.substr(dot + 1);
             for (auto& c : ext) c = static_cast<char>(std::toupper(c));
-            // Only surface files the collector actually fetches (.CFG / .DAT).
-            // SEL-native .CEV / .HIS are skipped to keep the COMTRADE_DIR
-            // payload lean and the UI focused on COMTRADE-standard files.
-            if (ext != "CFG" && ext != "DAT")
+            // SEL relays expose native .CEV / .HIS event files in FILE DIR
+            // EVENTS.  COMTRADE .CFG / .DAT are synthesized on demand by the
+            // `CTR C N` / `CTR D N` commands, so we accept the SEL-native
+            // extensions here and derive the event index from the filename.
+            if (ext != "CEV" && ext != "HIS" && ext != "EVE" && ext != "CFG" && ext != "DAT")
                 continue;
 
             bool sizeNumeric = !sizeTok.empty() &&
@@ -542,6 +543,14 @@ public:
 
                 // Broadcast directory listing (metadata only) so frontend can
                 // render placeholders even before CFG/DAT arrives.
+                //
+                // SEL-family relays are inconsistent here:
+                //   • SEL-751 lists native .CEV / .HIS files (one row per event).
+                //   • SEL-451 lists COMTRADE .CFG + .DAT directly (two rows per event).
+                //
+                // In both cases the actual CFG/DAT content is returned by
+                // `CTR C N` / `CTR D N`.  We normalize by emitting exactly
+                // one .CFG and one .DAT row per unique event number.
                 {
                     std::string listMsg = "COMTRADE_DIR:{\"relayId\":\"" + relayId
                                         + "\",\"relayName\":\""  + escapeTarJson(relayName)
@@ -549,23 +558,39 @@ public:
                                         + "\",\"bay\":\""        + escapeTarJson(bay)
                                         + "\",\"files\":[";
                     bool first = true;
+                    std::unordered_set<int> emittedNums;
                     for (const auto& f : files)
                     {
-                        if (!first) listMsg += ",";
-                        first = false;
-                        listMsg += "{\"num\":" + std::to_string(f.num)
-                                 + ",\"name\":\"" + escapeTarJson(f.name) + "\""
-                                 + ",\"date\":\"" + escapeTarJson(f.date) + "\""
-                                 + ",\"time\":\"" + escapeTarJson(f.time) + "\"}";
+                        if (!emittedNums.insert(f.num).second) continue;
+
+                        // Base name without extension, used to build .CFG/.DAT pair
+                        std::string base = f.name;
+                        auto dotPos = base.find_last_of('.');
+                        if (dotPos != std::string::npos) base.erase(dotPos);
+                        if (base.empty()) base = "EVENT_" + std::to_string(f.num);
+
+                        const std::string pair[2] = { base + ".CFG", base + ".DAT" };
+                        for (const auto& syn : pair)
+                        {
+                            if (!first) listMsg += ",";
+                            first = false;
+                            listMsg += "{\"num\":" + std::to_string(f.num)
+                                     + ",\"name\":\"" + escapeTarJson(syn) + "\""
+                                     + ",\"date\":\"" + escapeTarJson(f.date) + "\""
+                                     + ",\"time\":\"" + escapeTarJson(f.time) + "\"}";
+                        }
                     }
                     listMsg += "]}";
                     wsServer.broadcastText(listMsg);
                 }
 
-                // Fetch each not-yet-cached event
+                // Fetch each not-yet-cached event (dedupe by event num —
+                // SEL-451 listings contain both .CFG and .DAT rows per event).
+                std::unordered_set<int> processedNums;
                 for (const auto& meta : files)
                 {
                     if (!app_running.load() || !relayIsActive_(relayId)) break;
+                    if (!processedNums.insert(meta.num).second) continue;
 
                     {
                         std::lock_guard<std::mutex> lock(comtradeCacheMutex_);
