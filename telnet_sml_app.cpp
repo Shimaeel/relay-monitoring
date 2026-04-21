@@ -276,7 +276,9 @@ public:
             int count = 0;
             std::string batch;
             batch.reserve(128 * 1024);  // pre-allocate ~128KB
-            batch = "TAR_BATCH_ALL:[";
+            // Format: TAR_BATCH_ALL:<relayId>:[...] so frontend can route
+            // the broadcast to the correct per-relay cache entry.
+            batch = "TAR_BATCH_ALL:" + relayId + ":[";
             bool first = true;
 
             for (int i = 0; app_running.load(); ++i)
@@ -470,7 +472,7 @@ public:
                 {
                     std::cout << "[WS→Relay] Background TAR still in-progress for relay "
                               << relayId << " — sending empty batch\n";
-                    sendFn("TAR_BATCH_ALL:[]");
+                    sendFn("TAR_BATCH_ALL:" + relayId + ":[]");
                     return true;
                 }
 
@@ -482,7 +484,8 @@ public:
             // Collect all TAR responses into a JSON array, then send as one batch
             std::string batch;
             batch.reserve(128 * 1024);  // pre-allocate ~128KB
-            batch = "TAR_BATCH_ALL:[";
+            // Format: TAR_BATCH_ALL:<relayId>:[...] for per-relay routing on the frontend
+            batch = "TAR_BATCH_ALL:" + relayId + ":[";
             bool first = true;
 
             for (int i = 0; !abort.load(); ++i)

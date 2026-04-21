@@ -690,8 +690,47 @@ let rwAbort     = false;  // Abort signal for in-flight fetch
 
 // ── TAR data cache (shared by Relay Word and I/O) ───────────
 
-let _tarCachedRows = null;  // Array of parsed TAR row objects (set after first fetch)
+// Per-relay TAR cache map: { "<relayId>": [...parsedRows] }.
+// Each relay's TAR data is isolated under its own key so a broadcast
+// for relay "1" never overwrites cached rows for relay "2".
+let _tarCacheMap = {};
 let _tarFetchPromise = null; // In-flight fetch promise (to avoid duplicate fetches)
+
+/** Get cached TAR rows for the current relay (or a specific one). */
+function _getCurrentRelayId() {
+  const r = (typeof getCurrentRelay === "function") ? getCurrentRelay() : null;
+  return r ? String(r.id) : null;
+}
+function _getTarCache(relayId) {
+  const id = relayId || _getCurrentRelayId();
+  if (!id) return null;
+  return _tarCacheMap[id] || null;
+}
+function _setTarCache(relayId, rows) {
+  if (!relayId) return;
+  _tarCacheMap[relayId] = rows;
+}
+function _clearTarCache(relayId) {
+  const id = relayId || _getCurrentRelayId();
+  if (!id) return;
+  delete _tarCacheMap[id];
+}
+
+/**
+ * Parse a TAR_BATCH_ALL:<relayId>:[...] message into { relayId, jsonStr }.
+ * Returns null if the message is malformed.
+ */
+function _parseTarBatchMessage(msg) {
+  const prefix = "TAR_BATCH_ALL:";
+  if (typeof msg !== "string" || !msg.startsWith(prefix)) return null;
+  const rest = msg.substring(prefix.length);
+  const colonIdx = rest.indexOf(":");
+  if (colonIdx < 0) return null;
+  return {
+    relayId: rest.substring(0, colonIdx),
+    jsonStr: rest.substring(colonIdx + 1)
+  };
+}
 
 /**
  * Handle a server-pushed TAR_BATCH_ALL message (from any WebSocket).
@@ -725,13 +764,26 @@ function _parseTarEntries(entries) {
 }
 
 function _handleTarBatchPush(msg) {
-  const jsonStr = msg.substring(14);
+  const parsed = _parseTarBatchMessage(msg);
+  if (!parsed) {
+    console.warn("[TAR-PUSH] Malformed TAR_BATCH_ALL message — ignored");
+    return;
+  }
+  const { relayId, jsonStr } = parsed;
   try {
     const entries = JSON.parse(jsonStr);
     const allRows = _parseTarEntries(entries);
-    _tarCachedRows = allRows;
+    _setTarCache(relayId, allRows);
+    console.log("[TAR-PUSH] Cached", allRows.length, "rows for relay", relayId);
+
+    // Only render/refresh UI if this push is for the relay currently shown.
+    const currentId = _getCurrentRelayId();
+    if (relayId !== currentId) {
+      console.log("[TAR-PUSH] Push is for relay", relayId, "but current page is", currentId, "— cached only");
+      return;
+    }
+
     _rwSetRowCount(allRows.length);
-    console.log("[TAR-PUSH] Cached", allRows.length, "rows from server push");
     // If Relay Word section is visible, render immediately even if table
     // was not initialized yet.
     const rwSec = document.getElementById("relayword-section");
@@ -986,15 +1038,19 @@ function _rwEnsureConnection() {
 
       console.log("[RW] Received WS message (", msg.length, "chars), starts with:", msg.substring(0, 60));
 
-      // ── Batch: TAR_BATCH_ALL:[...] ──
+      // ── Batch: TAR_BATCH_ALL:<relayId>:[...] ──
       if (msg.startsWith("TAR_BATCH_ALL:")) {
-        const jsonStr = msg.substring(14);
-        console.log("[RW] TAR_BATCH_ALL received (", jsonStr.length, "chars)");
+        const parsed = _parseTarBatchMessage(msg);
+        if (!parsed) {
+          console.warn("[RW] Malformed TAR_BATCH_ALL — ignored");
+          return;
+        }
+        console.log("[RW] TAR_BATCH_ALL received for relay", parsed.relayId, "(", parsed.jsonStr.length, "chars)");
         if (_rwBatchResolve) {
           const res = _rwBatchResolve;
           _rwBatchResolve = null;
           _rwBatchReject  = null;
-          res(jsonStr);
+          res(parsed);   // resolve with { relayId, jsonStr }
         } else {
           console.warn("[RW] TAR_BATCH_ALL arrived but no pending resolve — handling as push");
           _handleTarBatchPush(msg);
@@ -1018,8 +1074,10 @@ function _rwEnsureConnection() {
  * Results are cached so subsequent calls (and I/O) are instant.
  */
 async function fetchAllTAR() {
-  // If cache exists, just populate the table
-  if (_tarCachedRows) {
+  const currentRelayId = _getCurrentRelayId();
+
+  // If cache exists for the current relay, just populate the table
+  if (_getTarCache(currentRelayId)) {
     _rwPopulateFromCache();
     return;
   }
@@ -1052,7 +1110,7 @@ async function fetchAllTAR() {
       }
 
       // 2. Send batch command & wait for TAR_BATCH_ALL response
-      const jsonStr = await new Promise((resolve, reject) => {
+      const batchResult = await new Promise((resolve, reject) => {
         _rwBatchResolve = resolve;
         _rwBatchReject  = reject;
 
@@ -1073,7 +1131,11 @@ async function fetchAllTAR() {
         ws.send(_prefixCmd("FETCH_ALL_TAR"));
       });
 
-      // 3. Parse all rows and cache them
+      // batchResult = { relayId, jsonStr }
+      const batchRelayId = batchResult.relayId;
+      const jsonStr      = batchResult.jsonStr;
+
+      // 3. Parse all rows and cache them under the responding relay's id
       if (!rwAbort) {
         const entries = JSON.parse(jsonStr);
         const allRows = [];
@@ -1098,8 +1160,15 @@ async function fetchAllTAR() {
           });
         }
 
-        _tarCachedRows = allRows;
-        _rwPopulateFromCache();
+        _setTarCache(batchRelayId, allRows);
+
+        // Only render if the response is for the relay currently displayed
+        if (batchRelayId === _getCurrentRelayId()) {
+          _rwPopulateFromCache();
+        } else {
+          console.log("[RW] FETCH_ALL_TAR response was for relay", batchRelayId,
+                      "but current page is", _getCurrentRelayId(), "— cached only");
+        }
 
         // If relay returned 0 parseable rows, TAR is likely unsupported
         if (allRows.length === 0) {
@@ -1117,7 +1186,7 @@ async function fetchAllTAR() {
     } catch (err) {
       _rwSetProgress(-1);
       if (rwAbort) {
-        // User navigated away — leave _tarCachedRows as null so the next
+        // User navigated away — leave the per-relay cache empty so the next
         // visit to Relay Word retries instead of showing an empty table.
         console.log("[RW] fetchAllTAR cancelled by navigation");
         _rwSetStatus("idle");
@@ -1126,9 +1195,9 @@ async function fetchAllTAR() {
         _rwSetStatus("error");
         // Do NOT cache empty here — a timeout or network error just means
         // the relay was slow or unreachable, not that it lacks TAR support.
-        // Leaving _tarCachedRows as null lets the next visit retry.
+        // Leaving the per-relay cache empty lets the next visit retry.
         // (The "relay doesn't support TAR" case is handled in the success
-        //  path above where allRows.length === 0 already sets _tarCachedRows = [].)
+        //  path above where allRows.length === 0 already caches an empty array.)
         if (typeof showToast === "function") {
           showToast(`TAR fetch failed: ${err.message}`, "error");
         }
@@ -1144,15 +1213,16 @@ async function fetchAllTAR() {
   await _tarFetchPromise;
 }
 
-/** Populate the Relay Word table from cached data */
+/** Populate the Relay Word table from cached data for the current relay. */
 async function _rwPopulateFromCache() {
-  if (!_tarCachedRows) return;
+  const rows = _getTarCache();
+  if (!rows) return;
   if (!rwTable) initRwTable();
   await rwTableReady;
   rwTable.blockRedraw();
-  rwTable.setData(_tarCachedRows);
+  rwTable.setData(rows);
   rwTable.restoreRedraw();
-  _rwSetRowCount(_tarCachedRows.length); 
+  _rwSetRowCount(rows.length);
   _rwSetProgress(-1);
   _rwSetStatus("done");
   _rwSetFetchBtn(false);
@@ -1176,7 +1246,7 @@ function _rwDisconnectRaw() {
 // ── Public Actions (called from onclick in relay.html) ──────
 
 function rwFetchAll() {
-  _tarCachedRows = null;   // force re-fetch
+  _clearTarCache();        // force re-fetch for the CURRENT relay only
   fetchAllTAR();           // fire-and-forget (async)
 }
 
@@ -1342,9 +1412,10 @@ function _ioApplyFilter() {
  * Rebuild I/O cache/table from the current full TAR cache.
  */
 function _ioSyncFromTarCache() {
-  if (!_tarCachedRows) return;
+  const rows = _getTarCache();
+  if (!rows) return;
 
-  _ioAllRows = _tarCachedRows.filter(_ioRowHasIO);
+  _ioAllRows = rows.filter(_ioRowHasIO);
 
   const ioSec = document.getElementById("io-section");
   if (!(ioSec && ioSec.style.display !== "none")) return;
@@ -1368,18 +1439,20 @@ async function fetchAllIO() {
   _ioAllRows = [];
 
   try {
-    // If cache doesn't exist yet, trigger the shared fetch
-    if (!_tarCachedRows) {
+    // If cache doesn't exist yet for the current relay, trigger the shared fetch
+    let cachedRows = _getTarCache();
+    if (!cachedRows) {
       _ioSetStatus("fetching");
       _ioSetProgress(0, 1);    // show spinner
       _ioSetRowCount(0);
-      await fetchAllTAR();     // populates _tarCachedRows
+      await fetchAllTAR();     // populates per-relay cache
+      cachedRows = _getTarCache();
     }
 
-    if (!_tarCachedRows || ioAbort) return;
+    if (!cachedRows || ioAbort) return;
 
     // Filter cached rows for I/O labels
-    for (const row of _tarCachedRows) {
+    for (const row of cachedRows) {
       if (_ioRowHasIO(row)) {
         _ioAllRows.push(row);
       }
@@ -1412,7 +1485,7 @@ function _ioDisconnectRaw() {
 // ── Public Actions ──────────────────────────────────────────
 
 function ioFetchAll() {
-  _tarCachedRows = null;   // force re-fetch
+  _clearTarCache();   // force re-fetch for the CURRENT relay only
   fetchAllIO();   // fire-and-forget (async)
 }
 
@@ -2663,7 +2736,7 @@ document.addEventListener("DOMContentLoaded", function () {
         ioTable.redraw(true);
       }
       // Force fresh fetch so all I/O rows are always loaded on section click
-      _tarCachedRows = null;
+      _clearTarCache();
       fetchAllIO();
     });
   }
