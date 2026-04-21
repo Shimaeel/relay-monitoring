@@ -51,15 +51,10 @@
 #include <chrono>
 #include <condition_variable>
 #include <deque>
-#include <functional>
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <regex>
-#include <sstream>
 #include <thread>
-#include <utility>
-#include <vector>
 
 #include "client.hpp"
 #include "asn_tlv_codec.hpp"
@@ -114,55 +109,6 @@ inline std::string escapeTarJson(const std::string& s)
         }
     }
     return out;
-}
-
-/**
- * @brief Split a "TAR ALL" (or equivalent bulk TAR) response into per-row blocks.
- *
- * @details Some SEL relays accept a single `TAR ALL` command and return
- * every target row concatenated in one blob.  The downstream pipeline
- * (frontend `parseTarResponse`) expects one text block per row, so we
- * split by the leading `ROW <n>` marker that SEL emits at the start of
- * each row block.
- *
- * @param response  Raw relay text from `TAR ALL`.
- * @return Vector of (rowIndex, rowTextBlock).  Empty if no rows parsed.
- */
-inline std::vector<std::pair<int, std::string>>
-parseTarAllResponse(const std::string& response)
-{
-    std::vector<std::pair<int, std::string>> rows;
-    std::istringstream iss(response);
-    std::string line;
-    int currentRow = -1;
-    std::string block;
-
-    static const std::regex rowRe(R"(^\s*ROW\s+(\d+))", std::regex::icase);
-
-    auto flush = [&]() {
-        if (currentRow >= 0 && !block.empty())
-            rows.emplace_back(currentRow, block);
-        currentRow = -1;
-        block.clear();
-    };
-
-    while (std::getline(iss, line))
-    {
-        std::smatch m;
-        if (std::regex_search(line, m, rowRe))
-        {
-            flush();
-            try { currentRow = std::stoi(m[1].str()); }
-            catch (...) { currentRow = -1; }
-        }
-        if (currentRow >= 0)
-        {
-            block += line;
-            block += '\n';
-        }
-    }
-    flush();
-    return rows;
 }
 
 }  // namespace
@@ -239,22 +185,6 @@ public:
     std::unordered_map<std::string, std::string> tarCache_;           ///< relay_id → TAR_BATCH_ALL JSON
     std::unordered_map<std::string, bool> tarFetchInProgress_;        ///< relay_id → in-progress flag
     std::condition_variable tarCacheCv_;                               ///< Notifies when TAR fetch completes
-
-    /**
-     * @brief Per-relay TAR collection strategy.
-     *
-     * @details Some SEL relays support a fast bulk `TAR ALL` command while
-     * others only understand `TAR <n>`.  We auto-detect on first fetch and
-     * cache the result so subsequent fetches skip straight to the right
-     * method.
-     */
-    enum class TarMode { Unknown, UseTarAll, UseTarN };
-
-    /// Minimum number of rows returned by `TAR ALL` for us to consider the
-    /// relay as supporting bulk TAR.  Below this, we fall back to TAR 0..N.
-    static constexpr int kTarAllMinRows = 10;
-
-    std::unordered_map<std::string, TarMode> tarModeMap_;             ///< relay_id → detected mode (guarded by tarCacheMutex_)
     struct TarBgTask
     {
         std::thread thread;
@@ -307,115 +237,6 @@ public:
      * @return Extracted value string, or empty string on failure.
      */
     /**
-     * @brief Collect TAR row entries from a relay using the best known strategy.
-     *
-     * @details Auto-detects per-relay whether bulk `TAR ALL` is supported:
-     *   1. First attempt uses `TAR ALL` — fast single round-trip.
-     *   2. If it parses to >= kTarAllMinRows rows, cache mode = UseTarAll.
-     *   3. Otherwise, fall through to the classic `TAR 0, TAR 1, ...` loop
-     *      and cache mode = UseTarN so future fetches skip the probe.
-     *
-     * @param relayId  Relay identifier.
-     * @param shouldStop  Predicate that returns true when collection must abort.
-     * @return Vector of (idx, raw-row-text) pairs.  Empty if relay not ready.
-     */
-    std::vector<std::pair<int, std::string>>
-    collectTarEntries(const std::string& relayId,
-                      const std::function<bool()>& shouldStop)
-    {
-        TarMode mode;
-        {
-            std::lock_guard<std::mutex> lock(tarCacheMutex_);
-            mode = tarModeMap_[relayId];   // default-constructs to Unknown
-        }
-
-        // ── Step 1: Try TAR ALL if the mode is Unknown or already confirmed ──
-        if (mode == TarMode::Unknown || mode == TarMode::UseTarAll)
-        {
-            if (shouldStop && shouldStop()) return {};
-
-            std::string response = relayMgr->handleUserCommand(relayId, "TAR ALL");
-            if (!response.empty() &&
-                response.find("Invalid") == std::string::npos)
-            {
-                auto parsed = parseTarAllResponse(response);
-
-                if (mode == TarMode::UseTarAll)
-                {
-                    // Already trusted — return whatever we got (may be small
-                    // on an otherwise idle relay).
-                    std::cout << "[TAR] Relay " << relayId
-                              << " used cached TAR ALL → " << parsed.size() << " rows\n";
-                    return parsed;
-                }
-
-                if (static_cast<int>(parsed.size()) >= kTarAllMinRows)
-                {
-                    std::cout << "[TAR] Relay " << relayId
-                              << " supports TAR ALL (" << parsed.size()
-                              << " rows) — caching mode\n";
-                    std::lock_guard<std::mutex> lock(tarCacheMutex_);
-                    tarModeMap_[relayId] = TarMode::UseTarAll;
-                    return parsed;
-                }
-
-                std::cout << "[TAR] Relay " << relayId
-                          << " returned only " << parsed.size()
-                          << " rows for TAR ALL — falling back to per-row TAR N\n";
-            }
-            else
-            {
-                std::cout << "[TAR] Relay " << relayId
-                          << " did not accept TAR ALL — falling back to per-row TAR N\n";
-            }
-
-            // Probe failed — remember so we don't probe again this session.
-            {
-                std::lock_guard<std::mutex> lock(tarCacheMutex_);
-                tarModeMap_[relayId] = TarMode::UseTarN;
-            }
-        }
-
-        // ── Step 2: Per-row TAR 0, TAR 1, ... fallback ──
-        std::vector<std::pair<int, std::string>> rows;
-        for (int i = 0; ; ++i)
-        {
-            if (shouldStop && shouldStop()) break;
-
-            std::string response = relayMgr->handleUserCommand(
-                relayId, "TAR " + std::to_string(i));
-            if (response.empty())
-                break;
-            if (response.find("Invalid Target") != std::string::npos)
-                break;
-
-            rows.emplace_back(i, std::move(response));
-        }
-        return rows;
-    }
-
-    /**
-     * @brief Encode collected TAR entries into a TAR_BATCH_ALL payload.
-     */
-    static std::string buildTarBatchPayload(const std::string& relayId,
-                                            const std::vector<std::pair<int, std::string>>& rows)
-    {
-        std::string batch;
-        batch.reserve(128 * 1024);
-        batch = "TAR_BATCH_ALL:" + relayId + ":[";
-        bool first = true;
-        for (const auto& [idx, data] : rows)
-        {
-            if (!first) batch += ",";
-            first = false;
-            batch += "{\"idx\":" + std::to_string(idx)
-                   + ",\"data\":\"" + escapeTarJson(data) + "\"}";
-        }
-        batch += "]";
-        return batch;
-    }
-
-    /**
      * @brief Collect all TAR data for a relay in the background.
      *
      * @details Reuses the same TAR 0..N loop as FETCH_ALL_TAR but runs
@@ -452,14 +273,41 @@ public:
                 if (!app_running.load()) break;
             }
 
-            auto rows = collectTarEntries(relayId, [this]() { return !app_running.load(); });
+            int count = 0;
+            std::string batch;
+            batch.reserve(128 * 1024);  // pre-allocate ~128KB
+            // Format: TAR_BATCH_ALL:<relayId>:[...] so frontend can route
+            // the broadcast to the correct per-relay cache entry.
+            batch = "TAR_BATCH_ALL:" + relayId + ":[";
+            bool first = true;
+
+            for (int i = 0; app_running.load(); ++i)
+            {
+                std::string response = relayMgr->handleUserCommand(
+                    relayId, "TAR " + std::to_string(i));
+                if (response.empty())
+                    break;
+
+                // Stop when relay signals no more TAR rows
+                if (response.find("Invalid Target") != std::string::npos)
+                    break;
+
+                std::string escaped = escapeTarJson(response);
+                std::string entry = "{\"idx\":" + std::to_string(i)
+                                  + ",\"data\":\"" + escaped + "\"}";
+
+                if (!first) batch += ",";
+                first = false;
+                batch += entry;
+
+                ++count;
+            }
 
             // Got 0 rows — relay not ready yet, retry
-            if (rows.empty())
+            if (count == 0)
                 continue;
 
-            std::string batch = buildTarBatchPayload(relayId, rows);
-            const int count = static_cast<int>(rows.size());
+            batch += "]";
 
             {
                 std::lock_guard<std::mutex> lock(tarCacheMutex_);
@@ -631,10 +479,37 @@ public:
                 tarFetchInProgress_[relayId] = true;
             }
             std::cout << "[WS→Relay] FETCH_ALL_TAR batch-collecting for relay " << relayId << "\n";
+            int count = 0;
 
-            auto rows = collectTarEntries(relayId, [&abort]() { return abort.load(); });
-            const int count = static_cast<int>(rows.size());
-            std::string batch = buildTarBatchPayload(relayId, rows);
+            // Collect all TAR responses into a JSON array, then send as one batch
+            std::string batch;
+            batch.reserve(128 * 1024);  // pre-allocate ~128KB
+            // Format: TAR_BATCH_ALL:<relayId>:[...] for per-relay routing on the frontend
+            batch = "TAR_BATCH_ALL:" + relayId + ":[";
+            bool first = true;
+
+            for (int i = 0; !abort.load(); ++i)
+            {
+                std::string response = relayMgr->handleUserCommand(
+                    relayId, "TAR " + std::to_string(i));
+                if (response.empty())
+                    break;  // no more rows — relay returned nothing
+
+                // Stop when relay signals no more TAR rows
+                if (response.find("Invalid Target") != std::string::npos)
+                    break;
+
+                std::string escaped = escapeTarJson(response);
+                std::string entry = "{\"idx\":" + std::to_string(i) + ",\"data\":\"" + escaped + "\"}";
+
+                if (!first) batch += ",";
+                first = false;
+                batch += entry;
+
+                ++count;
+            }
+
+            batch += "]";
 
             // Cache the result (only non-empty) and clear in-progress flag
             {
