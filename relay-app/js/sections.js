@@ -175,11 +175,11 @@ function updateSerConnectionStatus(status) {
   const el = document.getElementById("ser-conn-status");
   if (!el) return;
   const map = {
-    connecting:   { text: "ðŸŸ¡ Connectingâ€¦",  color: "#d97706" },
-    connected:    { text: "ðŸŸ¢ Connected",     color: "#16a34a" },
-    synced:       { text: "ðŸŸ¢ Data Synced",   color: "#16a34a" },
-    disconnected: { text: "ðŸ”´ Disconnected",  color: "#dc2626" },
-    error:        { text: "ðŸ”´ Error",         color: "#dc2626" }
+    connecting:   { text: "Connecting",  color: "#d97706" },
+    connected:    { text: "Connected",     color: "#16a34a" },
+    synced:       { text: "Data Synced",   color: "#16a34a" },
+    disconnected: { text: "Disconnected",  color: "#dc2626" },
+    error:        { text: "Error",         color: "#dc2626" }
   };
   const info = map[status] || map.disconnected;
   el.textContent = info.text;
@@ -821,13 +821,13 @@ function _rwSetStatus(status) {
   const el = document.getElementById("rw-conn-status");
   if (!el) return;
   const map = {
-    idle:         { text: "ðŸŸ¡ Idle",           color: "#d97706" },
-    connecting:   { text: "ðŸŸ¡ Connectingâ€¦",    color: "#d97706" },
-    fetching:     { text: "ðŸ”µ Fetchingâ€¦",      color: "#2563eb" },
-    done:         { text: "ðŸŸ¢ Done",           color: "#16a34a" },
-    error:        { text: "ðŸ”´ Error",          color: "#dc2626" },
-    disconnected: { text: "ðŸ”´ Disconnected",   color: "#dc2626" },
-    aborted:      { text: "ðŸŸ  Aborted",        color: "#ea580c" }
+    idle:         { text: "Idle",           color: "#d97706" },
+    connecting:   { text: "Connecting…",    color: "#d97706" },
+    fetching:     { text: "Fetching…",      color: "#2563eb" },
+    done:         { text: "Done",           color: "#16a34a" },
+    error:        { text: "Error",          color: "#dc2626" },
+    disconnected: { text: "Disconnected",   color: "#dc2626" },
+    aborted:      { text: "Aborted",        color: "#ea580c" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -1307,13 +1307,13 @@ function _ioSetStatus(status) {
   const el = document.getElementById("io-conn-status");
   if (!el) return;
   const map = {
-    idle:         { text: "ðŸŸ¡ Idle",           color: "#d97706" },
-    connecting:   { text: "ðŸŸ¡ Connectingâ€¦",    color: "#d97706" },
-    fetching:     { text: "ðŸ”µ Fetchingâ€¦",      color: "#2563eb" },
-    done:         { text: "ðŸŸ¢ Done",           color: "#16a34a" },
-    error:        { text: "ðŸ”´ Error",          color: "#dc2626" },
-    disconnected: { text: "ðŸ”´ Disconnected",   color: "#dc2626" },
-    aborted:      { text: "ðŸŸ  Aborted",        color: "#ea580c" }
+    idle:         { text: "Idle",           color: "#d97706" },
+    connecting:   { text: "Connecting…",    color: "#d97706" },
+    fetching:     { text: "Fetching…",      color: "#2563eb" },
+    done:         { text: "Done",           color: "#16a34a" },
+    error:        { text: "Error",          color: "#dc2626" },
+    disconnected: { text: "Disconnected",   color: "#dc2626" },
+    aborted:      { text: "Aborted",        color: "#ea580c" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -1525,8 +1525,26 @@ if (window && typeof window.addEventListener === "function") {
   window.addEventListener("DOMContentLoaded", function() {
     const btn = document.getElementById("ctr-refresh-btn");
     if (btn) {
-      btn.addEventListener("click", function() {
-        ctrRenderFileDirForCurrentRelay();
+      btn.addEventListener("click", async function() {
+        const relay = getCurrentRelay();
+        if (!relay) return;
+        const prevText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "⏳ Refreshing…";
+        _ctrSetStatus("idle", "🟡 Fetching file list…");
+        try {
+          const response = await _ctrSendCommand("FILE DIR EVENTS");
+          ctrFileDirCache[relay.id] = response;
+          ctrRenderFileDirForCurrentRelay();
+        } catch (err) {
+          console.error("[CTR] Refresh failed:", err);
+          _ctrSetStatus("error", `🔴 ${err.message || "Refresh failed"}`);
+          if (typeof showToast === "function")
+            showToast(`Refresh failed: ${err.message}`, "error");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = prevText;
+        }
       });
     }
   });
@@ -1795,11 +1813,11 @@ function _setSetStatus(status) {
   const el = document.getElementById("set-conn-status");
   if (!el) return;
   const map = {
-    idle:       { text: "ðŸŸ¡ Idle",        color: "#d97706" },
-    connecting: { text: "ðŸŸ¡ Connectingâ€¦", color: "#d97706" },
-    fetching:   { text: "ðŸ”µ Fetchingâ€¦",   color: "#2563eb" },
-    done:       { text: "ðŸŸ¢ Done",        color: "#16a34a" },
-    error:      { text: "ðŸ”´ Error",       color: "#dc2626" }
+    idle:       { text: "Idle",        color: "#d97706" },
+    connecting: { text: "Connecting…", color: "#d97706" },
+    fetching:   { text: "Fetching…",   color: "#2563eb" },
+    done:       { text: "Done",        color: "#16a34a" },
+    error:      { text: "Error",       color: "#dc2626" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -2041,13 +2059,13 @@ function _evSetStatus(status) {
   const el = document.getElementById("ev-conn-status");
   if (!el) return;
   const map = {
-    idle:         { text: "ðŸŸ¡ Idle",           color: "#d97706" },
-    connecting:   { text: "ðŸŸ¡ Connectingâ€¦",    color: "#d97706" },
-    fetching:     { text: "ðŸ”µ Fetchingâ€¦",      color: "#2563eb" },
-    done:         { text: "ðŸŸ¢ Done",           color: "#16a34a" },
-    error:        { text: "ðŸ”´ Error",          color: "#dc2626" },
-    disconnected: { text: "ðŸ”´ Disconnected",   color: "#dc2626" },
-    aborted:      { text: "ðŸŸ  Aborted",        color: "#ea580c" }
+    idle:         { text: "Idle",           color: "#d97706" },
+    connecting:   { text: "Connecting…",    color: "#d97706" },
+    fetching:     { text: "Fetching…",      color: "#2563eb" },
+    done:         { text: "Done",           color: "#16a34a" },
+    error:        { text: "Error",          color: "#dc2626" },
+    disconnected: { text: "Disconnected",   color: "#dc2626" },
+    aborted:      { text: "Aborted",        color: "#ea580c" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
@@ -2447,11 +2465,11 @@ function _tsSetStatus(status) {
   const el = document.getElementById("ts-conn-status");
   if (!el) return;
   const map = {
-    idle:       { text: "ðŸŸ¡ Idle",        color: "#d97706" },
-    fetching:   { text: "ðŸŸ¡ Fetchingâ€¦",   color: "#d97706" },
-    syncing:    { text: "ðŸŸ¡ Syncingâ€¦",    color: "#d97706" },
-    success:    { text: "ðŸŸ¢ Done",        color: "#16a34a" },
-    error:      { text: "ðŸ”´ Error",       color: "#dc2626" }
+    idle:       { text: "Idle",        color: "#d97706" },
+    fetching:   { text: "Fetching…",   color: "#d97706" },
+    syncing:    { text: "Syncing…",    color: "#d97706" },
+    success:    { text: "Done",        color: "#16a34a" },
+    error:      { text: "Error",       color: "#dc2626" }
   };
   const info = map[status] || map.idle;
   el.textContent = info.text;
