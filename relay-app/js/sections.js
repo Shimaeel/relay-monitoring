@@ -400,6 +400,12 @@ function connectSerWebSocket() {
           return;
         }
 
+        // COMTRADE file list broadcast — forward to window listener
+        if (typeof data === 'string' && data.startsWith('COMTRADE_DIR:')) {
+          window.dispatchEvent(new MessageEvent('message', { data }));
+          return;
+        }
+
         // JSON fallback
         try {
           const json = JSON.parse(data);
