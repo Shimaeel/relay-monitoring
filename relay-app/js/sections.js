@@ -1665,7 +1665,7 @@ function _ctrParseFileDir(response) {
     if (!name || name.indexOf(".") < 0) continue;
     const dot = name.lastIndexOf(".");
     const ext = name.substring(dot + 1).toUpperCase();
-    if (ext !== "CFG" && ext !== "DAT" && ext !== "CEV" && ext !== "HIS" && ext !== "EVE") continue;
+    if (!["CFG", "DAT", "HDR", "TXT", "CEV", "HIS", "EVE"].includes(ext)) continue;
     // Event number = trailing digit run before the dot
     let numStart = dot;
     while (numStart > 0 && /\d/.test(name[numStart - 1])) numStart--;
@@ -1689,30 +1689,25 @@ function _ctrRenderFiles(files) {
   if (!container) return;
   if (!files.length) {
     container.innerHTML =
-      `<div class="set-empty">No .cfg or .dat files found in FILE DIR EVENTS.</div>`;
+      `<div class="set-empty">No COMTRADE files found in FILE DIR EVENTS.</div>`;
     return;
   }
   const parts = files.map((f, i) => {
     const extUp    = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
-    const badgeCls = extUp === "CFG" ? "ctf-file-card__badge--cfg" : "ctf-file-card__badge--dat";
+    const downloadable = extUp === "CFG" || extUp === "DAT";
     const safeName = _ctrEscHtml(f.name);
-    const meta = _ctrEscHtml(
-      [f.size && `${f.size} bytes`, f.date, f.time].filter(Boolean).join(" Â· ")
-    );
+    const safeDate = _ctrEscHtml(f.date || "");
+    const safeTime = _ctrEscHtml(f.time || "");
+    const action = downloadable
+      ? `<button class="ctf-row__dl ctr-dl-btn" data-ctr-idx="${i}" title="Download ${safeName}">⬇</button>`
+      : `<span class="ctf-row__dl ctf-row__dl--empty"></span>`;
     return (
-      `<div class="ctf-file-card">` +
-        `<div class="ctf-file-card__header">` +
-          `<div class="ctf-file-card__info">` +
-            `<span class="ctf-file-card__icon">ðŸ“„</span>` +
-            `<span class="ctf-file-card__name">${safeName}</span>` +
-            `<span class="ctf-file-card__badge ${badgeCls}">${extUp}</span>` +
-          `</div>` +
-          `<div class="ctf-file-card__actions">` +
-            `<button class="btn btn--primary btn--sm ctr-dl-btn" ` +
-                   `data-ctr-idx="${i}">â¬‡ Download</button>` +
-          `</div>` +
-        `</div>` +
-        (meta ? `<div class="ctf-file-card__meta">${meta}</div>` : "") +
+      `<div class="ctf-row">` +
+        `<span class="ctf-row__name">${safeName}</span>` +
+        `<span class="ctf-row__attr">R</span>` +
+        `<span class="ctf-row__date">${safeDate}</span>` +
+        `<span class="ctf-row__time">${safeTime}</span>` +
+        action +
       `</div>`
     );
   });
@@ -1778,16 +1773,17 @@ function ctrRenderFileDirForCurrentRelay() {
     return;
   }
   const all = _ctrParseFileDir(raw);
-  const filtered = all.filter(f => {
-    const ext = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
-    return ext === "CFG" || ext === "DAT";
-  });
-  filtered.sort((a, b) => {
+  const extRank = { CFG: 0, DAT: 1, HDR: 2, CEV: 3, HIS: 4, EVE: 5, TXT: 6 };
+  all.sort((a, b) => {
     if (a.num !== b.num) return b.num - a.num;
     const ea = a.name.substring(a.name.lastIndexOf(".") + 1).toUpperCase();
     const eb = b.name.substring(b.name.lastIndexOf(".") + 1).toUpperCase();
-    return ea.localeCompare(eb);
+    const ra = extRank[ea] ?? 99;
+    const rb = extRank[eb] ?? 99;
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name);
   });
+  const filtered = all;
   _ctrRenderFiles(filtered);
   const nCfg = filtered.filter(f => f.name.toUpperCase().endsWith(".CFG")).length;
   const nDat = filtered.filter(f => f.name.toUpperCase().endsWith(".DAT")).length;
