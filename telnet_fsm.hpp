@@ -166,6 +166,12 @@ struct disconnect_event {};
 struct cmd_ser_event {};
 
 /**
+ * @brief Event: User requested FILE DIR EVENTS command.
+ * @details Fired to fetch COMTRADE file list from relay.
+ */
+struct cmd_file_dir_events_event {};
+
+/**
  * @brief Event: User requested TAR (Target) command.
  * @details Fired when user clicks TAR button. Carries argument string.
  */
@@ -417,6 +423,7 @@ struct ErrorRecoveryAction
     }
 };
 
+
 // ================= COMMAND FSM ACTIONS =================
 
 /**
@@ -436,6 +443,27 @@ struct CmdSerAction
                         : !client.isConnected() ? CmdFailReason::CONN_LOST
                         : CmdFailReason::TIMEOUT;
         std::cout << "[CmdFSM] SER " << (resp.success ? "OK" : "FAIL") << "\n";
+    }
+};
+
+/**
+ * @brief Command Action: Send FILE DIR EVENTS command to relay.
+ * @details Stores response in CmdResponseHolder for caller to read.
+ */
+struct CmdFileDirEventsAction
+{
+    void operator()(const cmd_file_dir_events_event&, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string response;
+        // Use multi-page collection to handle pagination
+        bool ok = client.SendCmdMultiPage("FILE DIR EVENTS", response);
+        resp.success = ok && !response.empty();
+        resp.response = std::move(response);
+        resp.failReason = resp.success ? CmdFailReason::NONE
+                        : !client.isConnected() ? CmdFailReason::CONN_LOST
+                        : CmdFailReason::TIMEOUT;
+        std::cout << "[CmdFSM] FILE DIR EVENTS " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
 

@@ -199,6 +199,8 @@ class PipelineReceptionWorker
 
         if (cmd == "SER")
             cmdFsm_.process_event(cmd_ser_event{});
+        else if (cmd == "FILE DIR EVENTS")
+            cmdFsm_.process_event(cmd_file_dir_events_event{});
         else if (cmd.size() >= 3 && cmd.substr(0, 3) == "TAR")
             cmdFsm_.process_event(cmd_tar_event{cmd.size() > 4 ? cmd.substr(4) : ""});
         else if (cmd == "EVE")
@@ -559,9 +561,15 @@ class PipelineProcessingWorker
                 if (!msg)
                     continue;
 
-                // Non-SER command — broadcast raw text to all WS clients
-                if (msg->command != "SER")
-                {
+                // Non-SER command handling
+                if (msg->command == "FILE DIR EVENTS") {
+                    // Broadcast as COMTRADE_DIR:<relay_id>:<payload>
+                    std::string payload = "COMTRADE_DIR:" + relay_id_ + ":" + msg->response;
+                    wsServer_.broadcastText(payload);
+                    // Optionally: cache in memory for new clients (TODO: implement if needed)
+                    std::cout << relay_tag_ << " Broadcasted COMTRADE_DIR (" << msg->response.size() << " bytes)\n";
+                    continue;
+                } else if (msg->command != "SER") {
                     std::cout << relay_tag_ << " Non-SER command '" << msg->command
                               << "', broadcasting text (" << msg->response.size() << " bytes)\n";
                     wsServer_.broadcastText(msg->response);
@@ -791,8 +799,10 @@ public:
         running_ = true;
         std::cout << "[Pipeline:" << config_.name << "] Started\n";
 
-        // Queue initial SER command to start data flow
+
+        // Queue initial SER and FILE DIR EVENTS commands to start data flow and file list
         queueCommand("SER");
+        queueCommand("FILE DIR EVENTS");
 
         return true;
     }

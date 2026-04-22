@@ -1511,44 +1511,32 @@ function ioDisconnect() {
 }
 
 // ============================================================
-//  COMTRADE (SEL-451 only) Module
+
 // ============================================================
-//
-//  SEL-451 lists COMTRADE .CFG and .DAT files directly in
-//  `FILE DIR EVENTS`.  This module:
-//    - On "List CFG" / "List DAT" click, sends `FILE DIR EVENTS`
-//      to the selected relay (via `_prefixCmd`).
-//    - Parses the response, filters to .cfg or .dat filenames,
-//      and renders each with a Download button.
-//    - Download fetches `CTR C <n>` (for .cfg) or `CTR D <n>`
-//      (for .dat) and saves the raw response as the file.
+//  COMTRADE (SEL-451 only) Module (auto-cached, no manual fetch)
+// ============================================================
+//  - Backend broadcasts COMTRADE_DIR:<relayId>:<raw file list> on pipeline start
+//  - This module listens for the broadcast, caches per-relay, and renders on section open
+//  - No manual fetch or WebSocket command is used
 // ============================================================
 
 let ctrWs      = null;
-let _ctrResolve = null;
-let _ctrReject  = null;
 
-function _ctrBuildWsUrl() {
-  const h = (document.getElementById("ser-ws-host") || {}).value?.trim() || "localhost";
-  const p = (document.getElementById("ser-ws-port") || {}).value?.trim() || "8765";
-  return `ws://${h}:${p}`;
-}
+// Per-relay cache: relayId → raw FILE DIR EVENTS response
+const ctrFileDirCache = {};
 
 function _ctrSetStatus(status, custom) {
   const el = document.getElementById("ctr-conn-status");
   if (!el) return;
   const map = {
-    idle:       { text: "ðŸŸ¡ Idle",        color: "#d97706" },
-    connecting: { text: "ðŸŸ¡ Connectingâ€¦", color: "#d97706" },
-    fetching:   { text: "ðŸ”µ Fetchingâ€¦",   color: "#2563eb" },
-    done:       { text: "ðŸŸ¢ Done",        color: "#16a34a" },
-    error:      { text: "ðŸ”´ Error",       color: "#dc2626" }
+    idle:       { text: "🟡 Idle",        color: "#d97706" },
+    done:       { text: "🟢 Ready",       color: "#16a34a" },
+    error:      { text: "🔴 Error",       color: "#dc2626" }
   };
   const info = map[status] || map.idle;
   el.textContent = custom || info.text;
   el.style.color = info.color;
 }
-
 function _ctrEnsureConnection() {
   return new Promise((resolve, reject) => {
     if (ctrWs && ctrWs.readyState === WebSocket.OPEN) return resolve(ctrWs);
@@ -1717,37 +1705,50 @@ function _ctrRenderFiles(files) {
   });
 }
 
-async function ctrListFiles() {
+
+// Listen for COMTRADE_DIR:<relayId>:<payload> broadcasts
+if (window && typeof window.addEventListener === "function") {
+  window.addEventListener("message", function(event) {
+    if (!event.data || typeof event.data !== "string") return;
+    if (!event.data.startsWith("COMTRADE_DIR:")) return;
+    const idx1 = event.data.indexOf(":", 14);
+    if (idx1 < 0) return;
+    const relayId = event.data.substring(14, idx1);
+    const payload = event.data.substring(idx1 + 1);
+    ctrFileDirCache[relayId] = payload;
+    // If this relay is currently shown, re-render
+    const relay = getCurrentRelay();
+    if (relay && relay.id === relayId && document.getElementById("ctr-451-panel")?.style.display !== "none") {
+      ctrRenderFileDirForCurrentRelay();
+    }
+  });
+}
+
+function ctrRenderFileDirForCurrentRelay() {
+  const relay = getCurrentRelay();
   const list = document.getElementById("ctr-file-list");
-  if (list) list.innerHTML = `<div class="set-empty">Loading FILE DIR EVENTSâ€¦</div>`;
-  try {
-    await _ctrEnsureConnection();
-    _ctrSetStatus("fetching");
-    const response = await _ctrSendCommand("FILE DIR EVENTS");
-    const all = _ctrParseFileDir(response);
-    const filtered = all.filter(f => {
-      const ext = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
-      return ext === "CFG" || ext === "DAT";
-    });
-    // Sort: event number desc, then CFG before DAT for same event
-    filtered.sort((a, b) => {
-      if (a.num !== b.num) return b.num - a.num;
-      const ea = a.name.substring(a.name.lastIndexOf(".") + 1).toUpperCase();
-      const eb = b.name.substring(b.name.lastIndexOf(".") + 1).toUpperCase();
-      return ea.localeCompare(eb);
-    });
-    _ctrRenderFiles(filtered);
-    const nCfg = filtered.filter(f => f.name.toUpperCase().endsWith(".CFG")).length;
-    const nDat = filtered.filter(f => f.name.toUpperCase().endsWith(".DAT")).length;
-    _ctrSetStatus("done", `ðŸŸ¢ ${nCfg} CFG Â· ${nDat} DAT`);
-  } catch (err) {
-    console.error("[CTR] list error:", err);
-    _ctrSetStatus("error");
-    if (list)
-      list.innerHTML = `<div class="set-empty">Failed: ${_ctrEscHtml(err.message)}</div>`;
-    if (typeof showToast === "function")
-      showToast(`FILE DIR EVENTS failed: ${err.message}`, "error");
+  if (!relay || !list) return;
+  const raw = ctrFileDirCache[relay.id];
+  if (!raw) {
+    list.innerHTML = `<div class="set-empty">No COMTRADE file list available yet.</div>`;
+    _ctrSetStatus("idle");
+    return;
   }
+  const all = _ctrParseFileDir(raw);
+  const filtered = all.filter(f => {
+    const ext = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
+    return ext === "CFG" || ext === "DAT";
+  });
+  filtered.sort((a, b) => {
+    if (a.num !== b.num) return b.num - a.num;
+    const ea = a.name.substring(a.name.lastIndexOf(".") + 1).toUpperCase();
+    const eb = b.name.substring(b.name.lastIndexOf(".") + 1).toUpperCase();
+    return ea.localeCompare(eb);
+  });
+  _ctrRenderFiles(filtered);
+  const nCfg = filtered.filter(f => f.name.toUpperCase().endsWith(".CFG")).length;
+  const nDat = filtered.filter(f => f.name.toUpperCase().endsWith(".DAT")).length;
+  _ctrSetStatus("done", `🟢 ${nCfg} CFG · ${nDat} DAT`);
 }
 
 // ============================================================
@@ -2815,10 +2816,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!isSel451) return;
 
-    // Auto-fetch CFG + DAT file list on navigation.
-    if (typeof ctrListFiles === "function") {
-      ctrListFiles();
-    }
+    // Render cached file list (if available)
+    ctrRenderFileDirForCurrentRelay();
   }
 
   function hideComtradeSection() {
