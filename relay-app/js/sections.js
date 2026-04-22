@@ -1556,9 +1556,17 @@ if (window && typeof window.addEventListener === "function") {
 // ============================================================
 
 let ctrWs      = null;
+let _ctrResolve = null;
+let _ctrReject  = null;
 
 // Per-relay cache: relayId → raw FILE DIR EVENTS response
 const ctrFileDirCache = {};
+
+function _ctrBuildWsUrl() {
+  const h = (document.getElementById("ser-ws-host") || {}).value?.trim() || "localhost";
+  const p = (document.getElementById("ser-ws-port") || {}).value?.trim() || "8765";
+  return `ws://${h}:${p}`;
+}
 
 function _ctrSetStatus(status, custom) {
   const el = document.getElementById("ctr-conn-status");
