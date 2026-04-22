@@ -2806,15 +2806,9 @@ document.addEventListener("DOMContentLoaded", function () {
     ctrSection.style.display = "";
     container.style.display = "none";
 
-    // Gate the file list to SEL-451 only; other models see a notice.
-    const relay = getCurrentRelay();
-    const isSel451 = relay && /SEL-?451/i.test(relay.name || "");
-    const panel        = document.getElementById("ctr-451-panel");
-    const unsupported  = document.getElementById("ctr-unsupported");
-    if (panel)       panel.style.display       = isSel451 ? "" : "none";
-    if (unsupported) unsupported.style.display = isSel451 ? "none" : "";
-
-    if (!isSel451) return;
+    // Always show the panel for all relays
+    const panel = document.getElementById("ctr-451-panel");
+    if (panel) panel.style.display = "";
 
     // Render cached file list (if available)
     ctrRenderFileDirForCurrentRelay();

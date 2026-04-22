@@ -920,6 +920,9 @@ struct RelayCommandFSM
             // SER command
             *"Idle"_s + event<cmd_ser_event>   / CmdSerAction{}   = "Idle"_s,
 
+            // FILE DIR EVENTS command (COMTRADE file listing)
+            "Idle"_s + event<cmd_file_dir_events_event> / CmdFileDirEventsAction{} = "Idle"_s,
+
             // TAR command
             "Idle"_s + event<cmd_tar_event>   / CmdTarAction{}   = "Idle"_s,
 
