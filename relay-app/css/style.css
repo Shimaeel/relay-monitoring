@@ -1974,6 +1974,25 @@ ul, ol { list-style: none; }
   display: flex;
   flex-direction: column;
   gap: var(--sp-3, 12px);
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
+.ctf-file-list::-webkit-scrollbar {
+  width: 10px;
+}
+.ctf-file-list::-webkit-scrollbar-track {
+  background: var(--color-surface-muted, #f3f4f6);
+  border-radius: 6px;
+}
+.ctf-file-list::-webkit-scrollbar-thumb {
+  background: var(--color-border, #d1d5db);
+  border-radius: 6px;
+}
+.ctf-file-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary, #2563eb);
 }
 
 .ctf-file-card {
