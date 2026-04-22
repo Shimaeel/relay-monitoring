@@ -172,6 +172,12 @@ struct cmd_ser_event {};
 struct cmd_file_dir_events_event {};
 
 /**
+ * @brief Event: User requested FILE DIR SETTINGS command.
+ * @details Fired to fetch settings file list from relay.
+ */
+struct cmd_file_dir_settings_event {};
+
+/**
  * @brief Event: User requested TAR (Target) command.
  * @details Fired when user clicks TAR button. Carries argument string.
  */
@@ -464,6 +470,26 @@ struct CmdFileDirEventsAction
                         : !client.isConnected() ? CmdFailReason::CONN_LOST
                         : CmdFailReason::TIMEOUT;
         std::cout << "[CmdFSM] FILE DIR EVENTS " << (resp.success ? "OK" : "FAIL") << "\n";
+    }
+};
+
+/**
+ * @brief Command Action: Send FILE DIR SETTINGS command to relay.
+ * @details Stores response in CmdResponseHolder for caller to read.
+ */
+struct CmdFileDirSettingsAction
+{
+    void operator()(const cmd_file_dir_settings_event&, TelnetClient& client, CmdResponseHolder& resp) const
+    {
+        client.clearLastResponse();
+        std::string response;
+        bool ok = client.SendCmdMultiPage("FILE DIR SETTINGS", response);
+        resp.success = ok && !response.empty();
+        resp.response = std::move(response);
+        resp.failReason = resp.success ? CmdFailReason::NONE
+                        : !client.isConnected() ? CmdFailReason::CONN_LOST
+                        : CmdFailReason::TIMEOUT;
+        std::cout << "[CmdFSM] FILE DIR SETTINGS " << (resp.success ? "OK" : "FAIL") << "\n";
     }
 };
 
@@ -922,6 +948,9 @@ struct RelayCommandFSM
 
             // FILE DIR EVENTS command (COMTRADE file listing)
             "Idle"_s + event<cmd_file_dir_events_event> / CmdFileDirEventsAction{} = "Idle"_s,
+
+            // FILE DIR SETTINGS command (settings file listing)
+            "Idle"_s + event<cmd_file_dir_settings_event> / CmdFileDirSettingsAction{} = "Idle"_s,
 
             // TAR command
             "Idle"_s + event<cmd_tar_event>   / CmdTarAction{}   = "Idle"_s,

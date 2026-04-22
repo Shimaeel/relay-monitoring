@@ -406,6 +406,12 @@ function connectSerWebSocket() {
           return;
         }
 
+        // Settings file list broadcast — forward to window listener
+        if (typeof data === 'string' && data.startsWith('SETTINGS_DIR:')) {
+          window.dispatchEvent(new MessageEvent('message', { data }));
+          return;
+        }
+
         // JSON fallback
         try {
           const json = JSON.parse(data);
@@ -1749,9 +1755,9 @@ if (window && typeof window.addEventListener === "function") {
   window.addEventListener("message", function(event) {
     if (!event.data || typeof event.data !== "string") return;
     if (!event.data.startsWith("COMTRADE_DIR:")) return;
-    const idx1 = event.data.indexOf(":", 14);
+    const idx1 = event.data.indexOf(":", 13);
     if (idx1 < 0) return;
-    const relayId = event.data.substring(14, idx1);
+    const relayId = event.data.substring(13, idx1);
     const payload = event.data.substring(idx1 + 1);
     ctrFileDirCache[relayId] = payload;
     // If this relay is currently shown, re-render
@@ -2021,6 +2027,140 @@ function setDisconnect() {
   _setDisconnectRaw();
   _setSetStatus("idle");
   _setSetFetchBtn(false);
+}
+
+// ============================================================
+//  SETTINGS FILES Module (FILE DIR SETTINGS)
+// ============================================================
+//  Mirrors the COMTRADE file list but for settings files. Shows
+//  ALL files returned by `FILE DIR SETTINGS` (no extension filter).
+//  Populated by:
+//    - Backend broadcast SETTINGS_DIR:<relayId>:<raw> on pipeline start
+//    - Manual refresh button click (re-sends FILE DIR SETTINGS)
+// ============================================================
+
+const setFileDirCache = {};
+
+function _setfSetStatus(status, custom) {
+  const el = document.getElementById("setf-conn-status");
+  if (!el) return;
+  const map = {
+    idle:  { text: "🟡 Idle",  color: "#d97706" },
+    done:  { text: "🟢 Ready", color: "#16a34a" },
+    error: { text: "🔴 Error", color: "#dc2626" }
+  };
+  const info = map[status] || map.idle;
+  el.textContent = custom || info.text;
+  el.style.color = info.color;
+}
+
+function _setfParseFileDir(response) {
+  const out = [];
+  const lines = String(response || "").split(/\r?\n/);
+  for (let raw of lines) {
+    const line = raw.replace(/\s+$/, "");
+    if (!line) continue;
+    const trimmed = line.trim();
+    if (/^=>/.test(trimmed)) continue;
+    if (/^[-=*\s]+$/.test(trimmed)) continue;
+    const tokens = trimmed.split(/\s+/);
+    const name = tokens[0];
+    if (!name || name.indexOf(".") < 0) continue;
+    out.push({
+      name,
+      size: tokens[1] || "",
+      date: tokens[2] || "",
+      time: tokens[3] || ""
+    });
+  }
+  return out;
+}
+
+function _setfRenderFiles(files) {
+  const container = document.getElementById("setf-file-list");
+  if (!container) return;
+  if (!files.length) {
+    container.innerHTML =
+      `<div class="set-empty">No settings files found in FILE DIR SETTINGS.</div>`;
+    return;
+  }
+  const parts = files.map(f => {
+    const safeName = _ctrEscHtml(f.name);
+    const safeDate = _ctrEscHtml(f.date || "");
+    const safeTime = _ctrEscHtml(f.time || "");
+    return (
+      `<div class="ctf-row">` +
+        `<span class="ctf-row__name">${safeName}</span>` +
+        `<span class="ctf-row__attr">R</span>` +
+        `<span class="ctf-row__date">${safeDate}</span>` +
+        `<span class="ctf-row__time">${safeTime}</span>` +
+        `<span class="ctf-row__dl ctf-row__dl--empty"></span>` +
+      `</div>`
+    );
+  });
+  container.innerHTML = parts.join("");
+}
+
+function setfRenderFileDirForCurrentRelay() {
+  const relay = getCurrentRelay();
+  const list = document.getElementById("setf-file-list");
+  if (!relay || !list) return;
+  const raw = setFileDirCache[relay.id];
+  if (!raw) {
+    list.innerHTML = `<div class="set-empty">No settings file list available yet.</div>`;
+    _setfSetStatus("idle");
+    return;
+  }
+  const all = _setfParseFileDir(raw);
+  all.sort((a, b) => a.name.localeCompare(b.name));
+  _setfRenderFiles(all);
+  _setfSetStatus("done", `🟢 ${all.length} file${all.length === 1 ? "" : "s"}`);
+}
+
+// Listen for SETTINGS_DIR:<relayId>:<payload> broadcasts
+if (window && typeof window.addEventListener === "function") {
+  window.addEventListener("message", function(event) {
+    if (!event.data || typeof event.data !== "string") return;
+    if (!event.data.startsWith("SETTINGS_DIR:")) return;
+    const idx1 = event.data.indexOf(":", 14);
+    if (idx1 < 0) return;
+    const relayId = event.data.substring(13, idx1);
+    const payload = event.data.substring(idx1 + 1);
+    setFileDirCache[relayId] = payload;
+    const relay = getCurrentRelay();
+    if (relay && relay.id === relayId) {
+      setfRenderFileDirForCurrentRelay();
+    }
+  });
+}
+
+// Wire up Settings Files refresh button
+if (window && typeof window.addEventListener === "function") {
+  window.addEventListener("DOMContentLoaded", function() {
+    const btn = document.getElementById("setf-refresh-btn");
+    if (!btn) return;
+    btn.addEventListener("click", async function() {
+      const relay = getCurrentRelay();
+      if (!relay) return;
+      const prevText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "⏳ Refreshing…";
+      _setfSetStatus("idle", "🟡 Fetching file list…");
+      try {
+        const response = await _ctrSendCommand("FILE DIR SETTINGS");
+        setFileDirCache[relay.id] = response;
+        setfRenderFileDirForCurrentRelay();
+      } catch (err) {
+        console.error("[SETF] Refresh failed:", err);
+        _setfSetStatus("error", `🔴 ${err.message || "Refresh failed"}`);
+        if (typeof showToast === "function")
+          showToast(`Refresh failed: ${err.message}`, "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+      }
+    });
+  });
 }
 
 // ============================================================
@@ -2830,8 +2970,15 @@ document.addEventListener("DOMContentLoaded", function () {
   function showSettingsSection() {
     if (setSection) setSection.style.display = "";
     container.style.display = "none";
-    // Auto-fetch settings data when navigating to this section
+    // Auto-fetch SHOSET settings text
     setFetchSettings();
+    // Render cached settings file list immediately (if available)
+    if (typeof setfRenderFileDirForCurrentRelay === "function") {
+      setfRenderFileDirForCurrentRelay();
+    }
+    // Auto-trigger the settings-files refresh to get fresh data
+    const setfRefreshBtn = document.getElementById("setf-refresh-btn");
+    if (setfRefreshBtn && !setfRefreshBtn.disabled) setfRefreshBtn.click();
   }
 
   function hideSettingsSection() {
@@ -2848,12 +2995,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const panel = document.getElementById("ctr-451-panel");
     if (panel) panel.style.display = "";
 
-    // Render cached file list immediately (if available)
+    // Render cached file list (if available)
     ctrRenderFileDirForCurrentRelay();
-
-    // Then auto-trigger the Refresh button to re-fetch from relay
-    const refreshBtn = document.getElementById("ctr-refresh-btn");
-    if (refreshBtn && !refreshBtn.disabled) refreshBtn.click();
   }
 
   function hideComtradeSection() {

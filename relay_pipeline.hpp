@@ -201,6 +201,8 @@ class PipelineReceptionWorker
             cmdFsm_.process_event(cmd_ser_event{});
         else if (cmd == "FILE DIR EVENTS")
             cmdFsm_.process_event(cmd_file_dir_events_event{});
+        else if (cmd == "FILE DIR SETTINGS")
+            cmdFsm_.process_event(cmd_file_dir_settings_event{});
         else if (cmd.size() >= 3 && cmd.substr(0, 3) == "TAR")
             cmdFsm_.process_event(cmd_tar_event{cmd.size() > 4 ? cmd.substr(4) : ""});
         else if (cmd == "EVE")
@@ -566,8 +568,13 @@ class PipelineProcessingWorker
                     // Broadcast as COMTRADE_DIR:<relay_id>:<payload>
                     std::string payload = "COMTRADE_DIR:" + relay_id_ + ":" + msg->response;
                     wsServer_.broadcastText(payload);
-                    // Optionally: cache in memory for new clients (TODO: implement if needed)
                     std::cout << relay_tag_ << " Broadcasted COMTRADE_DIR (" << msg->response.size() << " bytes)\n";
+                    continue;
+                } else if (msg->command == "FILE DIR SETTINGS") {
+                    // Broadcast as SETTINGS_DIR:<relay_id>:<payload>
+                    std::string payload = "SETTINGS_DIR:" + relay_id_ + ":" + msg->response;
+                    wsServer_.broadcastText(payload);
+                    std::cout << relay_tag_ << " Broadcasted SETTINGS_DIR (" << msg->response.size() << " bytes)\n";
                     continue;
                 } else if (msg->command != "SER") {
                     std::cout << relay_tag_ << " Non-SER command '" << msg->command
@@ -800,9 +807,10 @@ public:
         std::cout << "[Pipeline:" << config_.name << "] Started\n";
 
 
-        // Queue initial SER and FILE DIR EVENTS commands to start data flow and file list
+        // Queue initial SER, FILE DIR EVENTS, and FILE DIR SETTINGS commands
         queueCommand("SER");
         queueCommand("FILE DIR EVENTS");
+        queueCommand("FILE DIR SETTINGS");
 
         return true;
     }
