@@ -570,8 +570,10 @@ class PipelineProcessingWorker
                     wsServer_.broadcastText(payload);
                     std::cout << relay_tag_ << " Broadcasted COMTRADE_DIR (" << msg->response.size() << " bytes)\n";
                     continue;
-                } else if (msg->command == "FILE DIR SETTINGS") {
+                } else if (msg->command == "FILE DIR SETTINGS" || msg->command == "FIL DIR") {
                     // Broadcast as SETTINGS_DIR:<relay_id>:<payload>
+                    // Both FILE DIR SETTINGS (SEL-451/751) and FIL DIR (SEL-735)
+                    // feed the settings-files UI.
                     std::string payload = "SETTINGS_DIR:" + relay_id_ + ":" + msg->response;
                     wsServer_.broadcastText(payload);
                     std::cout << relay_tag_ << " Broadcasted SETTINGS_DIR (" << msg->response.size() << " bytes)\n";
@@ -807,10 +809,14 @@ public:
         std::cout << "[Pipeline:" << config_.name << "] Started\n";
 
 
-        // Queue initial SER, FILE DIR EVENTS, and FILE DIR SETTINGS commands
+        // Queue initial SER, FILE DIR EVENTS, and settings-file listing.
+        // SEL-735 uses `FIL DIR`; other SEL models use `FILE DIR SETTINGS`.
         queueCommand("SER");
         queueCommand("FILE DIR EVENTS");
-        queueCommand("FILE DIR SETTINGS");
+        if (config_.name.find("735") != std::string::npos)
+            queueCommand("FIL DIR");
+        else
+            queueCommand("FILE DIR SETTINGS");
 
         return true;
     }

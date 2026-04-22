@@ -2101,6 +2101,10 @@ function _setfRenderFiles(files) {
   container.innerHTML = parts.join("");
 }
 
+function _setfIs735(relay) {
+  return !!(relay && typeof relay.name === "string" && relay.name.includes("735"));
+}
+
 function setfRenderFileDirForCurrentRelay() {
   const relay = getCurrentRelay();
   const list = document.getElementById("setf-file-list");
@@ -2111,10 +2115,13 @@ function setfRenderFileDirForCurrentRelay() {
     _setfSetStatus("idle");
     return;
   }
-  const all = _setfParseFileDir(raw);
-  all.sort((a, b) => a.name.localeCompare(b.name));
-  _setfRenderFiles(all);
-  _setfSetStatus("done", `🟢 ${all.length} file${all.length === 1 ? "" : "s"}`);
+  let files = _setfParseFileDir(raw);
+  if (_setfIs735(relay)) {
+    files = files.filter(f => f.name.toUpperCase().startsWith("SET_"));
+  }
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  _setfRenderFiles(files);
+  _setfSetStatus("done", `🟢 ${files.length} file${files.length === 1 ? "" : "s"}`);
 }
 
 // Listen for SETTINGS_DIR:<relayId>:<payload> broadcasts
@@ -2147,7 +2154,8 @@ if (window && typeof window.addEventListener === "function") {
       btn.textContent = "⏳ Refreshing…";
       _setfSetStatus("idle", "🟡 Fetching file list…");
       try {
-        const response = await _ctrSendCommand("FILE DIR SETTINGS");
+        const cmd = _setfIs735(relay) ? "FIL DIR" : "FILE DIR SETTINGS";
+        const response = await _ctrSendCommand(cmd);
         setFileDirCache[relay.id] = response;
         setfRenderFileDirForCurrentRelay();
       } catch (err) {
