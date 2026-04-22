@@ -1689,7 +1689,7 @@ function _ctrRenderFiles(files) {
   if (!container) return;
   if (!files.length) {
     container.innerHTML =
-      `<div class="set-empty">No COMTRADE files found in FILE DIR EVENTS.</div>`;
+      `<div class="set-empty">No .CFG or .DAT files found in FILE DIR EVENTS.</div>`;
     return;
   }
   const parts = files.map((f, i) => {
@@ -1773,17 +1773,16 @@ function ctrRenderFileDirForCurrentRelay() {
     return;
   }
   const all = _ctrParseFileDir(raw);
-  const extRank = { CFG: 0, DAT: 1, HDR: 2, CEV: 3, HIS: 4, EVE: 5, TXT: 6 };
-  all.sort((a, b) => {
+  const filtered = all.filter(f => {
+    const ext = f.name.substring(f.name.lastIndexOf(".") + 1).toUpperCase();
+    return ext === "CFG" || ext === "DAT";
+  });
+  filtered.sort((a, b) => {
     if (a.num !== b.num) return b.num - a.num;
     const ea = a.name.substring(a.name.lastIndexOf(".") + 1).toUpperCase();
     const eb = b.name.substring(b.name.lastIndexOf(".") + 1).toUpperCase();
-    const ra = extRank[ea] ?? 99;
-    const rb = extRank[eb] ?? 99;
-    if (ra !== rb) return ra - rb;
-    return a.name.localeCompare(b.name);
+    return ea.localeCompare(eb);
   });
-  const filtered = all;
   _ctrRenderFiles(filtered);
   const nCfg = filtered.filter(f => f.name.toUpperCase().endsWith(".CFG")).length;
   const nDat = filtered.filter(f => f.name.toUpperCase().endsWith(".DAT")).length;
@@ -2849,8 +2848,12 @@ document.addEventListener("DOMContentLoaded", function () {
     const panel = document.getElementById("ctr-451-panel");
     if (panel) panel.style.display = "";
 
-    // Render cached file list (if available)
+    // Render cached file list immediately (if available)
     ctrRenderFileDirForCurrentRelay();
+
+    // Then auto-trigger the Refresh button to re-fetch from relay
+    const refreshBtn = document.getElementById("ctr-refresh-btn");
+    if (refreshBtn && !refreshBtn.disabled) refreshBtn.click();
   }
 
   function hideComtradeSection() {
