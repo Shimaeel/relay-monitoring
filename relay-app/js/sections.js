@@ -1718,7 +1718,7 @@ if (window && typeof window.addEventListener === "function") {
     ctrFileDirCache[relayId] = payload;
     // If this relay is currently shown, re-render
     const relay = getCurrentRelay();
-    if (relay && relay.id === relayId && document.getElementById("ctr-451-panel")?.style.display !== "none") {
+    if (relay && relay.id === relayId) {
       ctrRenderFileDirForCurrentRelay();
     }
   });
