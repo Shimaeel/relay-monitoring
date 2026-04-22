@@ -1514,6 +1514,17 @@ function ioDisconnect() {
 
 // ============================================================
 //  COMTRADE (SEL-451 only) Module (auto-cached, no manual fetch)
+// Wire up Refresh File List button
+if (window && typeof window.addEventListener === "function") {
+  window.addEventListener("DOMContentLoaded", function() {
+    const btn = document.getElementById("ctr-refresh-btn");
+    if (btn) {
+      btn.addEventListener("click", function() {
+        ctrRenderFileDirForCurrentRelay();
+      });
+    }
+  });
+}
 // ============================================================
 //  - Backend broadcasts COMTRADE_DIR:<relayId>:<raw file list> on pipeline start
 //  - This module listens for the broadcast, caches per-relay, and renders on section open
