@@ -37,6 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   renderHeader(relay);
   bindEvents();
+  probeRelayStatus(relay);
 
   // Dismiss loader
   setTimeout(() => loadingOverlay.classList.add("hidden"), 400);
@@ -107,6 +108,42 @@ function updateRelayStatusBadge(status) {
   relayStatusBadge.className = `status-badge ${statusClass}`;
   relayStatusBadge.innerHTML = `<span class="status-badge__dot"></span> ${statusLabel}`;
 }
+
+// ============================================================
+//  Live Status Probing — WebSocket keepalive
+// ============================================================
+
+let _probeWs = null;
+let _probeRetryTimer = null;
+
+function probeRelayStatus(relay) {
+  if (_probeWs && _probeWs.readyState <= 1) return;
+
+  const ws = new WebSocket(`ws://localhost:${relay.wsPort}`);
+  _probeWs = ws;
+
+  ws.onopen = () => {
+    relay.status = "online";
+    updateRelayStatusBadge("online");
+  };
+
+  ws.onclose = () => {
+    relay.status = "offline";
+    updateRelayStatusBadge("offline");
+    clearTimeout(_probeRetryTimer);
+    _probeRetryTimer = setTimeout(() => probeRelayStatus(relay), 10000);
+  };
+
+  ws.onerror = () => {
+    relay.status = "offline";
+    updateRelayStatusBadge("offline");
+  };
+}
+
+window.addEventListener("beforeunload", () => {
+  clearTimeout(_probeRetryTimer);
+  if (_probeWs) { try { _probeWs.close(); } catch (_) {} }
+});
 
 // ============================================================
 //  Toast Notifications
