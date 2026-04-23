@@ -229,7 +229,7 @@ function updateSerEmptyState(status) {
 
 function serStatusFormatter(cell) {
   const v = cell.getValue();
-  if (!v) return `<span class="ser-status--empty">â€”</span>`;
+  if (!v) return `<span class="ser-status--empty">-</span>`;
   if (v === "Asserted") {
     return `<span class="ser-status--assert">${v}</span>`;
   }
@@ -296,7 +296,6 @@ function initSerTable(data) {
       {
         title: "State",
         field: "state",
-        
         width: 230,
         hozAlign: "center",
         formatter: serStatusFormatter,
