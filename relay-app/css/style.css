@@ -2130,3 +2130,864 @@ ul, ol { list-style: none; }
 .ctf-file-card__preview {
   margin: 0;
 }
+
+/* ============================================================
+   SER Time-Window Group Highlight
+   ============================================================
+   Applied to Tabulator rows by serRowColorFormatter / _cserRowColorFormatter.
+   8-color palette cycles by bucket index (Math.floor(ts / windowSec)).
+   Soft pastels — preserve readability of row text. */
+
+.tabulator-row.ser-group-0 { background-color: #eaf4ff !important; } /* sky      */
+.tabulator-row.ser-group-1 { background-color: #fff4e0 !important; } /* peach    */
+.tabulator-row.ser-group-2 { background-color: #eaffea !important; } /* mint     */
+.tabulator-row.ser-group-3 { background-color: #fde8f0 !important; } /* pink     */
+.tabulator-row.ser-group-4 { background-color: #f0e8ff !important; } /* lavender */
+.tabulator-row.ser-group-5 { background-color: #fffacc !important; } /* lemon    */
+.tabulator-row.ser-group-6 { background-color: #e0f7fa !important; } /* aqua     */
+.tabulator-row.ser-group-7 { background-color: #fce4ec !important; } /* rose     */
+
+/* Selected row keeps a clear border so checkbox state remains visible
+   even when group color is applied. */
+.tabulator-row.tabulator-selected[class*="ser-group-"] {
+  outline: 2px solid var(--color-primary, #3c5a99);
+  outline-offset: -2px;
+}
+
+/* Group header — emphasise window range */
+.ser-group-header__label {
+  font-weight: 700;
+}
+.ser-group-header__count {
+  margin-left: 6px;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.9em;
+}
+
+/* ============================================================
+   Combined SER — Per-Relay Color Badge (Relay column cell)
+   ============================================================
+   Saturated, distinct colors so each relay is identifiable at a glance.
+   These sit ON TOP of the row's time-window pastel background, so contrast
+   is intentionally higher than the time-window palette. */
+
+.cser-relay-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85em;
+  color: #fff;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.cser-relay--empty {
+  background-color: #cbd5e1;
+  color: #475569;
+}
+
+.cser-relay-0 { background-color: #2563eb; }   /* blue       */
+.cser-relay-1 { background-color: #db2777; }   /* pink       */
+.cser-relay-2 { background-color: #16a34a; }   /* green      */
+.cser-relay-3 { background-color: #d97706; }   /* amber      */
+.cser-relay-4 { background-color: #7c3aed; }   /* purple     */
+.cser-relay-5 { background-color: #0891b2; }   /* cyan       */
+.cser-relay-6 { background-color: #dc2626; }   /* red        */
+.cser-relay-7 { background-color: #65a30d; }   /* lime       */
+.cser-relay-8 { background-color: #4338ca; }   /* indigo     */
+.cser-relay-9 { background-color: #c2410c; }   /* orange     */
+
+/* ============================================================
+   ============================================================
+   UI UPLIFT v2 — Option B (Medium Refresh)
+   Appended at end so it overrides earlier rules. Purely additive;
+   delete this whole block to revert to the previous look.
+   ============================================================
+   ============================================================ */
+
+/* ---------- App background — subtle layered gradient ---------- */
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(99,102,241,.10), transparent 60%),
+    radial-gradient(900px 500px at 110% 0%, rgba(37,99,235,.10), transparent 55%),
+    linear-gradient(180deg, #f5f7fb 0%, #eef2f7 100%);
+}
+
+/* ---------- Page title: gradient heading + accent rule ---------- */
+.page-title-bar {
+  position: relative;
+  padding-bottom: var(--sp-4);
+  margin-bottom: var(--sp-6);
+  border-bottom: 1px solid var(--color-border);
+}
+.page-title-bar::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: -1px;
+  width: 96px; height: 3px;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-full);
+}
+.page-title {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #6366f1 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  letter-spacing: -.02em;
+  font-weight: 800;
+}
+.page-subtitle {
+  color: var(--color-text-secondary);
+  font-size: .92rem;
+}
+
+/* ---------- Section card — accent top stripe + hover lift ---------- */
+.section-card {
+  position: relative;
+  background: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-normal),
+              transform var(--transition-normal),
+              border-color var(--transition-normal);
+  overflow: hidden;
+}
+.section-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--gradient-primary);
+  opacity: .9;
+  pointer-events: none;
+}
+.section-card:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: rgba(37, 99, 235, .28);
+}
+.section-card > h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--sp-2) 0 var(--sp-3);
+  margin-bottom: var(--sp-4);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+  position: relative;
+}
+.section-card > h2::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: -1px;
+  width: 64px; height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-primary);
+}
+
+/* ---------- Detail page header (relay.html) — branded gradient ---------- */
+.detail-header {
+  background:
+    linear-gradient(135deg, rgba(37,99,235,.08) 0%, rgba(99,102,241,.06) 60%, rgba(255,255,255,1) 100%),
+    var(--color-surface);
+  border: 1px solid rgba(37, 99, 235, .18);
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255,255,255,.6);
+}
+.detail-header h1 {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  letter-spacing: -.02em;
+}
+.detail-back__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(37, 99, 235, .08);
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+.detail-back__link:hover {
+  background: rgba(37, 99, 235, .14);
+  transform: translateX(-2px);
+}
+
+/* ---------- Buttons — refined contrast + accessible focus ring ---------- */
+.btn {
+  font-weight: 600;
+  letter-spacing: .01em;
+  border-radius: var(--radius-md);
+  transition: transform var(--transition-fast),
+              box-shadow var(--transition-fast),
+              background var(--transition-fast),
+              color var(--transition-fast);
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .35), var(--shadow-md);
+}
+
+.btn--primary {
+  background: var(--gradient-primary);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 4px 12px -2px rgba(37, 99, 235, .35);
+}
+.btn--primary:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, .45);
+}
+
+.btn--outline {
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-border);
+}
+.btn--outline:hover {
+  background: var(--color-primary-subtle);
+  border-color: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.btn--danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+  box-shadow: 0 4px 10px -2px rgba(239, 68, 68, .35);
+}
+.btn--danger:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 8px 18px -4px rgba(239, 68, 68, .45);
+}
+
+/* ---------- Inputs — focus glow ---------- */
+.input,
+.header-field__input,
+.ser-config__field input {
+  transition: border-color var(--transition-fast),
+              box-shadow var(--transition-fast),
+              background var(--transition-fast);
+}
+.input:focus,
+.header-field__input:focus,
+.ser-config__field input:focus {
+  outline: none;
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+  background: #fff;
+}
+
+/* ---------- Search bar — pill style ---------- */
+.search-wrap {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-xs);
+  transition: box-shadow var(--transition-fast),
+              border-color var(--transition-fast);
+}
+.search-wrap:focus-within {
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12), var(--shadow-sm);
+}
+
+/* ============================================================
+   Checkpoint 2 — Sidebar nav (pill-style) + status badges + toolbar
+   ============================================================ */
+
+/* ---------- Right sidebar — 3-column grid (rows of 3) ---------- */
+/* Items arranged 3 per row, flowing top-to-bottom. With 7 items the last
+   row contains only "SER" (column 1). */
+.layout-container {
+  align-items: stretch;
+}
+.content-panel {
+  padding-right: calc(140px + var(--sp-4)) !important;
+}
+.right-sidebar {
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 140px;
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  grid-template-rows: none !important;
+  grid-auto-flow: row !important;
+  grid-auto-rows: 1fr !important;
+  gap: 3px !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -2px 0 14px rgba(0, 0, 0, .04);
+  padding: 4px;
+  overflow: hidden;
+}
+.vertical-item {
+  position: relative;
+  display: flex !important;
+  align-items: center;
+  justify-content: center !important;
+  text-align: center;
+  padding: 4px 2px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: .78rem;
+  letter-spacing: .01em;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none !important;
+  border-right: none !important;
+  cursor: pointer;
+  user-select: none;
+  /* Vertical text — reads bottom-to-top inside each cell */
+  writing-mode: vertical-rl !important;
+  transform: rotate(180deg) !important;
+  text-orientation: mixed;
+  text-shadow: none !important;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background var(--transition-fast),
+              color var(--transition-fast),
+              transform var(--transition-fast),
+              box-shadow var(--transition-fast);
+}
+.vertical-item:hover {
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-dark);
+}
+.vertical-item.active {
+  background: var(--gradient-primary);
+  color: #fff;
+  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, .45);
+  border-color: rgba(255, 255, 255, .15);
+}
+.vertical-item.active::after {
+  content: none !important;
+}
+.vertical-item.active:hover {
+  filter: brightness(1.05);
+}
+
+/* ---------- Status badges (Connected / Connecting / Disconnected / Error / Idle) ---------- */
+/* These are spans like #ser-conn-status that contain an emoji + label.
+   We restyle them as proper pills using CSS class selectors on inline content. */
+[id$="-conn-status"] {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: .8rem;
+  font-weight: 700 !important;
+  letter-spacing: .02em;
+  background: rgba(148, 163, 184, .12);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(148, 163, 184, .25);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* ---------- SER toolbar — clearer hierarchy ---------- */
+.ser-toolbar {
+  background: linear-gradient(135deg, rgba(37,99,235,.04) 0%, rgba(99,102,241,.03) 100%);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: var(--sp-3);
+}
+.ser-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: .88rem;
+  color: var(--color-text-secondary);
+}
+.ser-toolbar__left strong,
+.ser-toolbar__left .record-count {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.ser-toolbar__sep {
+  color: var(--color-border);
+  margin: 0 2px;
+}
+.ser-toolbar__right {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ---------- SER config row ---------- */
+.ser-config {
+  background: var(--color-surface-hover);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  display: flex;
+  align-items: end;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+.ser-config__field label {
+  display: block;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+.ser-config__field input {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: .9rem;
+  min-width: 140px;
+}
+.ser-config__input-group {
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.ser-config__input-group input {
+  border: none;
+  background: transparent;
+  min-width: 80px;
+}
+.ser-config__input-group input:focus {
+  box-shadow: none;
+}
+.ser-config__input-group:focus-within {
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+}
+.ser-config__suffix {
+  padding: 0 10px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-bg-alt);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+/* ============================================================
+   Checkpoint 3 — Forms, empty states, Tabulator polish
+   ============================================================ */
+
+/* ---------- Detail header config fields (Substation / Bay / etc.) ---------- */
+.header-field__label {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+  display: block;
+}
+.header-field__input {
+  padding: 7px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, .85);
+  font-size: .88rem;
+  color: var(--color-text);
+}
+.header-field__input::placeholder { color: var(--color-text-muted); }
+
+/* ---------- Empty states (e.g. ser-live-empty, set-empty) ---------- */
+.ser-live-empty,
+.set-empty {
+  background:
+    radial-gradient(400px 200px at 50% -20%, rgba(99,102,241,.08), transparent 60%),
+    var(--color-surface-hover);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-8) var(--sp-6);
+  text-align: center;
+  color: var(--color-text-secondary);
+  margin: var(--sp-3) 0;
+}
+.ser-live-empty__title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-text);
+  margin-bottom: 6px;
+}
+.ser-live-empty__title::before {
+  content: "📡";
+  display: inline-block;
+  margin-right: 8px;
+  filter: grayscale(.2);
+}
+.ser-live-empty__hint {
+  font-size: .88rem;
+  color: var(--color-text-muted);
+}
+.ser-live-empty.is-hidden { display: none; }
+
+/* ---------- Tabulator — softer shell + better row hover ---------- */
+.tabulator {
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--color-surface) !important;
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+.tabulator .tabulator-header {
+  display: block !important;
+  visibility: visible !important;
+  min-height: 40px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--color-text) !important;
+}
+.tabulator .tabulator-header .tabulator-col {
+  background: transparent !important;
+  border-right: 1px solid var(--color-border-light) !important;
+  color: var(--color-text) !important;
+}
+.tabulator .tabulator-header .tabulator-col-title {
+  color: var(--color-text) !important;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* Ensure header filter inputs are visible too */
+.tabulator .tabulator-header .tabulator-header-filter input {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+  font-size: .8rem;
+}
+.tabulator-row {
+  transition: background-color var(--transition-fast),
+              transform var(--transition-fast);
+}
+.tabulator-row:hover {
+  background-color: var(--color-primary-subtle) !important;
+}
+.tabulator-row.tabulator-selected {
+  background-color: rgba(37, 99, 235, .12) !important;
+}
+
+/* Group headers — emphasised pill */
+.tabulator .tabulator-row.tabulator-group {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #6366f1 100%) !important;
+  color: #fff !important;
+  font-weight: 700;
+  border-radius: 0;
+  padding: 8px 14px;
+}
+.tabulator .tabulator-row.tabulator-group .tabulator-arrow {
+  border-left-color: #fff !important;
+  border-bottom-color: #fff !important;
+}
+.tabulator .tabulator-row.tabulator-group span {
+  color: #fff !important;
+}
+.tabulator .tabulator-row.tabulator-group .ser-group-header__count {
+  color: rgba(255, 255, 255, .8) !important;
+}
+
+/* Soften the time-window row tints so group + relay badge stay legible */
+.tabulator-row.ser-group-0 { background-color: #f0f7ff !important; }
+.tabulator-row.ser-group-1 { background-color: #fff8ed !important; }
+.tabulator-row.ser-group-2 { background-color: #f0fdf4 !important; }
+.tabulator-row.ser-group-3 { background-color: #fdf2f8 !important; }
+.tabulator-row.ser-group-4 { background-color: #f5f3ff !important; }
+.tabulator-row.ser-group-5 { background-color: #fefce8 !important; }
+.tabulator-row.ser-group-6 { background-color: #ecfeff !important; }
+.tabulator-row.ser-group-7 { background-color: #fff1f2 !important; }
+
+/* ---------- SER status pills (Asserted / Deasserted) ---------- */
+.ser-status--assert,
+.ser-status--deassert,
+.ser-status--empty {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.ser-status--assert {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, .3);
+}
+.ser-status--deassert {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, .3);
+}
+.ser-status--empty {
+  background: var(--color-bg-alt);
+  color: var(--color-text-muted);
+}
+
+/* ---------- Add Relay form (organised) ---------- */
+.add-relay-form {
+  padding: var(--sp-5) var(--sp-6) var(--sp-6);
+}
+
+.add-relay-form__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px dashed var(--color-border);
+}
+.add-relay-form__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+.add-relay-form__subtitle {
+  margin: 4px 0 0;
+  font-size: .85rem;
+  color: var(--color-text-secondary);
+}
+
+/* Three-column input grid + a full-width action row beneath. */
+.add-relay-form__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    "name ip   port"
+    "act  act  act";
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-4);
+  margin-top: 0;
+}
+.add-relay-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.add-relay-form__field:nth-child(1) { grid-area: name; }
+.add-relay-form__field:nth-child(2) { grid-area: ip; }
+.add-relay-form__field:nth-child(3) { grid-area: port; }
+
+.add-relay-form__field label {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-secondary);
+  display: block;
+}
+.add-relay-form__hint {
+  font-size: .75rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+.add-relay-form__action {
+  grid-area: act;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--color-border-light);
+  margin-top: var(--sp-1);
+}
+.add-relay-form__action .btn { min-width: 130px; }
+
+/* Stack to single column on narrow screens for readability. */
+@media (max-width: 720px) {
+  .add-relay-form__fields {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "name"
+      "ip"
+      "port"
+      "act";
+  }
+  .add-relay-form__action {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .add-relay-form__action .btn { width: 100%; }
+}
+
+.input {
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: .92rem;
+  width: 100%;
+  color: var(--color-text);
+}
+.input::placeholder { color: var(--color-text-muted); }
+.input:invalid:not(:placeholder-shown) {
+  border-color: rgba(239, 68, 68, .55);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .12);
+}
+
+/* ============================================================
+   Combined SER — Import Modal
+   ============================================================ */
+
+.cser-import-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cser-import-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, .55);
+  backdrop-filter: blur(2px);
+}
+.cser-import-modal__panel {
+  position: relative;
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: var(--sp-6);
+  animation: cserImportFadeIn .2s var(--ease-out);
+}
+@keyframes cserImportFadeIn {
+  from { opacity: 0; transform: translateY(-8px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.cser-import-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+.cser-import-modal__header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.cser-import-modal__close {
+  background: transparent;
+  border: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+  padding: 0 6px;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+.cser-import-modal__close:hover { color: var(--color-danger); }
+
+.cser-import-modal__subtitle {
+  font-size: .88rem;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--sp-4);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.cser-import-modal__field {
+  margin-bottom: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cser-import-modal__field label {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--color-text-secondary);
+}
+.cser-import-modal__field input[type="file"] {
+  padding: 8px;
+}
+.cser-import-modal__hint {
+  font-size: .75rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+.cser-import-modal__hint code {
+  background: var(--color-bg-alt);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: .72rem;
+}
+
+.cser-import-modal__preview {
+  background: var(--color-success-bg);
+  border: 1px solid rgba(16, 185, 129, .25);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.cser-import-modal__preview-count {
+  font-weight: 700;
+  color: var(--color-success);
+  font-size: .92rem;
+  margin-bottom: 4px;
+}
+.cser-import-modal__preview-hint {
+  font-size: .75rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+.cser-import-modal__preview-rows {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  color: var(--color-text);
+  max-height: 120px;
+  overflow: auto;
+  margin: 0;
+  white-space: pre;
+}
+
+.cser-import-modal__error {
+  background: var(--color-danger-bg);
+  border: 1px solid rgba(239, 68, 68, .3);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  font-size: .85rem;
+  color: var(--color-danger);
+  margin-bottom: var(--sp-4);
+}
+
+.cser-import-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--color-border-light);
+}
+.cser-import-modal__actions .btn { min-width: 110px; }

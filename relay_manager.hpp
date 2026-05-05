@@ -74,11 +74,11 @@ class RelayManager
                        std::unique_ptr<RelayPipeline>> active_;     ///< Active pipelines
     mutable std::mutex mutex_;                                      ///< Thread safety
 
-    // Shared resources (not owned)
-    SERDatabase& db_;
-    SERWebSocketServer& wsServer_;
-    SharedRingBuffer& shmRing_;
-    std::atomic<bool>& app_running_;
+    // Shared resources (not owned — lifetime managed by TelnetSmlApp::Impl)
+    SERDatabase& db_;                ///< Single SQLite DB shared by every pipeline.
+    SERWebSocketServer& wsServer_;   ///< Single WebSocket server used for broadcasts.
+    SharedRingBuffer& shmRing_;      ///< Out-of-process shared-memory ring for JSON export.
+    std::atomic<bool>& app_running_; ///< Global shutdown flag; pipelines watch this.
 
 public:
     /**
@@ -184,9 +184,14 @@ public:
     }
 
     /**
-     * @brief Stop all active relay pipelines.
+     * @brief Stop every active relay pipeline and clear the active set.
      *
-     * @details Called during application shutdown.
+     * @details Called during application shutdown, after the WebSocket
+     * server and its handler threads have been joined, so no new
+     * start/stop requests can arrive concurrently. Each pipeline's stop()
+     * blocks until its worker threads join.
+     *
+     * @post @c active_ is empty — isActive() returns false for every relay.
      */
     void stopAll()
     {
@@ -236,12 +241,21 @@ public:
     }
 
     /**
-     * @brief Execute a user-initiated command via Command FSM and return the response.
+     * @brief Run a user-initiated command on a specific relay synchronously.
      *
-     * @param relayId Relay identifier
-     * @param cmd     Telnet command (e.g. "SER", "TAR 0", "EVE", "SET ...",
-     *                "CTRL+C", "CTRL+D")
-     * @return Raw relay response text, or empty string if relay not active or command failed
+     * @details Looks up the active pipeline for @p relayId and delegates to
+     * RelayPipeline::handleUserCommand(), which serialises the call against
+     * the pipeline's own queue-driven execution loop. Blocks the caller
+     * until the command completes or exhausts its retries.
+     *
+     * @param relayId Relay identifier.
+     * @param cmd     Telnet command (e.g. @c "SER", @c "TAR 0", @c "EVE",
+     *                @c "SET ...", @c "CTRL+C", @c "CTRL+D").
+     * @return Raw relay response on success; empty string if the relay is
+     *         not active or the command failed all retries.
+     *
+     * @note Thread-safe; the manager's mutex serialises the pipeline lookup.
+     *       The actual command runs under the pipeline's internal lock.
      */
     std::string handleUserCommand(const std::string& relayId, const std::string& cmd)
     {

@@ -37,11 +37,23 @@ class AppLogger
 {
 public:
     /**
-     * @brief Initialise the logger and install stream tees.
+     * @brief Open the log file and redirect stdout/stderr through it.
      *
-     * @param filePath   Log file path (e.g. "app.log").
-     * @param maxBytes   Max file size before rotation (default 5 MB).
-     * @param maxFiles   Number of rotated files to keep (default 3).
+     * @details Opens @p filePath in append mode so restart-and-continue
+     * scenarios don't clobber prior output, then installs a custom
+     * @c streambuf (TeeBuf) on @c std::cout and @c std::cerr. Existing
+     * code that writes via those streams works unchanged — every byte is
+     * duplicated into the log file while still appearing on the console.
+     *
+     * Safe to call multiple times; the second call reconfigures the
+     * limits but will leak the previously-installed tee buffers, so it is
+     * intended to run once at application startup.
+     *
+     * @param filePath  Log file path (e.g. @c "app.log").
+     * @param maxBytes  Maximum bytes before the file is rotated to
+     *                  @c app.log.1, @c app.log.2, ... Defaults to 5 MB.
+     * @param maxFiles  Number of rotated files to retain. Defaults to 3,
+     *                  giving ~15 MB of history at the default size.
      */
     static void init(const std::string& filePath = "app.log",
                      std::size_t maxBytes = 5 * 1024 * 1024,
@@ -72,7 +84,16 @@ public:
     }
 
     /**
-     * @brief Shutdown the logger and restore original streams.
+     * @brief Detach the tees, restore the original streams, and close the file.
+     *
+     * @details Restores the @c streambuf that @c std::cout and @c std::cerr
+     * used before init() and destroys the tee buffers, then closes the log
+     * file. Idempotent — calling shutdown() a second time is a no-op. Must
+     * be invoked before process exit, otherwise the stream tees outlive the
+     * log file they reference.
+     *
+     * @post @c std::cout and @c std::cerr point at their original
+     *       streambufs; subsequent output is not captured to the log file.
      */
     static void shutdown()
     {
@@ -96,13 +117,29 @@ private:
     AppLogger() = default;
     ~AppLogger() { shutdown(); }
 
+    /**
+     * @brief Access the process-wide AppLogger singleton.
+     *
+     * @details Uses Meyers' singleton to lazily construct a single instance
+     * that lives for the duration of the program. Thread-safe per the C++11
+     * magic-statics rule.
+     */
     static AppLogger& instance()
     {
         static AppLogger inst;
         return inst;
     }
 
-    /// Rotate app.log -> app.log.1 -> app.log.2 ...
+    /**
+     * @brief Rotate the current log file into the numbered ring.
+     *
+     * @details Renames the chain @c app.log.(N-1) → @c app.log.N down to
+     * @c app.log → @c app.log.1, removing the oldest file to keep the ring
+     * bounded at @c maxFiles_. Reopens the primary file in truncation mode
+     * and resets the byte counter so the next write starts from zero.
+     *
+     * @pre The caller must hold @c mutex_ (invoked from writeToFile()).
+     */
     void rotate()
     {
         file_.close();
@@ -120,6 +157,19 @@ private:
         bytesWritten_ = 0;
     }
 
+    /**
+     * @brief Append bytes to the log file and rotate if the size cap is hit.
+     *
+     * @details Flushes after every write so a crash does not lose the tail
+     * of the log. Updates the running byte counter and, when it crosses
+     * @c maxBytes_, invokes rotate() to start a fresh file.
+     *
+     * @param data  Pointer to the bytes to write.
+     * @param n     Number of bytes available at @p data.
+     *
+     * @pre The caller must hold @c mutex_; the tee's overflow() and
+     *      xsputn() both lock before delegating here.
+     */
     void writeToFile(const char* data, std::streamsize n)
     {
         if (!file_.is_open())
@@ -133,11 +183,30 @@ private:
             rotate();
     }
 
-    // ── TeeBuf: duplicates output to both the original stream and the log file ──
-
+    /**
+     * @class TeeBuf
+     * @brief `std::streambuf` that forwards every write to a target buffer
+     *        and the owning AppLogger.
+     *
+     * @details Installed on @c std::cout and @c std::cerr by init(). Every
+     * character and block written to those streams is forwarded verbatim
+     * to the original @c streambuf (so console output is unaffected) and
+     * simultaneously appended to the AppLogger's file via writeToFile().
+     * The file write is serialised through AppLogger::mutex_ so multi-
+     * threaded output does not interleave inside a single log record.
+     */
     class TeeBuf : public std::streambuf
     {
     public:
+        /**
+         * @brief Wrap an existing streambuf and route writes through it.
+         *
+         * @param original  The streambuf that the tee should delegate to;
+         *                  typically @c std::cout.rdbuf() or
+         *                  @c std::cerr.rdbuf() captured before
+         *                  installation. Must outlive this TeeBuf.
+         * @param logger    AppLogger instance that owns the file sink.
+         */
         TeeBuf(std::streambuf* original, AppLogger& logger)
             : original_(original), logger_(logger) {}
 
@@ -175,16 +244,16 @@ private:
         AppLogger& logger_;
     };
 
-    std::mutex mutex_;
-    std::ofstream file_;
-    std::string path_;
-    std::size_t maxBytes_{5 * 1024 * 1024};
-    std::size_t bytesWritten_{0};
-    int maxFiles_{3};
+    std::mutex mutex_;                             ///< Guards @c file_ and rotation.
+    std::ofstream file_;                           ///< Currently-open log file.
+    std::string path_;                             ///< Path to the primary log file.
+    std::size_t maxBytes_{5 * 1024 * 1024};        ///< Rotation threshold in bytes.
+    std::size_t bytesWritten_{0};                  ///< Bytes written since last rotation.
+    int maxFiles_{3};                              ///< Number of rotated files to keep.
 
-    std::unique_ptr<TeeBuf> coutTee_;
-    std::unique_ptr<TeeBuf> cerrTee_;
-    std::streambuf* origCout_{nullptr};
-    std::streambuf* origCerr_{nullptr};
-    bool installed_{false};
+    std::unique_ptr<TeeBuf> coutTee_;              ///< Tee buffer installed on @c std::cout.
+    std::unique_ptr<TeeBuf> cerrTee_;              ///< Tee buffer installed on @c std::cerr.
+    std::streambuf* origCout_{nullptr};            ///< Saved original @c std::cout streambuf.
+    std::streambuf* origCerr_{nullptr};            ///< Saved original @c std::cerr streambuf.
+    bool installed_{false};                        ///< True while the tees are in place.
 };

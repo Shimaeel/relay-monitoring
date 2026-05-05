@@ -88,6 +88,14 @@ namespace
 
 /**
  * @brief Escape a string for safe JSON embedding.
+ *
+ * @details Replaces JSON-significant characters (`"`, `\`, CR, LF, TAB) with
+ * their backslash escapes and encodes any remaining control bytes (< 0x20)
+ * as `\uXXXX`. Non-control bytes >= 0x20 pass through unchanged, which
+ * preserves UTF-8 payloads that the relay may emit.
+ *
+ * @param s Raw text to escape.
+ * @return Escaped copy safe to concatenate between double quotes in JSON.
  */
 inline std::string escapeTarJson(const std::string& s)
 {
@@ -198,8 +206,16 @@ public:
     std::mutex tarBgThreadsMutex_;                                    ///< Guards tarBgThreads_
     std::vector<TarBgTask> tarBgThreads_;                             ///< Background TAR collection threads
 
-    /// Join and erase any tarBgThreads_ entries whose work has completed.
-    /// Caller must hold tarBgThreadsMutex_.
+    /**
+     * @brief Join and erase any finished entries from @c tarBgThreads_.
+     *
+     * @details Iterates the background-TAR task vector, joins the thread
+     * for each task whose @c done flag is set, then removes that entry.
+     * Keeps the vector from growing unboundedly as relays are started
+     * and stopped over the lifetime of the process.
+     *
+     * @pre Caller must already hold @c tarBgThreadsMutex_.
+     */
     void reapFinishedTarThreadsLocked_()
     {
         for (auto it = tarBgThreads_.begin(); it != tarBgThreads_.end();)
@@ -217,7 +233,16 @@ public:
         }
     }
 
-    /// Spawn a background TAR collection thread, reaping any finished ones first.
+    /**
+     * @brief Launch a background TAR-collection thread for a relay.
+     *
+     * @details Allocates a shared @c done flag, reaps any previously-finished
+     * tasks under the lock, then pushes a new thread that runs
+     * collectTarBackground() and sets @c done on completion. The flag allows
+     * the next reap to join the thread without blocking.
+     *
+     * @param relayId Target relay identifier (matches RelayConfig::id).
+     */
     void spawnTarBgThread_(const std::string& relayId)
     {
         auto done = std::make_shared<std::atomic<bool>>(false);
@@ -260,20 +285,20 @@ public:
     }
 
     /**
-     * @brief Extract a string field value from a simple JSON object.
+     * @brief Collect all TAR rows for a relay from a background thread.
      *
-     * @param json       Raw JSON string.
-     * @param fieldName  Field name to look up (without quotes).
-     * @return Extracted value string, or empty string on failure.
-     */
-    /**
-     * @brief Collect all TAR data for a relay in the background.
+     * @details Runs the same `TAR 0..N` loop as the FETCH_ALL_TAR streaming
+     * command, but asynchronously so the main WebSocket handler never blocks
+     * while a large relay is being drained. Results are stored in
+     * @c tarCache_ keyed by relay id; subsequent FETCH_ALL_TAR requests
+     * return the cached payload instantly.
      *
-     * @details Reuses the same TAR 0..N loop as FETCH_ALL_TAR but runs
-     * in a background thread.  Result is cached so future requests
-     * return instantly.
+     * A retry loop runs at startup (5 attempts, 3 s apart) because the
+     * relay may not be ready to answer TAR immediately after a cold
+     * connect. The @c tarFetchInProgress_ flag gates concurrent callers so
+     * only one background collection runs per relay.
      *
-     * @param relayId  Relay identifier to collect TAR data from
+     * @param relayId  Relay identifier to collect TAR data for.
      */
     void collectTarBackground(const std::string& relayId)
     {
@@ -368,6 +393,21 @@ public:
                   << " after " << MAX_RETRIES << " retries — FETCH_ALL_TAR will collect on demand\n";
     }
 
+    /**
+     * @brief Extract a string-valued field from a flat JSON payload.
+     *
+     * @details A minimal, dependency-free parser intended for the tiny
+     * action envelopes the dashboard sends (e.g. `{"action":"start_relay",
+     * "relay_id":"2"}`). Finds `"fieldName"`, skips whitespace to the `:`,
+     * then reads the enclosed `"..."` value. Does not decode JSON escapes
+     * and does not support nested objects, arrays, or numeric values —
+     * callers that need a real parser should not use this.
+     *
+     * @param json       Raw JSON text.
+     * @param fieldName  Field name to look up (without surrounding quotes).
+     * @return Extracted value, or an empty string if not found or not a
+     *         quoted string.
+     */
     static std::string extractJsonField(const std::string& json, const std::string& fieldName)
     {
         const std::string key = "\"" + fieldName + "\"";

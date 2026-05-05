@@ -42,13 +42,37 @@
 #include <mstcpip.h>
 #endif
 
-// ================= CONSTRUCTOR =================
+/**
+ * @brief Construct an idle client not yet bound to any endpoint.
+ *
+ * @details Initialises the embedded Boost.Asio socket against the internal
+ * io_context, clears connection flags, and sets a default 5 s per-operation
+ * I/O timeout. The client performs no network activity until connectCheck()
+ * is invoked.
+ */
 TelnetClient::TelnetClient()
     : socket_(io_), connected_(false), last_io_ok_(false), io_timeout_(std::chrono::milliseconds(5000))
 {
 }
 
-// ================= CONNECT =================
+/**
+ * @brief Resolve the host, establish a TCP session, and enable TCP keep-alive.
+ *
+ * @details Runs an async resolve + async_connect against a steady_timer so the
+ * whole attempt honours @p timeout. On success the socket is left open with
+ * TCP keep-alive tuned for long-running 24/7 sessions — probes start after
+ * 30 s of idleness, repeat every 5 s, and give up after 3 misses (~45 s to
+ * detect a silently dropped link). On failure, any half-opened socket is
+ * closed and both @c connected_ and @c last_io_ok_ are cleared.
+ *
+ * @param host     DNS name or IP literal of the relay.
+ * @param port     TCP port to connect to (Telnet default is 23).
+ * @param timeout  Upper bound on resolve + connect combined.
+ * @return true on established TCP session, false on any resolve/connect error.
+ *
+ * @note Keep-alive tuning is applied via SIO_KEEPALIVE_VALS on Windows and
+ *       TCP_KEEPIDLE/INTVL/CNT on POSIX; failures are logged but non-fatal.
+ */
 bool TelnetClient::connectCheck(const std::string& host,
                                 int port,
                                 std::chrono::milliseconds timeout)
@@ -148,7 +172,27 @@ bool TelnetClient::connectCheck(const std::string& host,
     }
 }
 
-// ================= GENERIC SEND =================
+/**
+ * @brief Send a command and collect the relay's response until idle or prompt.
+ *
+ * @details Appends CR/LF to @p cmd, writes it to the socket, then loops in
+ * non-blocking mode accumulating bytes into @p outBuffer. Completion is
+ * detected either by an explicit marker (isResponseComplete()) or by the
+ * stream going idle for longer than the adaptive idle timeout:
+ * - 500 ms for @c SER (large multi-page dumps)
+ * - 80 ms for every other command
+ * The overall wall-clock is bounded by @c io_timeout_ (5 s default) so a
+ * runaway relay cannot hang the caller indefinitely.
+ *
+ * @param[in]  cmd        Command text to send (no CR/LF; added internally).
+ *                        Pass an empty string to send a bare RETURN.
+ * @param[out] outBuffer  Receives all bytes observed until completion.
+ * @return true if data was collected without a socket error, false otherwise.
+ *         On timeout the call returns true iff any data was buffered.
+ *
+ * @note The socket is flipped back to blocking mode on every exit path so
+ *       subsequent writes behave normally.
+ */
 bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
                                       std::string& outBuffer)
 {
@@ -253,7 +297,20 @@ bool TelnetClient::SendCmdReceiveData(const std::string& cmd,
     }
 }
 
-// ================= MULTI-PAGE SEND =================
+/**
+ * @brief Issue a command and drive it through any paged "Press RETURN" prompts.
+ *
+ * @details Runs SendCmdReceiveData() once for the initial command, then keeps
+ * sending bare RETURN while the tail of the last page contains
+ * "Press RETURN to continue" and the final relay prompt (`=>`) has not yet
+ * appeared. Stops early if either condition flips or @p maxPages is reached,
+ * guarding against infinite paging on misbehaving firmware.
+ *
+ * @param[in]  cmd        Command text to send.
+ * @param[out] outBuffer  Concatenated output of every collected page.
+ * @param[in]  maxPages   Hard ceiling on how many RETURNs to send.
+ * @return true if any output was collected, false if the first page failed.
+ */
 bool TelnetClient::SendCmdMultiPage(const std::string& cmd,
                                     std::string& outBuffer,
                                     int maxPages)
@@ -289,29 +346,66 @@ bool TelnetClient::SendCmdMultiPage(const std::string& cmd,
     return last_io_ok_;
 }
 
-// ================= IS CONNECTED =================
+/**
+ * @brief Report whether the last connectCheck() succeeded and was not closed.
+ * @return true while the TCP session is believed to be open.
+ * @note The flag reflects application-level state; a silently dropped link
+ *       only clears it after the next failed I/O or keep-alive miss.
+ */
 bool TelnetClient::isConnected() const
 {
     return connected_;
 }
 
-// ================= RESPONSE ACCESS =================
+/**
+ * @brief Return the buffer captured by the most recent Send* call.
+ *
+ * @details Useful for callers that issued a command without supplying their
+ * own output buffer, or that need to re-parse a previously-collected page.
+ *
+ * @return Reference to the cached response (empty if none yet).
+ */
 const std::string& TelnetClient::getLastResponse() const
 {
     return last_response_;
 }
 
+/**
+ * @brief Indicate whether the most recent I/O attempt completed successfully.
+ * @return true if the last Send... or connectCheck call ended without a socket error.
+ */
 bool TelnetClient::getLastIoResult() const
 {
     return last_io_ok_;
 }
 
+/**
+ * @brief Discard the cached response buffer.
+ *
+ * @details Call before issuing a fresh command when you intend to rely on
+ * getLastResponse() afterwards — ensures stale bytes from a prior command
+ * do not bleed into the next inspection.
+ */
 void TelnetClient::clearLastResponse()
 {
     last_response_.clear();
 }
 
 // ================= TELNET COMMAND WRAPPERS =================
+
+/**
+ * @brief Perform a Level-1 (ACC) login against the SEL relay.
+ *
+ * @details Sends the username line, waits for the prompt, then sends the
+ * password. Does not parse the banner — success/failure is inferred by the
+ * caller from a follow-up command or by inspecting the response through
+ * getLastResponse().
+ *
+ * @param username Level-1 account name (case-sensitive on most firmware).
+ * @param password Level-1 account password.
+ * @return true if both lines were transmitted and a response was read;
+ *         false if the transport failed at any step.
+ */
 bool TelnetClient::LoginLevel1Function(const std::string& username,
                                        const std::string& password)
 {
@@ -330,7 +424,19 @@ bool TelnetClient::LoginLevel1Function(const std::string& username,
     return result;
 }
 
-// Elevate to Level 2 (2AC).  Requires current session to be at Level 1.
+/**
+ * @brief Elevate an existing Level-1 session to Level-2 (2AC) access.
+ *
+ * @details Issues the @c 2ac command, supplies @p l2_password at the ensuing
+ * "Password:" prompt, then inspects the reply. Explicit failure strings
+ * ("Invalid", "invalid", "Denied") short-circuit to false; otherwise success
+ * is confirmed by the presence of the elevated prompt `=>>` (some firmware
+ * downgrades to `=>` after elevation, which is also accepted).
+ *
+ * @param l2_password Level-2 password.
+ * @return true on successful elevation, false on bad credentials or transport
+ *         error. Requires the client to already be at Level 1.
+ */
 bool TelnetClient::LoginLevel2Function(const std::string& l2_password)
 {
     std::string buffer;
@@ -354,7 +460,16 @@ bool TelnetClient::LoginLevel2Function(const std::string& l2_password)
         || buffer.find("=>")  != std::string::npos;  // some firmware shows single prompt
 }
 
-// Demote back to Level 1.
+/**
+ * @brief Demote the session from Level-2 back to Level-1.
+ *
+ * @details Sends the @c acc command, which unconditionally drops privileges
+ * on SEL firmware. The method does not validate the reply — it is the
+ * caller's responsibility to issue a follow-up command if confirmation of
+ * the new access level is required.
+ *
+ * @return true if the command was sent and a response was read.
+ */
 bool TelnetClient::LogoutLevel2Function()
 {
     std::string buffer;
@@ -362,6 +477,19 @@ bool TelnetClient::LogoutLevel2Function()
 }
 
 // ================= COMPLETION HELPERS =================
+
+/**
+ * @brief Decide whether the accumulated response can be considered complete.
+ *
+ * @details Recognises either the explicit "SER Response Complete" sentinel
+ * or a trailing relay prompt (delegated to endsWithPrompt()). The former
+ * catches SER dumps that may contain a trailing `=>` mid-stream; the latter
+ * handles ordinary commands that terminate at the session prompt.
+ *
+ * @param buffer Bytes received so far for the current command.
+ * @return true if the response appears terminated and can be returned to
+ *         the caller.
+ */
 bool TelnetClient::isResponseComplete(const std::string& buffer) const
 {
     if (buffer.find("SER Response Complete") != std::string::npos)
@@ -372,6 +500,21 @@ bool TelnetClient::isResponseComplete(const std::string& buffer) const
     return endsWithPrompt(buffer);
 }
 
+/**
+ * @brief Heuristically detect a shell/relay prompt at the tail of @p buffer.
+ *
+ * @details Scans the last 50 bytes for the SEL relay prompt `=>` followed
+ * only by whitespace, and for Unix-style prompts (`>`, `#`, `$`) followed by
+ * a space or newline. A `?` prompt is also recognised for interactive
+ * questions. Bare `:` is deliberately rejected because it commonly appears
+ * inside timestamps and would otherwise trigger false completions.
+ *
+ * @param buffer Accumulated response bytes.
+ * @return true if the buffer appears to end at an interactive prompt.
+ *
+ * @note static because it performs no member access; kept on the class for
+ *       grouping purposes.
+ */
 bool TelnetClient::endsWithPrompt(const std::string& buffer)
 {
     // Check last 50 characters for actual command prompt

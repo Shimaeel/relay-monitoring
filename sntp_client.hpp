@@ -60,21 +60,39 @@
 class SntpClient
 {
 public:
-    /// Result of an SNTP query.
+    /**
+     * @struct TimeResult
+     * @brief Outcome of a single SNTP (or PC-clock) time query.
+     *
+     * @details On success @c success is true and the time fields hold the
+     * parsed UTC timestamp in three equivalent forms (ISO 8601, relay-style
+     * "MM/DD/YY HH:MM:SS.mmm", and raw epoch seconds). On failure
+     * @c success is false, @c error contains a short description, and the
+     * time fields are zero / empty and must not be consumed.
+     */
     struct TimeResult
     {
-        bool        success = false;    ///< true if query succeeded
-        std::string iso8601;            ///< UTC time in ISO 8601 format
-        std::string dateTime;           ///< UTC time as "MM/DD/YY HH:MM:SS"
-        std::string error;              ///< Error description on failure
-        int64_t     epochSeconds = 0;   ///< Unix epoch seconds (UTC)
-        int         milliseconds = 0;   ///< Fractional milliseconds
+        bool        success = false;    ///< true if query succeeded.
+        std::string iso8601;            ///< UTC time in ISO 8601 format.
+        std::string dateTime;           ///< UTC time as "MM/DD/YY HH:MM:SS.mmm".
+        std::string error;              ///< Error description on failure.
+        int64_t     epochSeconds = 0;   ///< Unix epoch seconds (UTC).
+        int         milliseconds = 0;   ///< Fractional milliseconds (0–999).
     };
 
     /**
      * @brief Construct an SNTP client targeting a given NTP server.
-     * @param server  NTP server hostname (default: "pool.ntp.org")
-     * @param timeoutMs  UDP round-trip timeout in milliseconds (default 3000)
+     *
+     * @details No network activity occurs here; the UDP socket is created
+     * lazily inside queryTime(). This means an SntpClient is cheap to
+     * construct and safe to keep as a short-lived stack object — one per
+     * request is a reasonable pattern.
+     *
+     * @param server     NTP server hostname or IP literal. Defaults to the
+     *                   public pool @c pool.ntp.org.
+     * @param timeoutMs  Upper bound in milliseconds on how long
+     *                   queryTime() waits for a UDP reply. Defaults to
+     *                   3000 ms (three seconds).
      */
     explicit SntpClient(const std::string& server = "pool.ntp.org",
                         int timeoutMs = 3000)
@@ -199,8 +217,15 @@ public:
     }
 
     /**
-     * @brief Get the current PC (local) time formatted for relay comparison.
-     * @return TimeResult with local PC time.
+     * @brief Snapshot the PC's current UTC time without contacting any server.
+     *
+     * @details Reads @c std::chrono::system_clock, derives epoch seconds and
+     * a 0-999 ms remainder, and formats both ISO-8601 and relay-style
+     * strings. Intended as a fallback when network-based time lookup is
+     * disallowed or the NTP server is unreachable. @c success is always
+     * true; @c error remains empty.
+     *
+     * @return A fully-populated TimeResult reflecting the local system clock.
      */
     static TimeResult getPcTime()
     {
@@ -220,8 +245,8 @@ public:
     }
 
 private:
-    std::string server_;
-    int         timeoutMs_;
+    std::string server_;   ///< NTP hostname resolved on every queryTime() call.
+    int         timeoutMs_; ///< Upper bound on UDP reply wait, in milliseconds.
 
     /**
      * @brief Format Unix timestamp as ISO 8601 string.

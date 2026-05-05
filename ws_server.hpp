@@ -212,18 +212,35 @@ public:
     }
 
     // ── Handler-thread tracking (for safe shutdown) ─────────────────────
-    // Detached handler threads spawned by sessions register themselves here
-    // so that SERWebSocketServer::stop() can join them before resources
-    // captured by the handlers (RelayManager, SERDatabase) are torn down.
+
+    /**
+     * @brief Bookkeeping entry for a tracked handler thread.
+     *
+     * @details Pairs the running @c std::thread with a shared atomic flag
+     * that the wrapper sets once the user function returns. The flag lets
+     * reapFinishedHandlersLocked_() join the thread without blocking.
+     */
     struct HandlerTask
     {
-        std::thread thread;
-        std::shared_ptr<std::atomic<bool>> done;
+        std::thread thread;                       ///< OS thread executing the handler.
+        std::shared_ptr<std::atomic<bool>> done;  ///< Set true by the wrapper on return.
     };
 
-    /// Spawn a tracked handler thread. The returned shared_ptr's atomic<bool>
-    /// is set true by the wrapper after `fn` returns; reapFinishedHandlers()
-    /// or joinAllHandlers() then joins and removes the entry.
+    /**
+     * @brief Spawn a background handler thread and track it for later join.
+     *
+     * @details The wrapper executes @p fn, catches and logs any exception,
+     * then flips @c done so the task can be reaped. Used by WebSocketSession
+     * to run command/action callbacks off the Asio strand while keeping the
+     * server able to join every in-flight handler before tearing down the
+     * resources the handlers capture (RelayManager, SERDatabase).
+     *
+     * @tparam Fn  Callable with signature `void()`.
+     * @param fn   Work item to run on a detached background thread.
+     *
+     * @note Safe to call concurrently; the task list is guarded by
+     *       @c handlerMutex_.
+     */
     template <typename Fn>
     void spawnHandlerThread(Fn&& fn)
     {
@@ -245,8 +262,14 @@ public:
         });
     }
 
-    /// Join all outstanding handler threads. Call from server stop() before
-    /// any captured resources (RelayManager, SERDatabase) are destroyed.
+    /**
+     * @brief Join every tracked handler thread.
+     *
+     * @details Invoked by SERWebSocketServer::stop() before the database and
+     * RelayManager are destroyed. Blocks until each spawned handler returns,
+     * then clears the task list so a subsequent start() begins with a clean
+     * slate.
+     */
     void joinAllHandlers()
     {
         std::lock_guard<std::mutex> lock(handlerMutex_);
@@ -259,6 +282,16 @@ public:
     }
 
 private:
+    /**
+     * @brief Join and erase any completed handler tasks.
+     *
+     * @details Walks @c handlerTasks_, joining threads whose @c done flag
+     * is set and dropping those entries from the vector. Called by
+     * spawnHandlerThread() immediately before appending a new task to keep
+     * the list from growing unboundedly across a long uptime.
+     *
+     * @pre Caller must already hold @c handlerMutex_.
+     */
     void reapFinishedHandlersLocked_()
     {
         for (auto it = handlerTasks_.begin(); it != handlerTasks_.end();)
@@ -577,10 +610,23 @@ private:
     }
 
     /**
-     * @brief Handle received client message
-     * 
-     * @param ec Error code from read operation
-     * @param bytes_transferred Number of bytes received
+     * @brief Dispatch an inbound client message to the right handler.
+     *
+     * @details Routes traffic in the following order:
+     * 1. `refresh` / `getData` → resend the full database snapshot.
+     * 2. Any JSON payload with an `action` key → action handler on a
+     *    spawned thread (time sync, password change, relay start/stop).
+     * 3. Otherwise → command handlers. Tries the streaming handler first
+     *    (FETCH_ALL_TAR and similar); falls back to the single-response
+     *    command handler when the stream handler declines.
+     *
+     * Detached handlers are launched through @c SessionManager so they can
+     * be joined cleanly during shutdown. Passwords are masked in the debug
+     * log to avoid leaking secrets.
+     *
+     * @param ec                 Error code from the async read.
+     * @param bytes_transferred  Received byte count (unused — buffer is
+     *                           consumed wholesale).
      */
     void on_read(beast::error_code ec, std::size_t bytes_transferred)
     {

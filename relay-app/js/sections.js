@@ -50,6 +50,10 @@ let serWorkerConnected = false;  // Worker WS connected flag
 let serKnownSnos       = new Set(); // tracks sno values already in serTable
 let serDirectWs        = null;   // Direct WebSocket (fallback when SharedArrayBuffer unavailable)
 let serUsingDirect     = false;  // true when using direct WS fallback
+let serGroupWindowSec  = 60;     // time-window grouping size (configurable)
+
+// Group color palette — index = bucket % palette.length
+const SER_GROUP_PALETTE_SIZE = 8;
 
 const textDecoder = new TextDecoder();
 
@@ -256,7 +260,19 @@ function initSerTable(data) {
     movableColumns: true,
     placeholder: "No SER Records Available",
     height: "500px",
+    selectableRows: true,
+    groupBy: serGroupKey,
+    groupHeader: serGroupHeader,
+    rowFormatter: serRowColorFormatter,
     columns: [
+      {
+        title: "",
+        formatter: "rowSelection",
+        titleFormatter: "rowSelection",
+        hozAlign: "center",
+        headerSort: false,
+        width: 40
+      },
       {
         title: "S.No",
         field: "sno",
@@ -657,8 +673,133 @@ function serRefresh() {
   }
 }
 
+// ============================================================
+//  SER Time-Window Grouping
+// ============================================================
+
+/**
+ * Parse "YYYY-MM-DD" + "HH:MM:SS[.ms]" into milliseconds since epoch.
+ * Returns NaN if either field is missing.
+ */
+function serParseTimestampMs(row) {
+  if (!row || !row.date || !row.time) return NaN;
+  // Strip optional fractional milliseconds for Date.parse compatibility
+  const t = String(row.time).split('.')[0];
+  const ms = Date.parse(`${row.date}T${t}`);
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
+/** Compute integer bucket index from row timestamp + window size. */
+function serBucketFor(row) {
+  const ms = serParseTimestampMs(row);
+  if (!Number.isFinite(ms)) return -1;
+  const winMs = Math.max(1, serGroupWindowSec) * 1000;
+  return Math.floor(ms / winMs);
+}
+
+/** Tabulator groupBy callback — returns string key per row. */
+function serGroupKey(row) {
+  const bucket = serBucketFor(row);
+  if (bucket < 0) return "Ungrouped";
+  const winMs = serGroupWindowSec * 1000;
+  const start = new Date(bucket * winMs);
+  const end   = new Date(bucket * winMs + winMs - 1);
+  const fmt = d => d.toISOString().replace('T', ' ').slice(0, 19);
+  return `${fmt(start)} → ${fmt(end)}`;
+}
+
+/** Tabulator groupHeader formatter — shows window range + count. */
+function serGroupHeader(value, count) {
+  return `<span class="ser-group-header__label">${value}</span> ` +
+         `<span class="ser-group-header__count">(${count} event${count === 1 ? '' : 's'})</span>`;
+}
+
+/** Tabulator rowFormatter — paint row background by bucket color. */
+function serRowColorFormatter(row) {
+  const bucket = serBucketFor(row.getData());
+  if (bucket < 0) return;
+  const cls = `ser-group-${((bucket % SER_GROUP_PALETTE_SIZE) + SER_GROUP_PALETTE_SIZE) % SER_GROUP_PALETTE_SIZE}`;
+  row.getElement().classList.add(cls);
+}
+
+/** Re-apply group window when user changes the input. */
+function serApplyGroupWindow() {
+  const input = document.getElementById('ser-group-window');
+  if (!input) return;
+  const val = parseInt(input.value, 10);
+  if (!Number.isFinite(val) || val < 1) return;
+  serGroupWindowSec = val;
+  if (serTable) {
+    serTable.setGroupBy(serGroupKey);
+    serTable.redraw(true);
+  }
+}
+
+// ============================================================
+//  SER Export — CSV / Excel / PDF (selected rows if any)
+// ============================================================
+
+/**
+ * Return rows for export: selected rows if user selected any, else all rows.
+ * Each row is mapped to a plain object using visible field names.
+ */
+function serGetExportRows() {
+  if (!serTable) return [];
+  const selected = serTable.getSelectedData();
+  const rows = (selected && selected.length > 0) ? selected : serTable.getData();
+  return rows.map(r => ({
+    "S.No":    r.sno,
+    "Date":    r.date,
+    "Time":    r.time,
+    "Element": r.element,
+    "State":   r.state
+  }));
+}
+
 function serExportCSV() {
-  if (serTable) serTable.download("csv", "ser_records.csv");
+  if (!serTable) return;
+  const selected = serTable.getSelectedRows();
+  if (selected.length > 0) {
+    serTable.download("csv", "ser_records.csv", {}, "selected");
+  } else {
+    serTable.download("csv", "ser_records.csv");
+  }
+}
+
+function serExportExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel export library not loaded (xlsx).');
+    return;
+  }
+  const rows = serGetExportRows();
+  if (rows.length === 0) { alert('No rows to export.'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "SER");
+  XLSX.writeFile(wb, "ser_records.xlsx");
+}
+
+function serExportPDF() {
+  if (typeof window.jspdf === 'undefined') {
+    alert('PDF export library not loaded (jsPDF).');
+    return;
+  }
+  const rows = serGetExportRows();
+  if (rows.length === 0) { alert('No rows to export.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape' });
+  const headers = Object.keys(rows[0]);
+  const body    = rows.map(r => headers.map(h => r[h]));
+  doc.setFontSize(14);
+  doc.text("SER Records", 14, 14);
+  doc.autoTable({
+    head: [headers],
+    body: body,
+    startY: 20,
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [60, 90, 153] }
+  });
+  doc.save("ser_records.pdf");
 }
 
 function serSendQuit() {

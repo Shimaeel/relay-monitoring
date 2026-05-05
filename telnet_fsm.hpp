@@ -433,8 +433,13 @@ struct ErrorRecoveryAction
 // ================= COMMAND FSM ACTIONS =================
 
 /**
- * @brief Command Action: Send SER command to relay.
- * @details Stores response in CmdResponseHolder for caller to read.
+ * @brief Command Action: send @c SER and capture the relay's response.
+ *
+ * @details Clears any previous response, sends the single-page @c SER
+ * command via TelnetClient::SendCmdReceiveData(), then records the outcome
+ * into @c CmdResponseHolder. Failure is classified as @c CONN_LOST when the
+ * socket is no longer open and @c TIMEOUT otherwise, allowing the caller to
+ * distinguish a transient stall from a dropped link.
  */
 struct CmdSerAction
 {
@@ -453,8 +458,12 @@ struct CmdSerAction
 };
 
 /**
- * @brief Command Action: Send FILE DIR EVENTS command to relay.
- * @details Stores response in CmdResponseHolder for caller to read.
+ * @brief Command Action: send @c FILE @c DIR @c EVENTS and collect every page.
+ *
+ * @details Uses TelnetClient::SendCmdMultiPage() because the COMTRADE
+ * directory commonly spans several "Press RETURN to continue" pages on
+ * populated relays. Concatenated output is stored in @c CmdResponseHolder
+ * with the usual CONN_LOST / TIMEOUT failure classification.
  */
 struct CmdFileDirEventsAction
 {
@@ -474,8 +483,12 @@ struct CmdFileDirEventsAction
 };
 
 /**
- * @brief Command Action: Send FILE DIR SETTINGS command to relay.
- * @details Stores response in CmdResponseHolder for caller to read.
+ * @brief Command Action: send @c FILE @c DIR @c SETTINGS and collect every page.
+ *
+ * @details Mirrors CmdFileDirEventsAction but targets the settings-file
+ * listing. Paged via SendCmdMultiPage() because the settings directory can
+ * also span multiple screens. Result and failure reason land in
+ * @c CmdResponseHolder for the caller to inspect.
  */
 struct CmdFileDirSettingsAction
 {
@@ -494,8 +507,13 @@ struct CmdFileDirSettingsAction
 };
 
 /**
- * @brief Command Action: Send TAR command to relay.
- * @details Sends "TAR <args>" and stores response.
+ * @brief Command Action: send a @c TAR (Target) query to the relay.
+ *
+ * @details Assembles @c "TAR" optionally followed by the arguments carried
+ * on @c cmd_tar_event (typically a zero-based row index). Because a single
+ * TAR row fits on one screen the action uses SendCmdReceiveData() rather
+ * than the multi-page variant. Response + failure classification are
+ * recorded in @c CmdResponseHolder.
  */
 struct CmdTarAction
 {
@@ -516,8 +534,12 @@ struct CmdTarAction
 };
 
 /**
- * @brief Command Action: Send Ctrl+C (0x03) to relay.
- * @details Used to interrupt a running command on the relay device.
+ * @brief Command Action: transmit a literal @c ETX (0x03) byte to the relay.
+ *
+ * @details Equivalent to pressing Ctrl+C on the relay's console — aborts any
+ * command currently executing on the device. Treated as successful if the
+ * I/O itself succeeds, regardless of the response content. Empty or
+ * absent output is therefore not counted as a failure.
  */
 struct CmdCtrlCAction
 {
@@ -536,8 +558,12 @@ struct CmdCtrlCAction
 };
 
 /**
- * @brief Command Action: Send Ctrl+D (0x04) to relay.
- * @details Used to signal end-of-transmission / logout on the relay device.
+ * @brief Command Action: transmit a literal @c EOT (0x04) byte to the relay.
+ *
+ * @details Equivalent to pressing Ctrl+D — signals end-of-transmission /
+ * session-logout on the SEL console. Like CmdCtrlCAction, success is
+ * judged purely by the I/O call; an empty response is acceptable because
+ * the relay frequently answers with just a prompt.
  */
 struct CmdCtrlDAction
 {
@@ -556,8 +582,16 @@ struct CmdCtrlDAction
 };
 
 /**
- * @brief Command Action: Send SET (Settings) command to relay.
- * @details Sends "SET <args>" and stores response.
+ * @brief Command Action: send a @c SET (settings) command to the relay.
+ *
+ * @details Composes @c "SET" followed by the arguments from
+ * @c cmd_set_event (setting path, new value, etc.). Uses SendCmdMultiPage()
+ * because SEL firmware commonly breaks settings confirmation into several
+ * "Press RETURN to continue" pages. Response and failure classification are
+ * returned via @c CmdResponseHolder.
+ *
+ * @note Requires the session to already be at Level-2; the worker is
+ *       expected to elevate before firing this event.
  */
 struct CmdSetAction
 {

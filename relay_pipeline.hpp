@@ -333,6 +333,18 @@ class PipelineReceptionWorker
 
     // ─── Worker Thread ──────────────────────────────────────────────────────
 
+    /**
+     * @brief Main loop of the reception worker thread.
+     *
+     * @details Kicks the Connection FSM with @c start_event on first entry
+     * (or @c disconnect_event on a post-crash restart), then blocks on the
+     * command queue. Each dequeued command is dispatched via
+     * executeCommand(), which handles smart retries and reconnects. Any
+     * exception escaping the loop is caught and logged; the worker sleeps
+     * 5 s (interruptibly) before restarting to prevent tight crash loops.
+     *
+     * Exits only when @c stop_flag_ is set.
+     */
     void runLoop()
     {
         std::cout << relay_tag_ << " Worker thread started (FSM-driven)\n";
@@ -477,7 +489,21 @@ public:
     }
 
 private:
-    /// Execute a single command (caller must already hold sync_cmd_mutex_).
+    /**
+     * @brief Execute a user command assuming the sync mutex is already held.
+     *
+     * @details Internal helper used by handleUserCommand() so the public
+     * entry point can take the lock at the top and leave the looped retry
+     * logic concentrated here. Drives the Connection FSM to Operational,
+     * fires the Command FSM, and on failure either reconnects (CONN_LOST)
+     * or retries straight away (TIMEOUT). Up to @c MAX_RETRIES attempts are
+     * made before returning an empty string.
+     *
+     * @pre Caller must hold @c sync_cmd_mutex_.
+     * @param cmd Telnet command string.
+     * @return Raw relay response on success, empty string on permanent
+     *         failure or pipeline shutdown.
+     */
     std::string executeUserCommandLocked(const std::string& cmd)
     {
         for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt)
@@ -550,6 +576,25 @@ class PipelineProcessingWorker
     std::string relay_tag_;      ///< Log prefix
     int prune_cycle_count_{0};   ///< Counter for periodic DB pruning
 
+    /**
+     * @brief Main loop of the processing worker thread.
+     *
+     * @details Repeatedly pops raw TLV-tagged messages from the relay's ring
+     * buffer and dispatches each one according to its `command` field:
+     * - `FILE DIR EVENTS` / `FILE DIR SETTINGS` / `FIL DIR` are prefixed
+     *   with a relay-id-scoped routing tag and broadcast as text so the
+     *   frontend can update the correct relay's panel.
+     * - Any other non-`SER` command is broadcast verbatim as text.
+     * - `SER` responses are parsed, stamped with the relay identity,
+     *   inserted into the shared SQLite DB, broadcast as BER/TLV via the
+     *   shared WebSocket server, and copied into the shared-memory ring
+     *   for the out-of-process JSON writer. Every 50 insert cycles the
+     *   loop also prunes records older than 90 days.
+     *
+     * Exceptions escape only the outermost loop; the worker sleeps 5 s
+     * before restarting to avoid crash loops. Exits when either the per-
+     * worker @c stop_flag_ or the global @c app_running_ flag goes false.
+     */
     void runLoop()
     {
         std::cout << relay_tag_ << " Worker thread started\n";
@@ -809,9 +854,11 @@ public:
         std::cout << "[Pipeline:" << config_.name << "] Started\n";
 
 
-        // Queue initial SER, FILE DIR EVENTS, and settings-file listing.
+        // Queue initial SER (last 1000 records for catch-up), FILE DIR EVENTS,
+        // and settings-file listing. Periodic poll uses plain `SER` for recent
+        // events only — dedup via insertAndGetNewRecords keeps it idempotent.
         // SEL-735 uses `FIL DIR`; other SEL models use `FILE DIR SETTINGS`.
-        queueCommand("SER");
+        queueCommand("SER 1000");
         queueCommand("FILE DIR EVENTS");
         if (config_.name.find("735") != std::string::npos)
             queueCommand("FIL DIR");

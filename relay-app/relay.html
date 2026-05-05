@@ -195,7 +195,9 @@
                 <span id="ser-conn-status" style="font-weight:700">🟡 Connecting…</span>
               </div>
               <div class="ser-toolbar__right">
-                <button class="btn btn--outline btn--sm" onclick="serExportCSV()">📥 Export CSV</button>
+                <button class="btn btn--outline btn--sm" onclick="serExportCSV()">📥 CSV</button>
+                <button class="btn btn--outline btn--sm" onclick="serExportExcel()">📊 Excel</button>
+                <button class="btn btn--outline btn--sm" onclick="serExportPDF()">📄 PDF</button>
                 <button class="btn btn--primary btn--sm" onclick="serRefresh()">🔄 Refresh</button>
                 <button class="btn btn--danger  btn--sm" onclick="serSendQuit()">⏹ QUIT</button>
               </div>
@@ -216,6 +218,13 @@
                 <div class="ser-config__input-group">
                   <input id="ser-poll-rate" type="number" min="250" step="250" value="2000" />
                   <span class="ser-config__suffix">ms</span>
+                </div>
+              </div>
+              <div class="ser-config__field">
+                <label>Group Window</label>
+                <div class="ser-config__input-group">
+                  <input id="ser-group-window" type="number" min="1" step="1" value="60" onchange="serApplyGroupWindow()" />
+                  <span class="ser-config__suffix">sec</span>
                 </div>
               </div>
               <button class="btn btn--primary btn--sm" onclick="connectSerWebSocket()">Connect</button>
@@ -434,6 +443,10 @@
 <div id="toast-container" class="toast-container"></div>
 
 <script src="js/tabulator.min.js"></script>
+<!-- Export libraries (CDN) — SheetJS for Excel, jsPDF + AutoTable for PDF -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="js/data.js"></script>
 <script src="js/relay.js"></script>
 <script src="js/ring_buffer.js"></script>
