@@ -442,15 +442,12 @@
 
 <div id="toast-container" class="toast-container"></div>
 
-<script src="js/tabulator.min.js"></script>
-<!-- Export libraries (CDN) — SheetJS for Excel, jsPDF + AutoTable for PDF -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-<script src="js/data.js"></script>
-<script src="js/relay.js"></script>
-<script src="js/ring_buffer.js"></script>
-<script src="js/sections.js"></script>
+<!-- Scripts (export libs xlsx/jspdf are lazy-loaded on first export click) -->
+<script defer src="js/tabulator.min.js"></script>
+<script defer src="js/data.js"></script>
+<script defer src="js/relay.js"></script>
+<script defer src="js/ring_buffer.js"></script>
+<script defer src="js/sections.js"></script>
 <style>
   .chpass-modal { position: fixed; inset: 0; z-index: 9999; display: flex;
                   align-items: center; justify-content: center; }

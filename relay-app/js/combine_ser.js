@@ -523,13 +523,11 @@ function cserExportCSV() {
   }
 }
 
-function cserExportExcel() {
-  if (typeof XLSX === 'undefined') {
-    alert('Excel export library not loaded (xlsx).');
-    return;
-  }
+async function cserExportExcel() {
   const rows = _cserGetExportRows();
   if (rows.length === 0) { alert('No rows to export.'); return; }
+  try { await ensureXlsxLoaded(); }
+  catch (e) { alert('Failed to load Excel library: ' + e.message); return; }
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Combined SER");
@@ -680,7 +678,7 @@ async function cserPreviewImportFile() {
     const name = file.name.toLowerCase();
 
     if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-      if (typeof XLSX === 'undefined') throw new Error('Excel library (xlsx) not loaded.');
+      await ensureXlsxLoaded();
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -739,13 +737,11 @@ function cserSubmitImport() {
   cserCloseImportModal();
 }
 
-function cserExportPDF() {
-  if (typeof window.jspdf === 'undefined') {
-    alert('PDF export library not loaded (jsPDF).');
-    return;
-  }
+async function cserExportPDF() {
   const rows = _cserGetExportRows();
   if (rows.length === 0) { alert('No rows to export.'); return; }
+  try { await ensureJsPdfLoaded(); }
+  catch (e) { alert('Failed to load PDF library: ' + e.message); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape' });
   const headers = Object.keys(rows[0]);

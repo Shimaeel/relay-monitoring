@@ -112,3 +112,34 @@ function _saveUserRelays() {
     localStorage.setItem("user_relays", JSON.stringify(userRelays));
   } catch (_) { /* storage full or unavailable */ }
 }
+
+// ============================================================
+//  Lazy script loader for heavy export libraries (xlsx, jspdf)
+// ============================================================
+const _lazyScriptCache = {};
+function _loadScriptOnce(src) {
+  if (_lazyScriptCache[src]) return _lazyScriptCache[src];
+  _lazyScriptCache[src] = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Failed to load ' + src));
+    document.head.appendChild(s);
+  });
+  return _lazyScriptCache[src];
+}
+
+function ensureXlsxLoaded() {
+  if (typeof XLSX !== 'undefined') return Promise.resolve();
+  return _loadScriptOnce('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+}
+
+function ensureJsPdfLoaded() {
+  if (typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF &&
+      window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable) {
+    return Promise.resolve();
+  }
+  return _loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js')
+    .then(() => _loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js'));
+}

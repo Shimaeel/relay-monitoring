@@ -766,26 +766,22 @@ function serExportCSV() {
   }
 }
 
-function serExportExcel() {
-  if (typeof XLSX === 'undefined') {
-    alert('Excel export library not loaded (xlsx).');
-    return;
-  }
+async function serExportExcel() {
   const rows = serGetExportRows();
   if (rows.length === 0) { alert('No rows to export.'); return; }
+  try { await ensureXlsxLoaded(); }
+  catch (e) { alert('Failed to load Excel library: ' + e.message); return; }
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "SER");
   XLSX.writeFile(wb, "ser_records.xlsx");
 }
 
-function serExportPDF() {
-  if (typeof window.jspdf === 'undefined') {
-    alert('PDF export library not loaded (jsPDF).');
-    return;
-  }
+async function serExportPDF() {
   const rows = serGetExportRows();
   if (rows.length === 0) { alert('No rows to export.'); return; }
+  try { await ensureJsPdfLoaded(); }
+  catch (e) { alert('Failed to load PDF library: ' + e.message); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape' });
   const headers = Object.keys(rows[0]);

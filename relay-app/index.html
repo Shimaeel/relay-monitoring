@@ -236,15 +236,11 @@
     </div>
   </div>
 
-  <!-- Scripts -->
-  <script src="js/tabulator.min.js"></script>
-  <!-- Export libraries (CDN) — SheetJS for Excel, jsPDF + AutoTable for PDF -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/dashboard.js"></script>
-  <script src="js/ring_buffer.js"></script>
-  <script src="js/combine_ser.js"></script>
+  <!-- Scripts (export libs xlsx/jspdf are lazy-loaded on first export click) -->
+  <script defer src="js/tabulator.min.js"></script>
+  <script defer src="js/data.js"></script>
+  <script defer src="js/dashboard.js"></script>
+  <script defer src="js/ring_buffer.js"></script>
+  <script defer src="js/combine_ser.js"></script>
 </body>
 </html>
