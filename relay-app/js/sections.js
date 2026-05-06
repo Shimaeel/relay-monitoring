@@ -140,7 +140,7 @@ function decodeSerRecordsFromTlv(arrayBuffer) {
       rOff = fTlv.nextOffset;
     }
 
-    const ts = fields.timestamp || "";
+    const ts = (fields.timestamp || "").trim();
     let date = ts || "-";
     let time = "-";
     const sp = ts.indexOf(" ");
@@ -148,13 +148,13 @@ function decodeSerRecordsFromTlv(arrayBuffer) {
 
     const snoVal = Number.parseInt(fields.recordId, 10);
     records.push({
-      sno:       Number.isNaN(snoVal) ? (fields.recordId || "-") : snoVal,
+      sno:       Number.isNaN(snoVal) ? ((fields.recordId || "-").trim()) : snoVal,
       date:      date,
       time:      time,
-      element:   fields.description || "-",
-      state:     fields.status || "",
-      relayId:   fields.relayId   || "",
-      relayName: fields.relayName || ""
+      element:   (fields.description || "-").trim(),
+      state:     (fields.status || "").trim(),
+      relayId:   (fields.relayId   || "").trim(),
+      relayName: (fields.relayName || "").trim()
     });
 
     offset = recordTlv.nextOffset;
@@ -325,17 +325,23 @@ function initSerTable(data) {
 }
 
 function updateSerTable(data) {
+  if (!data || data.length === 0) {
+    serDataReceived = true;
+    updateSerStats();
+    return;
+  }
+
   if (!serTable) {
     initSerTable(data);
   } else {
-    // Only append rows not already in the table â€” no full re-render
-    const newRows = data.filter(r => !serKnownSnos.has(r.sno));
-    if (newRows.length > 0) {
-      serTable.blockRedraw();
-      serTable.addData(newRows, false);   // false = append at bottom
-      newRows.forEach(r => serKnownSnos.add(r.sno));
-      serTable.restoreRedraw();           // single flush, no flicker
-    }
+    // Use Tabulator's index-based update: rows whose `sno` already exists
+    // get updated in place, new ones get appended. No manual dedup needed —
+    // and no double-rows when the backend rebroadcasts the full DB after a
+    // single insert (which it does).
+    serTable.blockRedraw();
+    serTable.updateOrAddData(data);
+    data.forEach(r => serKnownSnos.add(r.sno));
+    serTable.restoreRedraw();
   }
   serDataReceived = true;
   updateSerStats();
@@ -427,11 +433,23 @@ function connectSerWebSocket() {
           return;
         }
 
-        // JSON fallback
+        // JSON fallback — normalise so sno format matches the TLV path,
+        // otherwise dedup by sno can fail and create duplicate rows.
         try {
           const json = JSON.parse(data);
           if (Array.isArray(json)) {
-            updateSerTable(json);
+            const normalised = json.map(r => {
+              const snoVal = Number.parseInt(r.sno, 10);
+              return {
+                ...r,
+                sno:     Number.isNaN(snoVal) ? ((r.sno || "-").toString().trim()) : snoVal,
+                date:    (r.date    || "-").toString().trim(),
+                time:    (r.time    || "-").toString().trim(),
+                element: (r.element || r.description || "-").toString().trim(),
+                state:   (r.state   || r.status      || "").toString().trim()
+              };
+            });
+            updateSerTable(normalised);
             serLastMessageAt = Date.now();
           }
         } catch (_) { /* non-JSON text */ }

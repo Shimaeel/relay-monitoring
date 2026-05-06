@@ -83,17 +83,17 @@ function _cserDecodeTlv(arrayBuffer) {
       rOff = fTlv.nextOffset;
     }
 
-    const ts = fields.timestamp || "";
+    const ts = (fields.timestamp || "").trim();
     let date = ts || "-";
     let time = "-";
     const sp = ts.indexOf(" ");
     if (sp !== -1) { date = ts.slice(0, sp); time = ts.slice(sp + 1); }
 
-    const relayName = fields.relayName || "Unknown";
+    const relayName = (fields.relayName || "Unknown").trim();
     const snoVal = Number.parseInt(fields.recordId, 10);
-    const sno = Number.isNaN(snoVal) ? (fields.recordId || "-") : snoVal;
+    const sno = Number.isNaN(snoVal) ? ((fields.recordId || "-").trim()) : snoVal;
     records.push({
-      _uid:    relayName + "_" + sno + "_" + ts,
+      _uid:    `${relayName}|${sno}|${ts}`,
       relay:   relayName,
       sno:     sno,
       date:    date,
@@ -236,17 +236,23 @@ function _cserInitTable(data) {
 }
 
 function _cserUpdateTable(records) {
+  if (!records || records.length === 0) {
+    cserDataReceived = true;
+    _cserUpdateStats();
+    return;
+  }
+
   if (!cserTable) {
     _cserInitTable(records);
   } else {
-    // Only append rows not already in the table — no full re-render
-    const newRows = records.filter(r => !cserKnownUids.has(r._uid));
-    if (newRows.length > 0) {
-      cserTable.blockRedraw();
-      cserTable.addData(newRows, false);   // false = append at bottom
-      newRows.forEach(r => cserKnownUids.add(r._uid));
-      cserTable.restoreRedraw();           // single flush, no flicker
-    }
+    // Use Tabulator's index-based update: rows whose `_uid` already exists
+    // get updated in place, new ones get appended. No manual dedup needed —
+    // and no double-rows when the backend rebroadcasts the full DB after a
+    // single insert (which it does).
+    cserTable.blockRedraw();
+    cserTable.updateOrAddData(records);
+    records.forEach(r => cserKnownUids.add(r._uid));
+    cserTable.restoreRedraw();
   }
   cserDataReceived = true;
   _cserUpdateStats();
@@ -335,11 +341,20 @@ function _cserSetupWorker() {
       try {
         const json = JSON.parse(msg.data);
         if (Array.isArray(json)) {
-          const enriched = json.map(r => ({
-            ...r,
-            _uid:  (r.relay_name || "Unknown") + "_" + r.sno + "_" + (r.timestamp || ""),
-            relay: r.relay_name || "Unknown"
-          }));
+          const enriched = json.map(r => {
+            const relayName = (r.relay_name || "Unknown").toString().trim();
+            const ts        = (r.timestamp  || "").toString().trim();
+            const snoVal    = Number.parseInt(r.sno, 10);
+            const sno       = Number.isNaN(snoVal)
+                              ? ((r.sno || "-").toString().trim())
+                              : snoVal;
+            return {
+              ...r,
+              _uid:  `${relayName}|${sno}|${ts}`,
+              relay: relayName,
+              sno:   sno
+            };
+          });
           _cserUpdateTable(enriched);
           cserLastMessageAt = Date.now();
         }
