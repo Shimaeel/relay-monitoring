@@ -2734,7 +2734,7 @@ async function _tsReadRelayTime() {
   if (!relay) return;
   const el = document.getElementById("ts-relay-time");
   const rawEl = document.getElementById("ts-relay-raw");
-  if (el) el.textContent = "Loadingâ€¦";
+  if (el) el.textContent = "Loading";
   if (rawEl) rawEl.textContent = "";
 
   try {
@@ -2760,7 +2760,7 @@ async function _tsReadRelayTime() {
  */
 async function _tsReadPcTime() {
   const el = document.getElementById("ts-pc-time");
-  if (el) el.textContent = "Loadingâ€¦";
+  if (el) el.textContent = "Loading";
 
   try {
     const resp = await _tsSendAction({ action: "read_pc_time" });
@@ -2780,7 +2780,7 @@ async function _tsReadPcTime() {
 async function _tsReadSntpTime() {
   const server = (document.getElementById("ts-ntp-server") || {}).value || "pool.ntp.org";
   const el = document.getElementById("ts-sntp-time");
-  if (el) el.textContent = "Loadingâ€¦";
+  if (el) el.textContent = "Loading";
 
   try {
     const resp = await _tsSendAction({ action: "read_sntp_time", server: server });

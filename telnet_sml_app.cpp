@@ -705,6 +705,21 @@ public:
                      + "\",\"epoch\":" + std::to_string(sntpTime.epochSeconds) + "}";
             }
 
+            // Helper: detect whether the relay actually accepted a clock-set
+            // command. The pipeline still returns the raw transcript on Level-1
+            // rejection ("Invalid Access Level", etc.), so an empty response or
+            // a response containing rejection keywords means the set failed.
+            auto clockSetOk = [](const std::string& resp) {
+                if (resp.empty()) return false;
+                static const char* rejectMarkers[] = {
+                    "Invalid", "invalid", "Denied", "denied",
+                    "Access Level", "Access level", "access level"
+                };
+                for (auto* m : rejectMarkers)
+                    if (resp.find(m) != std::string::npos) return false;
+                return true;
+            };
+
             if (action == "sync_relay_pc_time")
             {
                 std::string relayId = extractJsonField(jsonMsg, "relay_id");
@@ -715,9 +730,16 @@ public:
                 std::string timeCmd = "TIME " + pcTime.dateTime.substr(9);
                 std::string resp1 = relayMgr->handleUserCommand(relayId, dateCmd);
                 std::string resp2 = relayMgr->handleUserCommand(relayId, timeCmd);
-                bool ok = !resp1.empty() && !resp2.empty();
+                bool ok = clockSetOk(resp1) && clockSetOk(resp2);
+                std::string err;
+                if (!ok) {
+                    if (resp1.empty() && resp2.empty()) err = "Relay not active or no response";
+                    else if (!clockSetOk(resp1))         err = "DATE rejected by relay (check L2 password / access)";
+                    else                                  err = "TIME rejected by relay (check L2 password / access)";
+                }
                 return "{\"action\":\"sync_relay_pc_time\",\"relay_id\":\"" + relayId
                      + "\",\"status\":\"" + (ok ? "success" : "failed")
+                     + "\",\"error\":\"" + escapeTarJson(err)
                      + "\",\"set_date\":\"" + escapeTarJson(dateCmd)
                      + "\",\"set_time\":\"" + escapeTarJson(timeCmd) + "\"}";
             }
@@ -737,9 +759,16 @@ public:
                 std::string timeCmd = "TIME " + sntpTime.dateTime.substr(9);
                 std::string resp1 = relayMgr->handleUserCommand(relayId, dateCmd);
                 std::string resp2 = relayMgr->handleUserCommand(relayId, timeCmd);
-                bool ok = !resp1.empty() && !resp2.empty();
+                bool ok = clockSetOk(resp1) && clockSetOk(resp2);
+                std::string err;
+                if (!ok) {
+                    if (resp1.empty() && resp2.empty()) err = "Relay not active or no response";
+                    else if (!clockSetOk(resp1))         err = "DATE rejected by relay (check L2 password / access)";
+                    else                                  err = "TIME rejected by relay (check L2 password / access)";
+                }
                 return "{\"action\":\"sync_relay_sntp_time\",\"relay_id\":\"" + relayId
                      + "\",\"status\":\"" + (ok ? "success" : "failed")
+                     + "\",\"error\":\"" + escapeTarJson(err)
                      + "\",\"sntp_time\":\"" + sntpTime.iso8601
                      + "\",\"set_date\":\"" + escapeTarJson(dateCmd)
                      + "\",\"set_time\":\"" + escapeTarJson(timeCmd) + "\"}";

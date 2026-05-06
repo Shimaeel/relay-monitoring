@@ -255,6 +255,46 @@ class PipelineReceptionWorker
                       << (cmdResponse_.success ? "OK" : "FAIL")
                       << (rejected ? " (relay rejected)" : "") << "\n";
         }
+        else if ([&]() {
+            // Detect set-form of DATE / TIME (i.e. command has an argument).
+            // SEL relays require Access Level 2 to set the clock; Level 1
+            // accepts only the read-only forms (`DATE` / `TIME` with no arg).
+            auto sp = cmd.find(' ');
+            if (sp == std::string::npos) return false;
+            std::string verb = cmd.substr(0, sp);
+            std::string rest = cmd.substr(sp + 1);
+            if (rest.empty()) return false;
+            return verb == "DATE" || verb == "DAT" ||
+                   verb == "TIME" || verb == "TIM";
+        }())
+        {
+            // Clock set — elevate to L2, send, demote.
+            client_.clearLastResponse();
+            std::string response;
+            bool elevated = client_.LoginLevel2Function(creds_.l2_pass);
+            if (!elevated)
+            {
+                cmdResponse_.success = false;
+                cmdResponse_.response = "L2 elevation failed — check Level-2 password";
+                std::cout << "[CmdFSM] Clock set failed: could not elevate to L2\n";
+                return;
+            }
+
+            bool ok = client_.SendCmdReceiveData(cmd, response);
+            client_.LogoutLevel2Function();
+
+            bool rejected = response.find("Invalid") != std::string::npos
+                         || response.find("invalid") != std::string::npos
+                         || response.find("Denied")  != std::string::npos
+                         || response.find("denied")  != std::string::npos
+                         || response.find("Access")  != std::string::npos;
+
+            cmdResponse_.success = ok && !response.empty() && !rejected;
+            cmdResponse_.response = std::move(response);
+            std::cout << "[CmdFSM] Clock set '" << cmd << "' "
+                      << (cmdResponse_.success ? "OK" : "FAIL")
+                      << (rejected ? " (relay rejected)" : "") << "\n";
+        }
         else
         {
             // Generic / unknown command — send directly.

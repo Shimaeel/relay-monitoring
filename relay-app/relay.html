@@ -128,28 +128,29 @@
 
           <!-- ===== SETTINGS SECTION (static, toggled by sections.js) ===== -->
           <div id="settings-section" class="section-card" style="display:none;">
-            <h2>⚙ Device Configuration (SHOSET)</h2>
+            <h2>📄 Settings Files</h2>
 
-            <!-- Settings Toolbar -->
+            <!--
+              SHOSET (Device Configuration) block is hidden — only Settings Files
+              are surfaced in the UI for now. Re-enable by uncommenting this block.
+
             <div class="ser-toolbar">
               <div class="ser-toolbar__left">
                 <span id="set-conn-status" style="font-weight:700">🟡 Idle</span>
               </div>
               <div class="ser-toolbar__right">
-                <!-- Buttons hidden: settings auto-fetch on section navigate -->
               </div>
             </div>
 
-            <!-- Rendered settings cards -->
             <div id="set-content" class="set-content">
               <div class="set-empty">Loading relay configuration via SHOSET...</div>
             </div>
+            -->
 
             <!-- Settings Files (FILE DIR SETTINGS) -->
-            <div class="ser-toolbar" style="margin-top:24px;">
+            <div class="ser-toolbar">
               <div class="ser-toolbar__left">
-                <h3 style="margin:0;font-size:1rem;">📄 Settings Files</h3>
-                <span id="setf-conn-status" style="margin-left:12px;font-weight:700">🟡 Idle</span>
+                <span id="setf-conn-status" style="font-weight:700">🟡 Idle</span>
               </div>
               <div class="ser-toolbar__right">
                 <button id="setf-refresh-btn" class="btn btn--primary btn--sm" style="margin-left:8px;">🔄 Refresh File List</button>
