@@ -256,6 +256,44 @@ function _cserUpdateTable(records) {
   }
   cserDataReceived = true;
   _cserUpdateStats();
+  _cserPersistSnapshot();
+}
+
+// ─── localStorage snapshot cache ────────────────────────────────────────
+// Persist the last-known table contents so the next app load can paint
+// rows immediately — without waiting on the WebSocket handshake + initial
+// backend push. The live snapshot from the C++ backend overwrites/merges
+// into this cached view as soon as it arrives.
+const CSER_CACHE_KEY    = 'cser_snapshot_v1';
+const CSER_CACHE_MAX    = 10000;   // hard cap to keep storage under ~1MB
+let   _cserPersistTimer = null;
+
+function _cserPersistSnapshot() {
+  if (_cserPersistTimer) clearTimeout(_cserPersistTimer);
+  _cserPersistTimer = setTimeout(() => {
+    if (!cserTable) return;
+    try {
+      const rows = cserTable.getData();
+      const trimmed = rows.length > CSER_CACHE_MAX
+        ? rows.slice(-CSER_CACHE_MAX)   // keep most recent
+        : rows;
+      localStorage.setItem(CSER_CACHE_KEY, JSON.stringify(trimmed));
+    } catch (e) {
+      // Quota exceeded or storage disabled — fall back silently
+      console.warn('[CSER] Snapshot cache write failed:', e.message);
+    }
+  }, 500);
+}
+
+function _cserLoadCachedSnapshot() {
+  try {
+    const raw = localStorage.getItem(CSER_CACHE_KEY);
+    if (!raw) return [];
+    const rows = JSON.parse(raw);
+    return Array.isArray(rows) ? rows : [];
+  } catch (_) {
+    return [];
+  }
 }
 
 function _cserUpdateStats() {
@@ -801,7 +839,18 @@ async function cserExportPDF() {
 //  Bootstrap
 // ============================================================
 document.addEventListener("DOMContentLoaded", () => {
-  _cserInitTable([]);
+  // Paint the last-known DB snapshot from localStorage immediately so the
+  // table is never empty on page load. The live backend snapshot will
+  // arrive shortly via WebSocket and merge in via updateOrAddData().
+  const cached = _cserLoadCachedSnapshot();
+  if (cached.length > 0) {
+    _cserInitTable(cached);
+    cached.forEach(r => { if (r && r._uid) cserKnownUids.add(r._uid); });
+    console.log(`[CSER] Restored ${cached.length} cached records from previous session`);
+  } else {
+    _cserInitTable([]);
+  }
+
   cserConnectAll();
 
   // Update poll rate on change
