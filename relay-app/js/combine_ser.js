@@ -308,6 +308,23 @@ function _cserSetupWorker() {
       if (cserConnected) {
         console.log('[CSER] Connected via worker');
         cserLastMessageAt = Date.now();
+        // Tell the C++ backend to start the pipeline for every known relay
+        // so SER data from all relays starts flowing into the combined table
+        // automatically — no need to open each relay page individually.
+        try {
+          const relays = (typeof getRelays === 'function') ? getRelays() : [];
+          relays.forEach(r => {
+            cserWorker.postMessage({
+              type: 'send',
+              payload: JSON.stringify({ action: "start_relay", relay_id: String(r.id) })
+            });
+          });
+          console.log(`[CSER] Sent start_relay for ${relays.length} relays`);
+        } catch (e) {
+          console.warn('[CSER] Failed to start relays:', e);
+        }
+        // Pull whatever is already in the backend DB right away.
+        cserWorker.postMessage({ type: 'send', payload: 'getData' });
         _cserStartAutoRefresh();
       } else if (msg.status === 'disconnected') {
         console.log('[CSER] Disconnected');
@@ -462,8 +479,9 @@ function _cserBucketFor(row) {
 }
 
 function _cserGroupKey(row) {
+  if (row && row._imported) return "📁 Imported records";
   const bucket = _cserBucketFor(row);
-  if (bucket < 0) return "📁 Imported records";
+  if (bucket < 0) return "⏱ Unknown time";
   const winMs = cserGroupWindowSec * 1000;
   const start = new Date(bucket * winMs);
   const end   = new Date(bucket * winMs + winMs - 1);
@@ -658,13 +676,14 @@ function _cserBuildImportedRow(rawRow, deviceName) {
   const sno = Number.isNaN(snoVal) ? (rawRow.sno || '-') : snoVal;
   const ts = `${date} ${time}`;
   return {
-    _uid:    `${deviceName}_${sno}_${ts}_imported`,
-    relay:   deviceName,
-    sno:     sno,
-    date:    date || '-',
-    time:    time || '-',
-    element: rawRow.element || '-',
-    state:   rawRow.state || ''
+    _uid:      `${deviceName}_${sno}_${ts}_imported`,
+    _imported: true,
+    relay:     deviceName,
+    sno:       sno,
+    date:      date || '-',
+    time:      time || '-',
+    element:   rawRow.element || '-',
+    state:     rawRow.state || ''
   };
 }
 
