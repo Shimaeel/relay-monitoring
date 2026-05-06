@@ -641,18 +641,22 @@ function disconnectSerWebSocket() {
 //  Auto-Refresh Polling
 // ============================================================
 
+// Heartbeat refresh: the C++ backend pushes new SER records via broadcastAll()
+// (see relay_pipeline.hpp) the moment they're inserted, so live updates do not
+// depend on this timer. We only use it as a safety net — if nothing arrives
+// for SER_HEARTBEAT_MS we request a snapshot in case a broadcast was missed.
+const SER_HEARTBEAT_MS = 15000;
 function startSerAutoRefresh() {
-  const rateEl = document.getElementById("ser-poll-rate");
-  const rate = rateEl ? (parseInt(rateEl.value, 10) || 2000) : 2000;
   stopSerAutoRefresh();
   serAutoRefresh = setInterval(() => {
-    if (Date.now() - serLastMessageAt < rate) return;
+    const silence = Date.now() - (serLastMessageAt || 0);
+    if (silence < SER_HEARTBEAT_MS) return;
     if (serUsingDirect && serDirectWs && serDirectWs.readyState === WebSocket.OPEN) {
       serDirectWs.send('getData');
     } else if (serWorker && serWorkerConnected) {
       serWorker.postMessage({ type: 'send', payload: 'getData' });
     }
-  }, rate);
+  }, SER_HEARTBEAT_MS);
 }
 
 function stopSerAutoRefresh() {

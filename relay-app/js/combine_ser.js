@@ -415,15 +415,20 @@ function _cserStopReading() {
   }
 }
 
+// Heartbeat refresh: backend pushes new SER records via broadcastAll() the
+// moment they're inserted (see relay_pipeline.hpp). This timer is only a
+// safety net — if no message has arrived for HEARTBEAT_MS we ask for a full
+// snapshot in case a broadcast was missed during a transient disconnect.
+const CSER_HEARTBEAT_MS = 15000;
 function _cserStartAutoRefresh() {
   _cserStopAutoRefresh();
-  const rateEl = document.getElementById("cser-poll-rate");
-  const rate = rateEl ? (parseInt(rateEl.value, 10) || 2000) : 2000;
   cserAutoRefresh = setInterval(() => {
-    if (cserWorker && cserConnected) {
+    if (!cserWorker || !cserConnected) return;
+    const silence = Date.now() - (cserLastMessageAt || 0);
+    if (silence >= CSER_HEARTBEAT_MS) {
       cserWorker.postMessage({ type: 'send', payload: 'getData' });
     }
-  }, rate);
+  }, CSER_HEARTBEAT_MS);
 }
 
 function _cserStopAutoRefresh() {
