@@ -62,7 +62,9 @@ function renderHeader(relay) {
   relayHeaderName.textContent = relay.name;
   document.title = `${relay.name} — Relay Monitor`;
   relaySubtitle.textContent = `${relay.substation} · ${relay.bay}`;
-  relayImage.src = `images/${relay.name}.svg`;
+  relayImage.src = relay.name === "SEL-451"
+    ? "images/451_Front.jpeg"
+    : `images/${relay.name}.svg`;
   relayImage.alt = `${relay.name} Relay Device`;
 
   const statusClass = relay.status === "online" ? "status-badge--online" : "status-badge--offline";

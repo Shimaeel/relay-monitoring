@@ -2374,84 +2374,48 @@ function _evSetFetchBtn(disabled) {
 
 // â”€â”€ Tabulator Initialisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function initEvTable() {
-  if (evTable) { evTable.redraw(true); return; }
+/**
+ * Build (or rebuild) the event-report Tabulator with columns derived from the
+ * detected response headers. Falls back to a generic "#, value1..N" layout when
+ * no structured header is found (e.g. for HIS, EVE D, etc.).
+ */
+function initEvTable(headers) {
+  const cols = [{
+    title: "#",
+    field: "sample",
+    width: 70,
+    hozAlign: "center",
+    headerSort: true,
+    sorter: "number",
+    frozen: true
+  }];
+
+  (headers || []).forEach(h => {
+    cols.push({
+      title: h,
+      field: h,
+      minWidth: 110,
+      hozAlign: "right",
+      headerSort: true,
+      headerFilter: "input"
+    });
+  });
+
+  if (evTable) {
+    try { evTable.destroy(); } catch (_) {}
+    evTable = null;
+  }
+
   evTable = new Tabulator("#ev-table", {
     data: [],
-    layout: "fitColumns",
+    layout: "fitDataStretch",
     pagination: true,
     paginationSize: 50,
     paginationSizeSelector: [10, 20, 50, 100],
     movableColumns: true,
-    placeholder: "No Event Records â€” Enter an event number and click Fetch",
+    placeholder: "No Event Records — enter a command and click Fetch",
     height: "500px",
-    columns: [
-      {
-        title: "#",
-        field: "sample",
-        width: 70,
-        hozAlign: "center",
-        headerSort: true,
-        sorter: "number",
-        frozen: true
-      },
-      {
-        title: "IA",
-        field: "IA",
-        width: 150,
-        hozAlign: "right",
-        headerSort: true,
-        headerFilter: "input"
-      },
-      {
-        title: "IB",
-        field: "IB",
-        width: 150,
-        hozAlign: "right",
-        headerSort: true,
-        headerFilter: "input"
-      },
-      {
-        title: "IC",
-        field: "IC",
-        width: 150,
-        hozAlign: "right",
-        headerSort: true,
-        headerFilter: "input"
-      },
-      {
-        title: "IN",
-        field: "IN",
-        width: 150,
-        hozAlign: "right",
-        headerSort: true,
-        headerFilter: "input"
-      },
-      {
-        title: "VAB",
-        field: "VAB",
-        width: 150,
-        hozAlign: "right",
-        headerSort: true,
-        headerFilter: "input"
-      },
-      {
-        title: "VBC",
-        field: "VBC",
-        width: 150,
-        hozAlign: "right",
-        headerSort: true,
-        headerFilter: "input"
-      },
-      {
-        title: "VCA",
-        field: "VCA",
-        width: 150,
-        hozAlign: "right",
-        headerSort: true,
-        headerFilter: "input"
-      }
-    ],
+    columns: cols,
     initialSort: [{ column: "sample", dir: "asc" }]
   });
 }
@@ -2535,51 +2499,52 @@ async function _evSendCommand(cmd) {
 // â”€â”€ Parse EVE n R response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Parse the tabular "EVE n R" response from a SEL relay.
+ * Parse a tabular SEL command response (EVE n, EVE n R, EVE n L, HIS, CEV n, …).
  *
- * Expected format:
- *   Currents (Amps Pri)                  Voltages (Volts Pri)
- *   IA      IB      IC      IN      VAB      VBC      VCA
- *   0.00    0.00    0.00    0.00    0.00     0.00     0.04
- *   ...  (many sample rows)
- *   =>
+ * Strategy:
+ *   1. Walk lines top-down, find the first row that looks like an alphanumeric
+ *      header (≥2 short tokens, each starting with a letter).
+ *   2. Subsequent rows whose token count matches the header become data rows.
+ *   3. Stop at the SEL prompt line (`=>` or `=>>`).
  *
- * Returns an array of { sample, IA, IB, IC, IN, VAB, VBC, VCA }.
+ * Returns { headers: string[], rows: Array<{ sample, ...headers }> }.
+ * If no structured table can be detected, returns each non-prompt line as a
+ * single-column "RAW" row so the user still sees something.
  */
 function parseEveResponse(text) {
   const lines = text.split(/\r?\n/);
-  const rows  = [];
 
-  // 1) Find the header line that contains the column labels
-  //    e.g.  "IA   IB   IC   IN   VAB   VBC   VCA"
-  let headers    = null;
-  let headerIdx  = -1;
+  const isPrompt = l => /^\s*=>+\s*$/.test(l);
+  const isNumeric = t => /^-?\d+(\.\d+)?$/.test(t) || t === "$$$$.$$" || t === "*" || t === ".";
+  const looksLikeHeader = tokens =>
+    tokens.length >= 2 &&
+    tokens.length <= 16 &&
+    tokens.every(t => /^[A-Za-z][A-Za-z0-9_/]*$/.test(t));
+
+  let headers   = null;
+  let headerIdx = -1;
 
   for (let i = 0; i < lines.length; i++) {
     const tokens = lines[i].trim().split(/\s+/).filter(Boolean);
-    // Detect header: all tokens are alphabetic labels (IA, IB, ICâ€¦)
-    if (tokens.length >= 3 && tokens.every(t => /^[A-Za-z][A-Za-z0-9]*$/.test(t))) {
-      // Confirm it's our expected header (contains at least IA or VAB)
-      const upper = tokens.map(t => t.toUpperCase());
-      if (upper.includes("IA") || upper.includes("VAB")) {
-        headers   = upper;
-        headerIdx = i;
-        break;
-      }
+    if (looksLikeHeader(tokens)) {
+      headers   = tokens.map(t => t.toUpperCase());
+      headerIdx = i;
+      break;
     }
   }
 
-  // 2) Parse every subsequent data line
+  const rows = [];
   if (headers && headerIdx >= 0) {
     let sampleNum = 1;
     for (let i = headerIdx + 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line || /^\s*=>\s*$/.test(line)) continue;
+      const line = lines[i];
+      if (!line.trim() || isPrompt(line)) continue;
 
-      const values = line.split(/\s+/).filter(Boolean);
-      // Accept lines that have at least as many numeric tokens as headers
+      const values = line.trim().split(/\s+/).filter(Boolean);
       if (values.length < headers.length) continue;
-      if (!values.every(v => /^-?\d+(\.\d+)?$/.test(v))) continue;
+      // Allow numeric, asterisk-flag, or short alphanumeric tokens (HIS rows)
+      if (!values.slice(0, headers.length).every(v =>
+            isNumeric(v) || /^[A-Za-z0-9_/.:$+-]+$/.test(v))) continue;
 
       const row = { sample: sampleNum++ };
       for (let j = 0; j < headers.length; j++) {
@@ -2589,39 +2554,25 @@ function parseEveResponse(text) {
     }
   }
 
-  // 3) Fallback: if we couldn't detect structured columns, push raw
+  // Fallback: dump non-prompt lines as a single-column "RAW" view so the user
+  // can still inspect the response (e.g. for free-text replies).
   if (rows.length === 0) {
-    // Parse every line that looks like all-numeric whitespace-separated
+    headers = ["RAW"];
     let sampleNum = 1;
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || /^\s*=>\s*$/.test(trimmed)) continue;
-      const values = trimmed.split(/\s+/).filter(Boolean);
-      if (values.length < 3) continue;
-      if (!values.every(v => /^-?\d+(\.\d+)?$/.test(v))) continue;
-
-      const row = { sample: sampleNum++ };
-      const fallbackCols = ["IA", "IB", "IC", "IN", "VAB", "VBC", "VCA"];
-      for (let j = 0; j < values.length && j < fallbackCols.length; j++) {
-        row[fallbackCols[j]] = values[j];
-      }
-      rows.push(row);
+      if (!line.trim() || isPrompt(line)) continue;
+      rows.push({ sample: sampleNum++, RAW: line.replace(/\s+$/, "") });
     }
   }
 
-  return rows;
+  return { headers, rows };
 }
 
 // â”€â”€ Main Fetch Logic (sequential) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function evFetchReport() {
-  const input  = document.getElementById("ev-event-num");
-  const eveNum = parseInt(input?.value, 10);
-
-  if (!eveNum || eveNum < 1) {
-    if (typeof showToast === "function") showToast("Enter a valid event number", "error");
-    return;
-  }
+  const input = document.getElementById("ev-command");
+  const cmd   = (input?.value || "").trim() || "EVE 1";
 
   evAbort = false;
   _evSetFetchBtn(true);
@@ -2630,17 +2581,16 @@ async function evFetchReport() {
     await _evEnsureConnection();
     _evSetStatus("fetching");
 
-    const cmd      = "EVE " + eveNum + " R";
     const response = await _evSendCommand(cmd);
     const parsed   = parseEveResponse(response);
 
-    if (parsed.length > 0) {
-      _evAllRows.push(...parsed);
-      _evUpdateTable();
-    }
+    // Each fetch replaces the table — columns may differ between commands
+    // (e.g. EVE → analog table, HIS → event-summary table, EVE D → bits).
+    _evAllRows = parsed.rows;
+    _evUpdateTable(parsed.headers);
 
     _evSetStatus("done");
-    console.log(`[EVE] EVE ${eveNum} fetched â€” ${_evAllRows.length} rows total`);
+    console.log(`[EVE] "${cmd}" fetched — ${parsed.rows.length} rows, headers: ${parsed.headers.join(", ")}`);
 
   } catch (err) {
     console.error("[EVE] fetch error:", err);
@@ -2653,13 +2603,9 @@ async function evFetchReport() {
   }
 }
 
-function _evUpdateTable() {
-  if (evTable) {
-    evTable.setData(_evAllRows);
-  } else {
-    initEvTable();
-    if (evTable) evTable.setData(_evAllRows);
-  }
+function _evUpdateTable(headers) {
+  initEvTable(headers);
+  if (evTable) evTable.setData(_evAllRows);
   _evSetRecordCount(_evAllRows.length);
 }
 

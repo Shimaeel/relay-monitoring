@@ -406,11 +406,12 @@
               </div>
             </div>
 
-            <!-- EVE Command Input -->
+            <!-- Event Command Input -->
             <div class="ser-config">
               <div class="ser-config__field">
-                <label>EVE</label>
-                <input id="ev-event-num" type="number" min="1" value="1" placeholder="Enter event number" />
+                <label>Command</label>
+                <input id="ev-command" type="text" value="EVE 1" placeholder="e.g. EVE 1, EVE 1 L, HIS, CEV 2"
+                       title="Any SEL ASCII command. Common: EVE n, EVE n L, EVE n R, HIS, CEV n, EVE A, EVE D" />
               </div>
               <button id="ev-fetch-btn" class="btn btn--primary btn--sm" onclick="evFetchReport()">🔄 Fetch</button>
             </div>

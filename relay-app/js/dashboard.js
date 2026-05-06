@@ -83,7 +83,7 @@ function createCardElement(relay) {
     <button class="relay-card__remove" title="Remove relay" aria-label="Remove ${relay.name}">✕</button>
     <div class="relay-card__body">
       <div class="relay-card__img-wrap">
-        <img class="relay-card__img" src="images/${relay.name}.svg" alt="${relay.name}" onerror="this.src='images/SEL-relay.svg'" />
+        <img class="relay-card__img" src="${relay.name === 'SEL-451' ? 'images/451_Front.jpeg' : `images/${relay.name}.svg`}" alt="${relay.name}" onerror="this.src='images/SEL-relay.svg'" />
       </div>
       <div class="relay-card__info">
         <span class="relay-card__name">${relay.name}</span>
