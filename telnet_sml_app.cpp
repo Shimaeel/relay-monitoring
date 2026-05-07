@@ -75,7 +75,6 @@
 #include "password_manager.hpp"
 #include "sntp_client.hpp"
 #include "ws_server.hpp"
-#include "websocket API/ws_db_server.hpp"
 #include "app_logger.hpp"
 
 using namespace sml;
@@ -183,10 +182,6 @@ public:
     // ─── Shared resources (owned by Impl) ───────────────────────────
     SERDatabase serDb{"ser_records.db"};                 ///< Single shared SQLite database
     SERWebSocketServer wsServer{serDb, 8765};            ///< Single shared WebSocket server
-    /// Generic SQL-over-WebSocket server (DatabaseClient endpoint, port 8766).
-    /// Constructed lazily after serDb.open() so it shares the same SQLite
-    /// handle / WAL state.
-    std::unique_ptr<WSDBServer> wsDb;
     SharedRingBuffer shmRing{"TelnetSmlShmRing", 500U * 1024U}; ///< Shared ring buffer (500KB)
 
     /// Interval between SER polls across all active relays. Tune down for
@@ -236,6 +231,61 @@ public:
                 ++it;
             }
         }
+    }
+
+    // ─── DB-only command intercepts (no relay round-trip) ───────────────────
+    //
+    // These run on the WS handler thread and read directly from the shared
+    // SQLite database (SERDatabase is thread-safe for read).  Both return a
+    // JSON array string suitable for direct browser consumption.
+
+    /**
+     * @brief Build a JSON array of stored settings_files for one relay.
+     *
+     * Returns: `[{"file_name":"SET_G1.TXT","content_hash":"","fetched_at":""}, ...]`
+     *
+     * (`fetched_at` and `content_hash` are populated only if the row contains
+     *  them; the structs returned by getSettingsFiles() include these fields
+     *  but they may be empty strings — that is fine for the UI.)
+     */
+    std::string handleDbSettingsList(const std::string& relayId)
+    {
+        auto files = serDb.getSettingsFiles(relayId);
+        std::string out = "[";
+        bool first = true;
+        for (const auto& f : files)
+        {
+            if (!first) out += ",";
+            first = false;
+            out += "{\"file_name\":\"" + escapeTarJson(f.file_name) +
+                   "\",\"content_hash\":\"" + escapeTarJson(f.content_hash) + "\"}";
+        }
+        out += "]";
+        return out;
+    }
+
+    /**
+     * @brief Build a JSON array of parsed entries for one settings file.
+     *
+     * Returns: `[{"section":"INFO","key":"RELAYTYPE","value":"SEL-451-5","line_no":2}, ...]`
+     */
+    std::string handleDbSettingsEntries(const std::string& relayId,
+                                         const std::string& fileName)
+    {
+        auto entries = serDb.getSettingsEntries(relayId, fileName);
+        std::string out = "[";
+        bool first = true;
+        for (const auto& e : entries)
+        {
+            if (!first) out += ",";
+            first = false;
+            out += "{\"section\":\"" + escapeTarJson(e.section) +
+                   "\",\"key\":\""    + escapeTarJson(e.key) +
+                   "\",\"value\":\""  + escapeTarJson(e.value) +
+                   "\",\"line_no\":"  + std::to_string(e.line_no) + "}";
+        }
+        out += "]";
+        return out;
     }
 
     /**
@@ -479,12 +529,24 @@ public:
         // 3. Set up WS command handler — routes commands to the correct relay pipeline
         //    Browser sends: "relay_id:command" (e.g. "1:SER", "2:TAR 0", "2:EVE")
         //    Fallback: if no colon, try to route to first active relay
+        //
+        //    Custom DB-only commands (no relay round-trip):
+        //      DBSETTINGS_LIST       → JSON array of {file_name, fetched_at, content_hash}
+        //      DBSETTINGS_ENTRIES:N  → JSON array of {section, key, value, line_no} for file N
         wsServer.setCommandHandler([this](const std::string& cmd) -> std::string {
             auto colon = cmd.find(':');
             if (colon != std::string::npos)
             {
                 std::string relayId = cmd.substr(0, colon);
                 std::string realCmd = cmd.substr(colon + 1);
+
+                // ── DB-only intercepts ─────────────────────────────────────
+                if (realCmd == "DBSETTINGS_LIST")
+                    return handleDbSettingsList(relayId);
+                if (realCmd.rfind("DBSETTINGS_ENTRIES:", 0) == 0)
+                    return handleDbSettingsEntries(relayId, realCmd.substr(19));
+                // ───────────────────────────────────────────────────────────
+
                 std::cout << "[WS→Relay] Routing '" << realCmd << "' to relay " << relayId << " via Command FSM\n";
                 return relayMgr->handleUserCommand(relayId, realCmd);
             }
@@ -847,16 +909,6 @@ public:
             return false;
         }
 
-        // 5b. Start the SQL-over-WebSocket server (DatabaseClient endpoint).
-        // Shares the same SQLite handle so writes from the SER pipeline are
-        // visible immediately to UI queries on settings_files / settings_entries.
-        wsDb = std::make_unique<WSDBServer>(serDb.getDbHandle(), 8766);
-        if (!wsDb->start())
-        {
-            std::cerr << "Failed to start WSDB server (port 8766)\n";
-            // Non-fatal: the SER pipeline still works without the DB API.
-        }
-
         // 6. Polling callback — queue SER to ALL active relays
         threadMgr.setPollingCallback([this]() {
             if (!app_running.load())
@@ -886,7 +938,6 @@ public:
         }
         std::cout << "\n  Shared Services:\n";
         std::cout << "    - WebSocket Server: ws://localhost:8765\n";
-        std::cout << "    - DB API Server:    ws://localhost:8766\n";
         std::cout << "    - SQLite Database:  ser_records.db\n";
         std::cout << "    - Poller:           2 min interval\n";
         std::cout << "\n  Auto-starting all configured relays...\n";
@@ -954,7 +1005,6 @@ public:
         // happen BEFORE relayMgr->stopAll()/serDb.close() because detached
         // WS handler threads capture references to RelayManager and SERDatabase.
         wsServer.stop();
-        if (wsDb) wsDb->stop();
 
         // Join background TAR collection threads (also reference relayMgr).
         {

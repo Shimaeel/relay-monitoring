@@ -2373,63 +2373,38 @@ if (window && typeof window.addEventListener === "function") {
 //  `FILE SHOW <name>` for each file (SEL-735 only) and stores the
 //  parsed entries in `settings_entries` (rows: section / key / value).
 //
-//  This UI block:
-//    1. Connects to the WSDB server (port 8766) via DatabaseClient.
-//    2. Refreshes a per-relay "stored" set so the master pane can
-//       show 📥 / 🕒 badges next to each file.
-//    3. Listens for SETTINGS_FILE_STORED:<relayId>:<fileName>
-//       broadcasts (port 8765) and updates the badge incrementally.
-//    4. Builds a Tabulator on click that shows Section / Key / Value
-//       for the selected file.
+//  This UI block uses the existing 8765 command channel — no separate
+//  DB websocket needed. Two custom commands (intercepted by the C++
+//  command handler before relay routing) return JSON directly:
+//    DBSETTINGS_LIST                  → [{file_name, content_hash}, ...]
+//    DBSETTINGS_ENTRIES:<file_name>   → [{section, key, value, line_no}, ...]
+//
+//  The block also listens for SETTINGS_FILE_STORED:<relayId>:<fileName>
+//  broadcasts and updates the master-pane badge incrementally.
 // ============================================================
 
-let _setfDbClient        = null;        // shared DatabaseClient instance
 let setfEntriesTable     = null;        // Tabulator instance for parsed entries
 let _setfCurrentFileName = "";          // currently selected file name
 
 /**
- * Lazily build a singleton DatabaseClient pointed at the WSDB server.
- * The caller must await connect() before issuing queries.
- *
- * @returns {DatabaseClient} Connected client instance.
- */
-async function _setfGetDbClient() {
-  if (_setfDbClient && _setfDbClient._connected) return _setfDbClient;
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const host  = location.hostname || "localhost";
-  const url   = `${proto}//${host}:8766`;
-  if (!_setfDbClient) {
-    _setfDbClient = new DatabaseClient(url, { timeout: 10000 });
-  }
-  if (!_setfDbClient._connected) {
-    await _setfDbClient.connect();
-  }
-  return _setfDbClient;
-}
-
-/**
- * Refresh the per-relay set of "stored" file names by querying SQLite.
- * Called when the section opens, after a manual refresh, and any time
- * we need the badge column to be accurate.
+ * Refresh the per-relay set of "stored" file names by sending a
+ * DBSETTINGS_LIST command over the 8765 channel.  The C++ side reads
+ * settings_files directly and returns a JSON array.
  *
  * @param {string} relayId Relay identifier.
  */
 async function _setfRefreshStoredSet(relayId) {
   if (!relayId) return;
   try {
-    const db = await _setfGetDbClient();
-    const res = await db.query(
-      "SELECT file_name FROM settings_files WHERE relay_id = ?",
-      [relayId]
-    );
-    const set = new Set();
-    if (res && res.rows) {
-      // rows are arrays in column order — file_name is column 0
-      for (const row of res.rows) set.add(row[0]);
+    const json = await _ctrSendCommand("DBSETTINGS_LIST");
+    const arr  = JSON.parse(json || "[]");
+    const set  = new Set();
+    for (const f of arr) {
+      if (f && f.file_name) set.add(f.file_name);
     }
     _setfStoredByRelay[relayId] = set;
   } catch (err) {
-    console.warn("[SETF] _setfRefreshStoredSet failed:", err.message);
+    console.warn("[SETF] _setfRefreshStoredSet failed:", err.message || err);
   }
 }
 
@@ -2472,8 +2447,13 @@ function _setfInitEntriesTable(rows) {
 }
 
 /**
- * Load parsed entries for `fileName` from the WSDB and render in the
- * detail pane.  Updates toolbar counters and the selected-name label.
+ * Load parsed entries for `fileName` from the C++ side via the 8765
+ * command channel and render in the detail pane.  Updates toolbar
+ * counters and the selected-name label.
+ *
+ * Sends "DBSETTINGS_ENTRIES:<file_name>" — the C++ command handler
+ * intercepts (without round-tripping to the relay) and returns a JSON
+ * array of `{section, key, value, line_no}` objects.
  *
  * @param {string} fileName Settings file name (e.g. "SET_G1.TXT").
  */
@@ -2488,19 +2468,14 @@ async function setfLoadEntries(fileName) {
   if (countEl) countEl.textContent = "…";
 
   try {
-    const db = await _setfGetDbClient();
-    const res = await db.query(
-      "SELECT section, key, value, line_no FROM settings_entries " +
-      "WHERE relay_id = ? AND file_name = ? ORDER BY line_no",
-      [relay.id, fileName]
-    );
-
-    const cols = res.columns || ["section", "key", "value", "line_no"];
-    const rows = (res.rows || []).map(r => {
-      const obj = {};
-      cols.forEach((c, i) => { obj[c] = r[i]; });
-      return obj;
-    });
+    const json = await _ctrSendCommand("DBSETTINGS_ENTRIES:" + fileName);
+    let rows;
+    try {
+      rows = JSON.parse(json || "[]");
+    } catch (parseErr) {
+      throw new Error("Invalid JSON from server: " + (json || "").slice(0, 60));
+    }
+    if (!Array.isArray(rows)) rows = [];
 
     _setfInitEntriesTable(rows);
     if (countEl) countEl.textContent = String(rows.length);
