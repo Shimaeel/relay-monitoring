@@ -64,10 +64,12 @@
 #include "raw_data_ring_buffer.hpp"
 #include "ser_database.hpp"
 #include "ser_record.hpp"
+#include "settings_record.hpp"
 #include "asn_tlv_codec.hpp"
 #include "shared_memory/shared_ring_buffer.hpp"
 #include "telnet_fsm.hpp"
 #include "ws_server.hpp"
+#include <functional>
 
 // ============================================================================
 //                     PER-RELAY RECEPTION WORKER
@@ -613,8 +615,120 @@ class PipelineProcessingWorker
 
     std::string relay_id_;       ///< Relay identifier to stamp on records
     std::string relay_name_;     ///< Relay display name to stamp on records
+    std::string substation_;     ///< Substation label (DB stamp for settings_files)
+    std::string bay_;            ///< Bay label (DB stamp for settings_files)
     std::string relay_tag_;      ///< Log prefix
     int prune_cycle_count_{0};   ///< Counter for periodic DB pruning
+
+    /// Callback to enqueue follow-up commands back to the reception worker.
+    /// Set by RelayPipeline; nullptr-safe (settings auto-fetch is skipped if unset).
+    std::function<void(const std::string&)> queueCommand_;
+
+    /// True when this is a SEL-735 (uses `FIL DIR` / `FILE SHOW` plain text).
+    /// SEL-451 needs Ymodem for FILE READ, so we skip per-file auto-fetch there.
+    bool is_sel735_{false};
+
+    // ─── Settings file helpers ──────────────────────────────────────────────
+
+    /**
+     * @brief Parse a FILE DIR SETTINGS / FIL DIR response into file names.
+     *
+     * @details Mirrors the JS parser in `sections.js::_setfParseFileDir`.
+     * Each non-empty line starts with the file name; lines that are
+     * separators (=>, ----, blank) or do not contain a '.' in the first
+     * token are skipped.
+     *
+     * @param response  Raw text of the directory listing response.
+     * @return std::vector<std::string>  File names (e.g. "SET_G1.TXT").
+     */
+    static std::vector<std::string> parseFileDirNames(const std::string& response)
+    {
+        std::vector<std::string> names;
+        std::istringstream stream(response);
+        std::string line;
+        while (std::getline(stream, line))
+        {
+            line = sanitizeSerLine(line);
+            // trim trailing whitespace
+            while (!line.empty() && (line.back() == ' ' || line.back() == '\t' ||
+                                      line.back() == '\r' || line.back() == '\n'))
+                line.pop_back();
+            // trim leading whitespace
+            size_t s = line.find_first_not_of(" \t");
+            if (s == std::string::npos) continue;
+            std::string trimmed = line.substr(s);
+            if (trimmed.empty()) continue;
+            if (trimmed.rfind("=>", 0) == 0) continue;
+            // Skip separator-only lines (---, ===, ***)
+            bool sepOnly = true;
+            for (char c : trimmed)
+                if (c != '-' && c != '=' && c != '*' && c != ' ') { sepOnly = false; break; }
+            if (sepOnly) continue;
+
+            // First whitespace-delimited token is the file name
+            size_t end = trimmed.find_first_of(" \t");
+            std::string name = (end == std::string::npos) ? trimmed : trimmed.substr(0, end);
+            if (name.find('.') == std::string::npos) continue;  // must have an extension
+            names.push_back(name);
+        }
+        return names;
+    }
+
+    /**
+     * @brief Filter the file list down to candidates we want to fetch.
+     *
+     * @details For SEL-735, only files starting with `SET_` are settings
+     * files (the rest are data/diagnostics).  For non-735 we accept the
+     * caller's full list (FILE DIR SETTINGS already scopes to settings).
+     */
+    std::vector<std::string> filterSettingsFiles(const std::vector<std::string>& names) const
+    {
+        if (!is_sel735_) return names;
+        std::vector<std::string> out;
+        for (const auto& n : names)
+        {
+            // Case-insensitive prefix check for "SET_"
+            if (n.size() >= 4 &&
+                std::toupper(static_cast<unsigned char>(n[0])) == 'S' &&
+                std::toupper(static_cast<unsigned char>(n[1])) == 'E' &&
+                std::toupper(static_cast<unsigned char>(n[2])) == 'T' &&
+                n[3] == '_')
+                out.push_back(n);
+        }
+        return out;
+    }
+
+    /**
+     * @brief Persist a fetched FILE SHOW response to settings_files / settings_entries.
+     *
+     * @param fileName  File name (e.g. "SET_G1.TXT").
+     * @param content   Raw response text from FILE SHOW.
+     */
+    void storeSettingsFile(const std::string& fileName, const std::string& content)
+    {
+        SettingsFile sf;
+        sf.relay_id    = relay_id_;
+        sf.relay_name  = relay_name_;
+        sf.substation  = substation_;
+        sf.bay         = bay_;
+        sf.file_name   = fileName;
+        sf.raw_content = content;
+        sf.entries     = parseSettingsFile(content);
+
+        if (!db_.insertSettingsFile(sf))
+        {
+            std::cerr << relay_tag_ << " insertSettingsFile('" << fileName
+                      << "') failed: " << db_.getLastError() << "\n";
+            return;
+        }
+
+        std::cout << relay_tag_ << " Stored settings file '" << fileName
+                  << "' (" << sf.entries.size() << " entries, "
+                  << content.size() << " bytes)\n";
+
+        // Notify the UI so it can refresh the master/detail viewer
+        wsServer_.broadcastText("SETTINGS_FILE_STORED:" + relay_id_ + ":" + fileName);
+    }
 
     /**
      * @brief Main loop of the processing worker thread.
@@ -662,6 +776,30 @@ class PipelineProcessingWorker
                     std::string payload = "SETTINGS_DIR:" + relay_id_ + ":" + msg->response;
                     wsServer_.broadcastText(payload);
                     std::cout << relay_tag_ << " Broadcasted SETTINGS_DIR (" << msg->response.size() << " bytes)\n";
+
+                    // After listing arrives, auto-queue FILE SHOW <name> for each
+                    // settings file so we can store its full content in SQLite.
+                    // SEL-735 supports plain-text FILE SHOW; SEL-451 needs Ymodem
+                    // for FILE READ which is not yet implemented — skip for 451.
+                    if (is_sel735_ && queueCommand_)
+                    {
+                        auto names = parseFileDirNames(msg->response);
+                        auto wanted = filterSettingsFiles(names);
+                        std::cout << relay_tag_ << " Queueing FILE SHOW for "
+                                  << wanted.size() << " settings file(s)\n";
+                        for (const auto& n : wanted)
+                            queueCommand_("FILE SHOW " + n);
+                    }
+                    else if (!is_sel735_)
+                    {
+                        std::cout << relay_tag_ << " (SEL-451) per-file fetch via Ymodem"
+                                  << " not implemented — skipping auto-fetch\n";
+                    }
+                    continue;
+                } else if (msg->command.rfind("FILE SHOW ", 0) == 0) {
+                    // FILE SHOW <name> response — store content in SQLite
+                    std::string fileName = msg->command.substr(10);
+                    storeSettingsFile(fileName, msg->response);
                     continue;
                 } else if (msg->command != "SER") {
                     std::cout << relay_tag_ << " Non-SER command '" << msg->command
@@ -747,7 +885,9 @@ public:
                              SharedRingBuffer& shmRing,
                              std::atomic<bool>& app_running,
                              const std::string& relayId,
-                             const std::string& relayName)
+                             const std::string& relayName,
+                             const std::string& substation = "",
+                             const std::string& bay = "")
         : rawBuffer_(rawBuffer)
         , db_(db)
         , wsServer_(wsServer)
@@ -755,8 +895,26 @@ public:
         , app_running_(app_running)
         , relay_id_(relayId)
         , relay_name_(relayName)
+        , substation_(substation)
+        , bay_(bay)
         , relay_tag_("[Proc:" + relayName + "]")
+        , is_sel735_(relayName.find("735") != std::string::npos)
     {
+    }
+
+    /**
+     * @brief Wire the callback used to enqueue follow-up commands.
+     *
+     * @details Called by RelayPipeline after the reception worker is
+     * created.  When the processing worker sees a `FILE DIR SETTINGS`
+     * (or `FIL DIR`) response, it parses the file list and uses this
+     * callback to queue a `FILE SHOW <name>` for each file.
+     *
+     * @param fn  std::function that accepts a Telnet command string.
+     */
+    void setCommandQueuer(std::function<void(const std::string&)> fn)
+    {
+        queueCommand_ = std::move(fn);
     }
 
     /**
@@ -887,7 +1045,13 @@ public:
 
         procWorker_ = std::make_unique<PipelineProcessingWorker>(
             rawBuffer_, db_, wsServer_, shmRing_, app_running_,
-            config_.id, config_.name);
+            config_.id, config_.name, config_.substation, config_.bay);
+
+        // Wire callback so the processing worker can enqueue follow-up
+        // commands (e.g. one FILE SHOW per settings file after FILE DIR).
+        procWorker_->setCommandQueuer(
+            [this](const std::string& c) { queueCommand(c); });
+
         procWorker_->start();
 
         running_ = true;

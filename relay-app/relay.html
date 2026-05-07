@@ -151,13 +151,33 @@
             <div class="ser-toolbar">
               <div class="ser-toolbar__left">
                 <span id="setf-conn-status" style="font-weight:700">🟡 Idle</span>
+                <span class="ser-toolbar__sep">|</span>
+                <span>Selected: <strong id="setf-selected-name">—</strong></span>
+                <span class="ser-toolbar__sep">|</span>
+                <span>Entries: <strong id="setf-entry-count" class="record-count">0</strong></span>
               </div>
               <div class="ser-toolbar__right">
+                <button id="setf-export-csv-btn" class="btn btn--outline btn--sm">📥 CSV</button>
                 <button id="setf-refresh-btn" class="btn btn--primary btn--sm" style="margin-left:8px;">🔄 Refresh File List</button>
               </div>
             </div>
-            <div id="setf-file-list" class="ctf-file-list" style="margin-top:var(--sp-3,12px);">
-              <div class="set-empty">Loading settings files…</div>
+
+            <!-- Master / Detail layout: file list on the left, parsed entries on the right -->
+            <div class="setf-md" style="display:flex; gap:12px; margin-top:var(--sp-3,12px); align-items:stretch;">
+              <!-- ── Master: file list ── -->
+              <div id="setf-file-list" class="setf-md__master ctf-file-list"
+                   style="flex:0 0 320px; max-height:600px; overflow-y:auto;">
+                <div class="set-empty">Loading settings files…</div>
+              </div>
+
+              <!-- ── Detail: parsed entries (Tabulator) ── -->
+              <div class="setf-md__detail" style="flex:1 1 auto; min-width:0;">
+                <div id="setf-empty" class="set-empty"
+                     style="padding:24px; text-align:center; border:1px dashed #cbd5e1; border-radius:8px;">
+                  Click a file on the left to view its parsed key/value entries.
+                </div>
+                <div id="setf-entries-table" style="display:none;"></div>
+              </div>
             </div>
           </div>
           <!-- ===== END SETTINGS SECTION ===== -->
@@ -449,6 +469,7 @@
 <script defer src="js/data.js"></script>
 <script defer src="js/relay.js"></script>
 <script defer src="js/ring_buffer.js"></script>
+<script defer src="../websocket API/db_client.js"></script>
 <script defer src="js/sections.js"></script>
 <style>
   .chpass-modal { position: fixed; inset: 0; z-index: 9999; display: flex;

@@ -2056,6 +2056,55 @@ ul, ol { list-style: none; }
   background: var(--color-primary, #2563eb);
 }
 
+/* ---------- Settings Files master/detail ---------- */
+.setf-md__master {
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-lg, 10px);
+  background: var(--color-surface, #fff);
+  padding: 4px;
+}
+
+.setf-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 90px 80px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+
+.setf-row:hover {
+  background: var(--color-surface-muted, #f3f4f6);
+}
+
+.setf-row.is-selected {
+  background: rgba(37, 99, 235, 0.08);
+  border-left: 3px solid var(--color-primary, #2563eb);
+  padding-left: 7px;
+}
+
+.setf-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.setf-badge--ok      { background: rgba(34, 197, 94, 0.12); }
+.setf-badge--pending { background: rgba(234, 179, 8, 0.12); }
+
+.setf-md__detail {
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-lg, 10px);
+  background: var(--color-surface, #fff);
+  padding: 8px;
+}
+
 .ctf-file-card {
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: var(--radius-lg, 10px);

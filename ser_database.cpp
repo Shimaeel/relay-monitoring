@@ -109,6 +109,14 @@ bool SERDatabase::open()
         return false;
     }
 
+    // Create settings_files / settings_entries tables for FILE SHOW / FILE READ
+    if (!createSettingsTables())
+    {
+        sqlite3_close(db_);
+        db_ = nullptr;
+        return false;
+    }
+
     return true;
 }
 
@@ -195,6 +203,279 @@ bool SERDatabase::createTable()
                  nullptr, nullptr, nullptr);
 
     return true;
+}
+
+// ================= SETTINGS TABLES =================
+
+/**
+ * @brief Create settings_files and settings_entries tables + indexes.
+ */
+bool SERDatabase::createSettingsTables()
+{
+    const char* sql = R"(
+        CREATE TABLE IF NOT EXISTS settings_files (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            relay_id      TEXT NOT NULL,
+            relay_name    TEXT NOT NULL DEFAULT '',
+            substation    TEXT NOT NULL DEFAULT '',
+            bay           TEXT NOT NULL DEFAULT '',
+            pse           TEXT NOT NULL DEFAULT '',
+            breaker       TEXT NOT NULL DEFAULT '',
+            file_name     TEXT NOT NULL,
+            raw_content   TEXT NOT NULL DEFAULT '',
+            content_hash  TEXT NOT NULL DEFAULT '',
+            fetched_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(relay_id, file_name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_sf_relay      ON settings_files(relay_id);
+        CREATE INDEX IF NOT EXISTS idx_sf_substation ON settings_files(substation);
+        CREATE INDEX IF NOT EXISTS idx_sf_filename   ON settings_files(file_name);
+
+        CREATE TABLE IF NOT EXISTS settings_entries (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id     INTEGER NOT NULL,
+            relay_id    TEXT NOT NULL,
+            relay_name  TEXT NOT NULL DEFAULT '',
+            substation  TEXT NOT NULL DEFAULT '',
+            bay         TEXT NOT NULL DEFAULT '',
+            file_name   TEXT NOT NULL,
+            section     TEXT NOT NULL DEFAULT '',
+            key         TEXT NOT NULL,
+            value       TEXT NOT NULL DEFAULT '',
+            line_no     INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(file_id) REFERENCES settings_files(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_se_file    ON settings_entries(file_id);
+        CREATE INDEX IF NOT EXISTS idx_se_relay   ON settings_entries(relay_id);
+        CREATE INDEX IF NOT EXISTS idx_se_section ON settings_entries(section);
+        CREATE INDEX IF NOT EXISTS idx_se_filename ON settings_entries(file_name);
+    )";
+
+    char* errMsg = nullptr;
+    int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &errMsg);
+    if (rc != SQLITE_OK)
+    {
+        last_error_ = "settings tables SQL error: " + std::string(errMsg);
+        sqlite3_free(errMsg);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @brief Insert (or replace) a settings file and its parsed entries.
+ */
+bool SERDatabase::insertSettingsFile(const SettingsFile& sf)
+{
+    if (!db_)
+    {
+        last_error_ = "Database not open";
+        return false;
+    }
+    if (sf.relay_id.empty() || sf.file_name.empty())
+    {
+        last_error_ = "insertSettingsFile: relay_id and file_name required";
+        return false;
+    }
+
+    sqlite3_exec(db_, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
+
+    // 1. Delete previous rows for (relay_id, file_name)
+    {
+        const char* delEntries =
+            "DELETE FROM settings_entries WHERE relay_id = ? AND file_name = ?;";
+        sqlite3_stmt* st = nullptr;
+        if (sqlite3_prepare_v2(db_, delEntries, -1, &st, nullptr) == SQLITE_OK)
+        {
+            sqlite3_bind_text(st, 1, sf.relay_id.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 2, sf.file_name.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_step(st);
+            sqlite3_finalize(st);
+        }
+
+        const char* delFile =
+            "DELETE FROM settings_files WHERE relay_id = ? AND file_name = ?;";
+        if (sqlite3_prepare_v2(db_, delFile, -1, &st, nullptr) == SQLITE_OK)
+        {
+            sqlite3_bind_text(st, 1, sf.relay_id.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 2, sf.file_name.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_step(st);
+            sqlite3_finalize(st);
+        }
+    }
+
+    // 2. Insert into settings_files
+    sqlite3_int64 file_id = 0;
+    {
+        const char* sql =
+            "INSERT INTO settings_files "
+            "(relay_id, relay_name, substation, bay, pse, breaker, "
+            " file_name, raw_content, content_hash) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);";
+        sqlite3_stmt* st = nullptr;
+        if (sqlite3_prepare_v2(db_, sql, -1, &st, nullptr) != SQLITE_OK)
+        {
+            last_error_ = "prepare settings_files insert: " + std::string(sqlite3_errmsg(db_));
+            sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return false;
+        }
+        sqlite3_bind_text(st, 1, sf.relay_id.c_str(),     -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 2, sf.relay_name.c_str(),   -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 3, sf.substation.c_str(),   -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 4, sf.bay.c_str(),          -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 5, sf.pse.c_str(),          -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 6, sf.breaker.c_str(),      -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 7, sf.file_name.c_str(),    -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 8, sf.raw_content.c_str(),  -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(st, 9, sf.content_hash.c_str(), -1, SQLITE_TRANSIENT);
+
+        int rc = sqlite3_step(st);
+        sqlite3_finalize(st);
+        if (rc != SQLITE_DONE)
+        {
+            last_error_ = "settings_files insert failed: " + std::string(sqlite3_errmsg(db_));
+            sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return false;
+        }
+        file_id = sqlite3_last_insert_rowid(db_);
+    }
+
+    // 3. Insert entries
+    {
+        const char* sql =
+            "INSERT INTO settings_entries "
+            "(file_id, relay_id, relay_name, substation, bay, file_name, "
+            " section, key, value, line_no) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+        sqlite3_stmt* st = nullptr;
+        if (sqlite3_prepare_v2(db_, sql, -1, &st, nullptr) != SQLITE_OK)
+        {
+            last_error_ = "prepare settings_entries insert: " + std::string(sqlite3_errmsg(db_));
+            sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return false;
+        }
+
+        for (const auto& e : sf.entries)
+        {
+            sqlite3_reset(st);
+            sqlite3_clear_bindings(st);
+
+            sqlite3_bind_int64(st, 1, file_id);
+            sqlite3_bind_text(st, 2, sf.relay_id.c_str(),    -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 3, sf.relay_name.c_str(),  -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 4, sf.substation.c_str(),  -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 5, sf.bay.c_str(),         -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 6, sf.file_name.c_str(),   -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 7, e.section.c_str(),      -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 8, e.key.c_str(),          -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(st, 9, e.value.c_str(),        -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int (st, 10, e.line_no);
+
+            int rc = sqlite3_step(st);
+            if (rc != SQLITE_DONE)
+            {
+                last_error_ = "settings_entries insert failed: " + std::string(sqlite3_errmsg(db_));
+                sqlite3_finalize(st);
+                sqlite3_exec(db_, "ROLLBACK;", nullptr, nullptr, nullptr);
+                return false;
+            }
+        }
+        sqlite3_finalize(st);
+    }
+
+    sqlite3_exec(db_, "COMMIT;", nullptr, nullptr, nullptr);
+    return true;
+}
+
+/**
+ * @brief Retrieve all settings files (metadata only) for a relay.
+ */
+std::vector<SettingsFile> SERDatabase::getSettingsFiles(const std::string& relay_id)
+{
+    std::vector<SettingsFile> out;
+    if (!db_)
+    {
+        last_error_ = "Database not open";
+        return out;
+    }
+
+    std::string sql =
+        "SELECT relay_id, relay_name, substation, bay, pse, breaker, "
+        "       file_name, raw_content, content_hash "
+        "FROM settings_files";
+    if (!relay_id.empty())
+        sql += " WHERE relay_id = ?";
+    sql += " ORDER BY relay_id, file_name;";
+
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &st, nullptr) != SQLITE_OK)
+    {
+        last_error_ = "getSettingsFiles prepare: " + std::string(sqlite3_errmsg(db_));
+        return out;
+    }
+    if (!relay_id.empty())
+        sqlite3_bind_text(st, 1, relay_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    while (sqlite3_step(st) == SQLITE_ROW)
+    {
+        SettingsFile sf;
+        auto col = [&](int i) -> std::string {
+            const unsigned char* t = sqlite3_column_text(st, i);
+            return t ? reinterpret_cast<const char*>(t) : "";
+        };
+        sf.relay_id     = col(0);
+        sf.relay_name   = col(1);
+        sf.substation   = col(2);
+        sf.bay          = col(3);
+        sf.pse          = col(4);
+        sf.breaker      = col(5);
+        sf.file_name    = col(6);
+        sf.raw_content  = col(7);
+        sf.content_hash = col(8);
+        out.push_back(std::move(sf));
+    }
+    sqlite3_finalize(st);
+    return out;
+}
+
+/**
+ * @brief Retrieve parsed entries for one settings file.
+ */
+std::vector<SettingsEntry> SERDatabase::getSettingsEntries(const std::string& relay_id,
+                                                           const std::string& file_name)
+{
+    std::vector<SettingsEntry> out;
+    if (!db_)
+    {
+        last_error_ = "Database not open";
+        return out;
+    }
+
+    const char* sql =
+        "SELECT section, key, value, line_no "
+        "FROM settings_entries "
+        "WHERE relay_id = ? AND file_name = ? "
+        "ORDER BY line_no;";
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &st, nullptr) != SQLITE_OK)
+    {
+        last_error_ = "getSettingsEntries prepare: " + std::string(sqlite3_errmsg(db_));
+        return out;
+    }
+    sqlite3_bind_text(st, 1, relay_id.c_str(),  -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(st, 2, file_name.c_str(), -1, SQLITE_TRANSIENT);
+
+    while (sqlite3_step(st) == SQLITE_ROW)
+    {
+        SettingsEntry e;
+        const unsigned char* s = sqlite3_column_text(st, 0); e.section = s ? reinterpret_cast<const char*>(s) : "";
+        const unsigned char* k = sqlite3_column_text(st, 1); e.key     = k ? reinterpret_cast<const char*>(k) : "";
+        const unsigned char* v = sqlite3_column_text(st, 2); e.value   = v ? reinterpret_cast<const char*>(v) : "";
+        e.line_no = sqlite3_column_int(st, 3);
+        out.push_back(std::move(e));
+    }
+    sqlite3_finalize(st);
+    return out;
 }
 
 // ================= INSERT OPERATIONS =================

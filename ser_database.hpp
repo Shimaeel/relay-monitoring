@@ -101,6 +101,7 @@
 #include <sqlite3.h>
 
 #include "ser_record.hpp"
+#include "settings_record.hpp"
 
 /**
  * @class SERDatabase
@@ -289,6 +290,54 @@ public:
      */
     int pruneOldRecords(int days = 90);
 
+    // ========================================================================
+    //  Settings file storage  (FILE SHOW / FILE READ)
+    // ========================================================================
+
+    /**
+     * @brief Insert (or replace) a settings file and its parsed entries.
+     *
+     * @details Performs the following inside a single transaction:
+     * 1. Delete any previous rows for `(relay_id, file_name)` from
+     *    `settings_entries` and `settings_files`.
+     * 2. Insert a new row into `settings_files` (capturing its rowid).
+     * 3. Insert every entry in `sf.entries` into `settings_entries`,
+     *    each linked to the parent file via `file_id`.
+     *
+     * The replace-on-conflict strategy keeps the table free of stale
+     * key/value rows when a file's contents change between fetches.
+     *
+     * @param sf  Fully populated SettingsFile (relay_id, file_name, raw_content,
+     *            entries, optional substation/bay metadata).
+     * @return true   File and entries inserted successfully.
+     * @return false  Database not open or SQL error; check getLastError().
+     *
+     * @pre isOpen() == true
+     * @pre sf.relay_id and sf.file_name must be non-empty.
+     */
+    bool insertSettingsFile(const SettingsFile& sf);
+
+    /**
+     * @brief Retrieve all settings files (without entries) for a relay.
+     *
+     * @param relay_id  Relay identifier to filter by ("" = all relays).
+     * @return std::vector<SettingsFile>  Files matching the filter.
+     *
+     * @note `entries` is left empty by this call — use getSettingsEntries()
+     *       for the row-level data.
+     */
+    std::vector<SettingsFile> getSettingsFiles(const std::string& relay_id = "");
+
+    /**
+     * @brief Retrieve parsed entries for one settings file.
+     *
+     * @param relay_id  Relay identifier.
+     * @param file_name File name (e.g. "SET_G1.TXT").
+     * @return std::vector<SettingsEntry>  Entries in source order.
+     */
+    std::vector<SettingsEntry> getSettingsEntries(const std::string& relay_id,
+                                                   const std::string& file_name);
+
     /**
      * @brief Get last error message.
      *
@@ -329,6 +378,20 @@ private:
      * @return false if creation failed
      */
     bool createTable();
+
+    /**
+     * @brief Create settings_files and settings_entries tables + indexes.
+     *
+     * @details Called from open() after createTable().  Creates:
+     * - `settings_files`   — one row per file fetched from a relay
+     * - `settings_entries` — one row per parsed key/value pair
+     *
+     * Both tables include relay_id / substation / bay denormalised so
+     * the JS dashboard can filter without an extra JOIN.
+     *
+     * @return true on success, false on SQL error (last_error_ set).
+     */
+    bool createSettingsTables();
 
     /**
      * @brief Check if a record already exists in the database.

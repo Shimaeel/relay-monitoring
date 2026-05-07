@@ -433,6 +433,13 @@ function connectSerWebSocket() {
           return;
         }
 
+        // Per-file "stored in DB" notification — forward so the
+        // master/detail panel can flip the badge to 📥 live.
+        if (typeof data === 'string' && data.startsWith('SETTINGS_FILE_STORED:')) {
+          window.dispatchEvent(new MessageEvent('message', { data }));
+          return;
+        }
+
         // JSON fallback — normalise so sno format matches the TLV path,
         // otherwise dedup by sno can fail and create duplicate rows.
         try {
@@ -2234,6 +2241,16 @@ function _setfParseFileDir(response) {
   return out;
 }
 
+// Per-relay set of file names known to be stored in SQLite (settings_files).
+// Populated by _setfRefreshStoredSet() and updated incrementally on
+// SETTINGS_FILE_STORED:<relay_id>:<file_name> broadcasts.
+const _setfStoredByRelay = {};
+
+/**
+ * Render the master pane: one clickable row per file from FILE DIR.
+ * Each row shows a "📥 Stored" / "🕒 Pending" badge based on whether
+ * the parsed entries are already in SQLite.
+ */
 function _setfRenderFiles(files) {
   const container = document.getElementById("setf-file-list");
   if (!container) return;
@@ -2242,21 +2259,39 @@ function _setfRenderFiles(files) {
       `<div class="set-empty">No settings files found in FILE DIR SETTINGS.</div>`;
     return;
   }
+  const relay = getCurrentRelay();
+  const stored = (relay && _setfStoredByRelay[relay.id]) || new Set();
+
   const parts = files.map(f => {
     const safeName = _ctrEscHtml(f.name);
     const safeDate = _ctrEscHtml(f.date || "");
     const safeTime = _ctrEscHtml(f.time || "");
+    const isStored = stored.has(f.name);
+    const badge = isStored
+      ? `<span class="setf-badge setf-badge--ok" title="Stored in SQLite">📥</span>`
+      : `<span class="setf-badge setf-badge--pending" title="Awaiting fetch">🕒</span>`;
     return (
-      `<div class="ctf-row">` +
+      `<div class="ctf-row setf-row" data-file-name="${safeName}" style="cursor:pointer;">` +
+        badge +
         `<span class="ctf-row__name">${safeName}</span>` +
-        `<span class="ctf-row__attr">R</span>` +
         `<span class="ctf-row__date">${safeDate}</span>` +
         `<span class="ctf-row__time">${safeTime}</span>` +
-        `<span class="ctf-row__dl ctf-row__dl--empty"></span>` +
       `</div>`
     );
   });
   container.innerHTML = parts.join("");
+
+  // Wire row click → load entries for that file
+  container.querySelectorAll(".setf-row").forEach(row => {
+    row.addEventListener("click", () => {
+      const name = row.getAttribute("data-file-name");
+      // Visual selection state
+      container.querySelectorAll(".setf-row.is-selected")
+        .forEach(r => r.classList.remove("is-selected"));
+      row.classList.add("is-selected");
+      setfLoadEntries(name);
+    });
+  });
 }
 
 function _setfIs735(relay) {
@@ -2315,6 +2350,7 @@ if (window && typeof window.addEventListener === "function") {
         const cmd = _setfIs735(relay) ? "FIL DIR" : "FILE DIR SETTINGS";
         const response = await _ctrSendCommand(cmd);
         setFileDirCache[relay.id] = response;
+        await _setfRefreshStoredSet(relay.id);
         setfRenderFileDirForCurrentRelay();
       } catch (err) {
         console.error("[SETF] Refresh failed:", err);
@@ -2326,6 +2362,209 @@ if (window && typeof window.addEventListener === "function") {
         btn.textContent = prevText;
       }
     });
+  });
+}
+
+// ============================================================
+//  SETTINGS FILES — Master/Detail with parsed-entries Tabulator
+// ============================================================
+//
+//  After FILE DIR SETTINGS arrives, the C++ pipeline auto-queues
+//  `FILE SHOW <name>` for each file (SEL-735 only) and stores the
+//  parsed entries in `settings_entries` (rows: section / key / value).
+//
+//  This UI block:
+//    1. Connects to the WSDB server (port 8766) via DatabaseClient.
+//    2. Refreshes a per-relay "stored" set so the master pane can
+//       show 📥 / 🕒 badges next to each file.
+//    3. Listens for SETTINGS_FILE_STORED:<relayId>:<fileName>
+//       broadcasts (port 8765) and updates the badge incrementally.
+//    4. Builds a Tabulator on click that shows Section / Key / Value
+//       for the selected file.
+// ============================================================
+
+let _setfDbClient        = null;        // shared DatabaseClient instance
+let setfEntriesTable     = null;        // Tabulator instance for parsed entries
+let _setfCurrentFileName = "";          // currently selected file name
+
+/**
+ * Lazily build a singleton DatabaseClient pointed at the WSDB server.
+ * The caller must await connect() before issuing queries.
+ *
+ * @returns {DatabaseClient} Connected client instance.
+ */
+async function _setfGetDbClient() {
+  if (_setfDbClient && _setfDbClient._connected) return _setfDbClient;
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const host  = location.hostname || "localhost";
+  const url   = `${proto}//${host}:8766`;
+  if (!_setfDbClient) {
+    _setfDbClient = new DatabaseClient(url, { timeout: 10000 });
+  }
+  if (!_setfDbClient._connected) {
+    await _setfDbClient.connect();
+  }
+  return _setfDbClient;
+}
+
+/**
+ * Refresh the per-relay set of "stored" file names by querying SQLite.
+ * Called when the section opens, after a manual refresh, and any time
+ * we need the badge column to be accurate.
+ *
+ * @param {string} relayId Relay identifier.
+ */
+async function _setfRefreshStoredSet(relayId) {
+  if (!relayId) return;
+  try {
+    const db = await _setfGetDbClient();
+    const res = await db.query(
+      "SELECT file_name FROM settings_files WHERE relay_id = ?",
+      [relayId]
+    );
+    const set = new Set();
+    if (res && res.rows) {
+      // rows are arrays in column order — file_name is column 0
+      for (const row of res.rows) set.add(row[0]);
+    }
+    _setfStoredByRelay[relayId] = set;
+  } catch (err) {
+    console.warn("[SETF] _setfRefreshStoredSet failed:", err.message);
+  }
+}
+
+/**
+ * Initialise (or reuse) the Tabulator showing parsed entries for one file.
+ * @param {Array<{section:string, key:string, value:string, line_no:number}>} rows
+ */
+function _setfInitEntriesTable(rows) {
+  const tableEl = document.getElementById("setf-entries-table");
+  const emptyEl = document.getElementById("setf-empty");
+  if (!tableEl) return;
+
+  if (emptyEl) emptyEl.style.display = "none";
+  tableEl.style.display = "block";
+
+  if (!setfEntriesTable) {
+    setfEntriesTable = new Tabulator("#setf-entries-table", {
+      data: rows,
+      layout: "fitColumns",
+      pagination: true,
+      paginationSize: 50,
+      paginationSizeSelector: [25, 50, 100, 200, 500],
+      placeholder: "No entries parsed for this file.",
+      height: "560px",
+      movableColumns: true,
+      groupBy: "section",
+      groupHeader: function(value, count) {
+        return `[${value || "—"}]  &nbsp;<span style="color:#64748b;font-weight:400;">(${count} entries)</span>`;
+      },
+      columns: [
+        { title: "#",       field: "line_no", width: 70,  hozAlign: "right",  headerSort: true,  sorter: "number" },
+        { title: "Section", field: "section", width: 140, headerFilter: "input" },
+        { title: "Key",     field: "key",     width: 220, headerFilter: "input" },
+        { title: "Value",   field: "value",                headerFilter: "input" }
+      ]
+    });
+  } else {
+    setfEntriesTable.replaceData(rows);
+  }
+}
+
+/**
+ * Load parsed entries for `fileName` from the WSDB and render in the
+ * detail pane.  Updates toolbar counters and the selected-name label.
+ *
+ * @param {string} fileName Settings file name (e.g. "SET_G1.TXT").
+ */
+async function setfLoadEntries(fileName) {
+  const relay = getCurrentRelay();
+  if (!relay || !fileName) return;
+  _setfCurrentFileName = fileName;
+
+  const nameEl  = document.getElementById("setf-selected-name");
+  const countEl = document.getElementById("setf-entry-count");
+  if (nameEl)  nameEl.textContent  = fileName;
+  if (countEl) countEl.textContent = "…";
+
+  try {
+    const db = await _setfGetDbClient();
+    const res = await db.query(
+      "SELECT section, key, value, line_no FROM settings_entries " +
+      "WHERE relay_id = ? AND file_name = ? ORDER BY line_no",
+      [relay.id, fileName]
+    );
+
+    const cols = res.columns || ["section", "key", "value", "line_no"];
+    const rows = (res.rows || []).map(r => {
+      const obj = {};
+      cols.forEach((c, i) => { obj[c] = r[i]; });
+      return obj;
+    });
+
+    _setfInitEntriesTable(rows);
+    if (countEl) countEl.textContent = String(rows.length);
+
+    if (!rows.length && typeof showToast === "function") {
+      showToast(`No stored entries yet for ${fileName} — pipeline may still be fetching.`, "info");
+    }
+  } catch (err) {
+    console.error("[SETF] setfLoadEntries failed:", err);
+    if (countEl) countEl.textContent = "0";
+    if (typeof showToast === "function")
+      showToast(`Load failed: ${err.message || err}`, "error");
+  }
+}
+
+/**
+ * CSV download of the currently displayed entries.
+ */
+function setfExportEntriesCsv() {
+  if (!setfEntriesTable) return;
+  const fname = _setfCurrentFileName || "settings";
+  setfEntriesTable.download("csv", `${fname}_entries.csv`);
+}
+
+// ── Wire CSV export button + initial DB-stored set fetch ──
+if (window && typeof window.addEventListener === "function") {
+  window.addEventListener("DOMContentLoaded", function() {
+    const csvBtn = document.getElementById("setf-export-csv-btn");
+    if (csvBtn) csvBtn.addEventListener("click", setfExportEntriesCsv);
+
+    // Initial population on first load (if a relay is already selected)
+    const relay = getCurrentRelay();
+    if (relay) {
+      _setfRefreshStoredSet(relay.id).then(() => {
+        if (setFileDirCache[relay.id]) setfRenderFileDirForCurrentRelay();
+      });
+    }
+  });
+}
+
+// ── Listen for SETTINGS_FILE_STORED broadcasts to update badges live ──
+if (window && typeof window.addEventListener === "function") {
+  window.addEventListener("message", function(event) {
+    if (!event.data || typeof event.data !== "string") return;
+    if (!event.data.startsWith("SETTINGS_FILE_STORED:")) return;
+    // Format: SETTINGS_FILE_STORED:<relayId>:<fileName>
+    const rest = event.data.substring("SETTINGS_FILE_STORED:".length);
+    const sep  = rest.indexOf(":");
+    if (sep < 0) return;
+    const relayId  = rest.substring(0, sep);
+    const fileName = rest.substring(sep + 1);
+
+    if (!_setfStoredByRelay[relayId]) _setfStoredByRelay[relayId] = new Set();
+    _setfStoredByRelay[relayId].add(fileName);
+
+    const relay = getCurrentRelay();
+    if (relay && relay.id === relayId) {
+      // Re-render the master pane to refresh the badge for this file
+      setfRenderFileDirForCurrentRelay();
+      // If this is the file currently being viewed, refresh entries too
+      if (fileName === _setfCurrentFileName) {
+        setfLoadEntries(fileName);
+      }
+    }
   });
 }
 
@@ -3082,10 +3321,18 @@ document.addEventListener("DOMContentLoaded", function () {
   function showSettingsSection() {
     if (setSection) setSection.style.display = "";
     container.style.display = "none";
-    // Auto-fetch SHOSET settings text
+    // SHOSET (commented out in HTML) — keep call for forward-compat in case
+    // the user re-enables that block; harmless when the elements are absent.
     setFetchSettings();
-    // Render cached settings file list immediately (if available)
-    if (typeof setfRenderFileDirForCurrentRelay === "function") {
+    // Refresh "stored in DB" badges before rendering the master pane
+    const relay = getCurrentRelay();
+    if (relay && typeof _setfRefreshStoredSet === "function") {
+      _setfRefreshStoredSet(relay.id).then(() => {
+        if (typeof setfRenderFileDirForCurrentRelay === "function") {
+          setfRenderFileDirForCurrentRelay();
+        }
+      });
+    } else if (typeof setfRenderFileDirForCurrentRelay === "function") {
       setfRenderFileDirForCurrentRelay();
     }
     // Auto-trigger the settings-files refresh to get fresh data
