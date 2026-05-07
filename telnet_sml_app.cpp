@@ -75,6 +75,7 @@
 #include "password_manager.hpp"
 #include "sntp_client.hpp"
 #include "ws_server.hpp"
+#include "websocket API/ws_db_server.hpp"
 #include "app_logger.hpp"
 
 using namespace sml;
@@ -182,6 +183,10 @@ public:
     // ─── Shared resources (owned by Impl) ───────────────────────────
     SERDatabase serDb{"ser_records.db"};                 ///< Single shared SQLite database
     SERWebSocketServer wsServer{serDb, 8765};            ///< Single shared WebSocket server
+    /// Generic SQL-over-WebSocket server (DatabaseClient endpoint, port 8766).
+    /// Constructed lazily after serDb.open() so it shares the same SQLite
+    /// handle / WAL state.
+    std::unique_ptr<WSDBServer> wsDb;
     SharedRingBuffer shmRing{"TelnetSmlShmRing", 500U * 1024U}; ///< Shared ring buffer (500KB)
 
     /// Interval between SER polls across all active relays. Tune down for
@@ -842,6 +847,16 @@ public:
             return false;
         }
 
+        // 5b. Start the SQL-over-WebSocket server (DatabaseClient endpoint).
+        // Shares the same SQLite handle so writes from the SER pipeline are
+        // visible immediately to UI queries on settings_files / settings_entries.
+        wsDb = std::make_unique<WSDBServer>(serDb.getDbHandle(), 8766);
+        if (!wsDb->start())
+        {
+            std::cerr << "Failed to start WSDB server (port 8766)\n";
+            // Non-fatal: the SER pipeline still works without the DB API.
+        }
+
         // 6. Polling callback — queue SER to ALL active relays
         threadMgr.setPollingCallback([this]() {
             if (!app_running.load())
@@ -871,7 +886,7 @@ public:
         }
         std::cout << "\n  Shared Services:\n";
         std::cout << "    - WebSocket Server: ws://localhost:8765\n";
-        // std::cout << "    - DB API Server:    ws://localhost:8766\n";
+        std::cout << "    - DB API Server:    ws://localhost:8766\n";
         std::cout << "    - SQLite Database:  ser_records.db\n";
         std::cout << "    - Poller:           2 min interval\n";
         std::cout << "\n  Auto-starting all configured relays...\n";
@@ -939,6 +954,7 @@ public:
         // happen BEFORE relayMgr->stopAll()/serDb.close() because detached
         // WS handler threads capture references to RelayManager and SERDatabase.
         wsServer.stop();
+        if (wsDb) wsDb->stop();
 
         // Join background TAR collection threads (also reference relayMgr).
         {
