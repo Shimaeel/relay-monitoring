@@ -505,20 +505,13 @@ public:
         std::cout << "  (On-Demand Architecture v3.0)\n";
         std::cout << "========================================\n\n";
 
-        // 1. Fresh DB on every start — remove stale data from previous runs
-        {
-            const char* dbFiles[] = {"ser_records.db", "ser_records.db-wal", "ser_records.db-shm"};
-            for (const auto* f : dbFiles)
-                std::remove(f);
-            std::cout << "[DB] Cleared previous database files\n";
-        }
-
+        // Open existing DB (data persists across restarts)
         if (!serDb.open())
         {
             std::cerr << "Failed to open database: " << serDb.getLastError() << "\n";
             return false;
         }
-        std::cout << "[DB] Fresh database opened\n";
+        std::cout << "[DB] Database opened\n";
 
         // 2. Create RelayManager (no pipelines started yet — on-demand)
         relayMgr = std::make_unique<RelayManager>(
