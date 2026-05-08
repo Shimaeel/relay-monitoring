@@ -73,9 +73,10 @@ public:
             return;
         }
 
-        // Install tee streambufs on cout and cerr
-        inst.coutTee_ = std::make_unique<TeeBuf>(std::cout.rdbuf(), inst);
-        inst.cerrTee_ = std::make_unique<TeeBuf>(std::cerr.rdbuf(), inst);
+        // std::cout → log file only (silent on terminal).
+        // std::cerr → terminal + log file (so errors stay visible).
+        inst.coutTee_ = std::make_unique<TeeBuf>(std::cout.rdbuf(), inst, /*toConsole=*/false);
+        inst.cerrTee_ = std::make_unique<TeeBuf>(std::cerr.rdbuf(), inst, /*toConsole=*/true);
 
         inst.origCout_ = std::cout.rdbuf(inst.coutTee_.get());
         inst.origCerr_ = std::cerr.rdbuf(inst.cerrTee_.get());
@@ -207,8 +208,8 @@ private:
          *                  installation. Must outlive this TeeBuf.
          * @param logger    AppLogger instance that owns the file sink.
          */
-        TeeBuf(std::streambuf* original, AppLogger& logger)
-            : original_(original), logger_(logger) {}
+        TeeBuf(std::streambuf* original, AppLogger& logger, bool toConsole)
+            : original_(original), logger_(logger), toConsole_(toConsole) {}
 
     protected:
         int overflow(int c) override
@@ -216,7 +217,8 @@ private:
             if (c != EOF)
             {
                 char ch = static_cast<char>(c);
-                original_->sputc(ch);
+                if (toConsole_)
+                    original_->sputc(ch);
 
                 std::lock_guard<std::mutex> lock(logger_.mutex_);
                 logger_.writeToFile(&ch, 1);
@@ -226,7 +228,8 @@ private:
 
         std::streamsize xsputn(const char* s, std::streamsize n) override
         {
-            original_->sputn(s, n);
+            if (toConsole_)
+                original_->sputn(s, n);
 
             std::lock_guard<std::mutex> lock(logger_.mutex_);
             logger_.writeToFile(s, n);
@@ -235,13 +238,15 @@ private:
 
         int sync() override
         {
-            original_->pubsync();
+            if (toConsole_)
+                original_->pubsync();
             return 0;
         }
 
     private:
         std::streambuf* original_;
         AppLogger& logger_;
+        bool toConsole_;
     };
 
     std::mutex mutex_;                             ///< Guards @c file_ and rotation.

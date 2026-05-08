@@ -118,20 +118,24 @@
  */
 int main()
 {
-    // Rotate at 5 MB, keep 3 prior files. Required for 24/7 operation so
-    // redirected console output does not grow without bound.
     AppLogger::init("app.log", 5 * 1024 * 1024, 3);
+
+    std::cerr << "[Telnet-SML] Starting (full logs in app.log)\n";
 
     TelnetSmlApp app;
     if (!app.start())
     {
+        std::cerr << "[Telnet-SML] Startup failed. See app.log\n";
         AppLogger::shutdown();
         return 1;
     }
 
+    std::cerr << "[Telnet-SML] Ready. WebSocket on :8765\n";
+
     app.waitForExit();
     app.stop();
 
+    std::cerr << "[Telnet-SML] Stopped\n";
     AppLogger::shutdown();
     return 0;
 }
